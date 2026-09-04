@@ -74,6 +74,24 @@ class EventKind(StrEnum):
     JOB_REGISTERED = "job.registered"
     JOB_FIRED = "job.fired"
 
+    # The organization
+    ORG_SEEDED = "org.seeded"
+    DESK_OPENED = "desk.opened"
+    AGENT_HIRED = "agent.hired"
+    AGENT_ONBOARDED = "agent.onboarded"
+    AGENT_STATE_CHANGED = "agent.state_changed"
+    COVERAGE_GRANTED = "agent.coverage_granted"
+    COVERAGE_REVOKED = "agent.coverage_revoked"
+
+    # Agent work
+    TOOL_CALLED = "tool.called"
+    OBSERVATION_RECORDED = "intel.observation_recorded"
+    MESSAGE_POSTED = "comms.message_posted"
+    CHANNEL_CREATED = "comms.channel_created"
+    PERMISSION_DENIED = "agent.permission_denied"
+    """An agent reached outside its scope. Recorded rather than only raised:
+    this is exactly what an Agent Behavior Auditor samples for."""
+
     # Demonstration (M0 only — removed when real agents arrive in M1)
     DEMO_EXCHANGE = "demo.exchange"
 

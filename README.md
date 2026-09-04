@@ -11,8 +11,8 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M0 complete — the platform runs.** The corporation itself begins at
-M1. · 2026-09-04
+Status: **M1 complete — the company is staffed and working.** 76 charters,
+17 agents, permissions enforced by the database. · 2026-09-04
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -23,27 +23,29 @@ M1. · 2026-09-04
 
 ```bash
 pip install -e ".[dev]"
-aurelis db init
+aurelis db init          # schema, invariants, the org chart
+aurelis agent hire       # staff the launch roster
+aurelis run              # give the company a turn
 aurelis doctor
-aurelis demo
 ```
 
-`demo` runs a scripted exchange end to end — budget checked at dispatch, tasks
-queued and claimed, model calls recorded, outputs stored as content-addressed
-artifacts, every step hash-chained, chain verified afterwards. It costs
-nothing: the mock provider is offline and deterministic, which is how the whole
-company gets built and tested before a single token is spent.
+`run` gives an analyst a turn: it builds a view its charters permit, calls
+tools for every number, asks a model to *interpret* those numbers, records a
+bitemporal observation with the digest of the data it came from, and posts a
+briefing citing its evidence. It costs nothing — the mock provider is offline
+and deterministic, which is how a hundred-agent company gets built before a
+single token is spent.
 
 ```
- tasks             4 succeeded
- model calls       4 (2 served from cache)
- artifacts         6
- events            33
- cost              $0.000000  (free — subscription or mock)
- chain             chain verified: 33 events, seq 1..33
-
-M0 acceptance: platform verified end to end.
+ turns           1
+ observations    1
+ tokens          291
+ cost            $0.000000
+ chain           chain verified: 51 events, seq 1..51
 ```
+
+Look around: `aurelis org show` · `aurelis org desks` · `aurelis agent list` ·
+`aurelis agent show INTEL` (what one agent holds, sees, writes and may invoke).
 
 ---
 
@@ -237,7 +239,7 @@ automatically by the company, five milestones in.
 | | | |
 |---|---|---|
 | **M0** ✅ | Foundations | ledger, budgets, artifacts, queue, provider abstraction |
-| **M1** | Agent runtime | permissions, views, tools, the agent loop |
+| **M1** ✅ | Agent runtime | 76 charters, 17 agents, permissions, views, tools, the loop |
 | **M2** | Missions | missions → projects → tasks, scheduler |
 | **M3** | **Meetings** | the seven-phase protocol; the company becomes a company |
 | **M4** | Research lifecycle | engines, preregistration, experiments, findings |

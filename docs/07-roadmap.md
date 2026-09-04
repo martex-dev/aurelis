@@ -8,7 +8,7 @@ company is recognisably a company from M3 onward and grows from there.
 
 ---
 
-## M0 — Foundations
+## M0 — Foundations ✅
 
 New repository. `martex-quant` from PyPI, `nullius` as a git dependency.
 
@@ -26,7 +26,7 @@ scripted exchange end to end with zero API cost.
 
 ---
 
-## M1 — The agent runtime
+## M1 — The agent runtime ✅
 
 - `org/` — department, desk, role and charter registries; the 76 charters
   loaded as configuration.

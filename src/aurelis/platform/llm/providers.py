@@ -100,7 +100,14 @@ class MockProvider:
         else:
             # Content-derived so it is stable across runs, and visibly a mock
             # so it can never be mistaken for a real answer in a transcript.
-            text = f"[mock:{request.cache_key()[:8]}] {request.messages[-1].content[:160]}"
+            #
+            # The tag is mapped to letters rather than left as hex. Handlers
+            # validate that every numeral in a model's output was present in
+            # the data it was given, and a hex tag would emit digits that came
+            # from nowhere -- failing the check for a reason that has nothing
+            # to do with what is being tested.
+            tag = "".join(chr(97 + int(c, 16) % 26) for c in request.cache_key()[:8])
+            text = f"[mock:{tag}] {request.messages[-1].content[:160]}"
 
         tokens_in = _estimate_tokens(request.system) + sum(
             _estimate_tokens(m.content) for m in request.messages

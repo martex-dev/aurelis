@@ -21,7 +21,9 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
+import aurelis.intel.briefing  # noqa: F401  -- registers the briefing handler
 from aurelis import __version__
+from aurelis.cli.company import agent_app, org_app
 from aurelis.cli.demo import run_demo
 from aurelis.cli.doctor import Status, run_checks
 from aurelis.core.config import load_settings
@@ -37,6 +39,8 @@ db_app = typer.Typer(help="Workspace database.", no_args_is_help=True)
 ledger_app = typer.Typer(help="The company's append-only record.", no_args_is_help=True)
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
+app.add_typer(org_app, name="org")
+app.add_typer(agent_app, name="agent")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.
@@ -254,6 +258,98 @@ def demo(
     if not result.chain_ok:
         raise typer.Exit(code=1)
     console.print("\n[green]M0 acceptance: platform verified end to end.[/green]")
+
+
+@app.command()
+def run(
+    workspace: WorkspaceOption = None,
+    ticks: Annotated[int, typer.Option(help="How many turns to give the company.")] = 1,
+    symbol: Annotated[str | None, typer.Option(help="Symbol to brief on.")] = None,
+) -> None:
+    """Give every active agent a turn.
+
+    M1's company does one kind of work: an intelligence analyst looks at its
+    desk, measures what it sees with tools, and posts a briefing whose every
+    figure traces to the data it was read from.
+    """
+    from aurelis.core.enums import BudgetScope
+    from aurelis.intel.briefing import TASK_KIND
+    from aurelis.platform.budget.ledger import Spend
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        runtime.staff()
+
+        produced = []
+        with runtime.database.session() as session:
+            analyst = runtime.roster.by_handle(session, "INTEL")
+            runtime.worker.open_daily_budget(session, analyst, tokens=50_000)
+
+        for _ in range(ticks):
+            with runtime.database.session() as session:
+                analyst = runtime.roster.by_handle(session, "INTEL")
+                payload: dict[str, object] = {"bars": 48}
+                if symbol:
+                    payload["symbol"] = symbol
+                runtime.queue.enqueue(
+                    session,
+                    kind=TASK_KIND,
+                    assignee=analyst.ref,
+                    subject=f"desk-{analyst.desk.value if analyst.desk else 'crypto'}",
+                    payload=payload,
+                    allowance=Spend(tokens=5_000),
+                    envelope=runtime.worker.envelope_for(analyst, at=runtime.clock.now()),
+                )
+                result = runtime.worker.run_once(session, analyst)
+                if result is not None:
+                    produced.append(result)
+
+        with runtime.database.session() as session:
+            analyst = runtime.roster.by_handle(session, "INTEL")
+            briefings = runtime.comms.read(
+                session,
+                channel_id=f"desk-{analyst.desk.value if analyst.desk else 'crypto'}",
+                agent_ref=analyst.ref,
+                limit=ticks,
+            )
+            spent = runtime.budget.spent(
+                session,
+                BudgetScope.AGENT_DAY,
+                f"{analyst.ref}:{runtime.clock.now().date().isoformat()}",
+            )
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    if not produced:
+        console.print("[yellow]No turns completed.[/yellow]")
+        raise typer.Exit(code=1)
+
+    for message in briefings:
+        console.print(
+            Panel(
+                escape(message.body),
+                title=f"[bold]{escape(message.from_agent)}[/bold] · {escape(message.subject)}",
+                subtitle=f"[dim]cites {len(message.evidence_refs)} source(s)[/dim]",
+                border_style="dim",
+            )
+        )
+
+    table = Table(show_header=False, box=None)
+    table.add_column("", style="bold", width=14)
+    table.add_column("")
+    table.add_row("turns", str(len(produced)))
+    table.add_row("observations", str(len(briefings)))
+    table.add_row("tokens", f"{spent.tokens:,}")
+    table.add_row("cost", f"${spent.usd:.6f}")
+    table.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(table)
 
 
 if __name__ == "__main__":  # pragma: no cover

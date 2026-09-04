@@ -58,6 +58,7 @@ class RefKind(StrEnum):
     MISSION = "MSN"
     PROJECT = "PRJ"
     TASK = "TSK"
+    MESSAGE = "MSG"
     MEETING = "MTG"
     DECISION = "DEC"
     OBSERVATION = "OBS"

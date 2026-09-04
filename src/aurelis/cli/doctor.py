@@ -24,7 +24,13 @@ from importlib.metadata import PackageNotFoundError, version
 import sqlalchemy as sa
 
 from aurelis import __version__
+from aurelis.agents.guards import expected_guard_names, verify_guards
+from aurelis.agents.tables import Agent
+from aurelis.agents.tools import registered_tools
 from aurelis.core.errors import AurelisError
+from aurelis.org import CHARTERS, DESKS
+from aurelis.org.desks import DeskStatus
+from aurelis.org.seed import registry_fingerprint, stored_fingerprint
 from aurelis.platform.db.tables import Base
 from aurelis.platform.db.triggers import expected_trigger_names, verify_invariants
 from aurelis.platform.llm.factory import raw_provider
@@ -210,6 +216,92 @@ def _check_database(runtime: Runtime) -> list[Check]:
             ", ".join(f"{status}={count}" for status, count in sorted(counts.items())) or "empty",
         )
     )
+
+    with runtime.database.engine.connect() as connection:
+        absent_guards = verify_guards(connection)
+    total_guards = len(expected_guard_names())
+    checks.append(
+        Check(
+            "database",
+            "write-scope guards",
+            Status.OK if not absent_guards else Status.PROBLEM,
+            f"{total_guards - len(absent_guards)}/{total_guards} installed"
+            + (
+                f" — MISSING: {', '.join(absent_guards)}. Separation of duty is "
+                "not enforced until repaired."
+                if absent_guards
+                else " — an agent cannot write outside its charters, "
+                "including from raw SQL"
+            ),
+        )
+    )
+    return checks
+
+
+def _check_organization(runtime: Runtime) -> list[Check]:
+    """The org chart, and whether the database still agrees with the code."""
+    active = [d.value for d, spec in DESKS.items() if spec.status is DeskStatus.ACTIVE]
+    deterministic = sum(1 for c in CHARTERS.values() if c.deterministic)
+    checks = [
+        Check(
+            "organization",
+            "charters",
+            Status.OK,
+            f"{len(CHARTERS)} charters; {deterministic} deterministic (no model cost)",
+        ),
+        Check(
+            "organization",
+            "desks",
+            Status.OK,
+            f"{len(active)}/{len(DESKS)} open: {', '.join(active) or 'none'}"
+            + f" — the rest open at {sorted({s.opens_at_milestone for s in DESKS.values()})[-1]}",
+        ),
+    ]
+
+    try:
+        with runtime.database.session() as session:
+            stored = stored_fingerprint(session)
+            headcount = session.execute(
+                sa.select(sa.func.count()).select_from(Agent)
+            ).scalar_one()
+    except Exception as error:  # pragma: no cover - no schema yet
+        return [*checks, Check("organization", "roster", Status.PROBLEM, str(error))]
+
+    drifted = stored != registry_fingerprint()
+    checks.append(
+        Check(
+            "organization",
+            "seeded org chart",
+            Status.PROBLEM if drifted else Status.OK,
+            "the charters in code have changed since this workspace was seeded — "
+            "run `aurelis db init` so the write-scope triggers enforce the "
+            "current org chart"
+            if drifted
+            else "database matches the code registry",
+        )
+    )
+    checks.append(
+        Check(
+            "organization",
+            "roster",
+            Status.OK if headcount else Status.INFO,
+            f"{headcount} agent(s) hired"
+            if headcount
+            else "nobody hired yet — run `aurelis agent hire`",
+        )
+    )
+
+    implemented = registered_tools()
+    granted = {t for c in CHARTERS.values() for t in c.tools}
+    checks.append(
+        Check(
+            "organization",
+            "tools",
+            Status.OK,
+            f"{len(implemented)}/{len(granted)} granted capabilities implemented; "
+            "the rest land with the layers that own them",
+        )
+    )
     return checks
 
 
@@ -275,6 +367,7 @@ def run_checks(runtime: Runtime) -> list[Check]:
         *_check_dependencies(),
         *_check_workspace(runtime),
         *_check_database(runtime),
+        *_check_organization(runtime),
         *_check_provider(runtime),
         *_check_engines(),
     ]
