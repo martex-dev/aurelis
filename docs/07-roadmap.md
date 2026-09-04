@@ -76,7 +76,7 @@ meeting runs inside its declared token budget.
 
 ---
 
-## M4 — The research lifecycle and the engines
+## M4 — The research lifecycle and the engines ✅
 
 - `engines/` — the `ResearchEngine` protocol and the **martex adapter**
   (subprocess, explicit workspace): universe, data, features, backtest,

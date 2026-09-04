@@ -1,12 +1,68 @@
-"""Quantitative Research.
+"""The research lifecycle: claim, preregistration, run, verdict.
 
-At M2 this is questions and triage: reading someone else's work, checking it
-independently, and deciding whether it earns a project. The research
-lifecycle -- hypotheses, preregistration, experiments, findings -- arrives at
-M4, when there is a Registrar to lock a spec and a trigger to refuse a run
-that precedes its registration.
+Every number comes from an engine. Every verdict comes from a pure function
+that sees only the criteria registered before the run existed. The researcher
+contributes the claim, the design and the interpretation, and never the
+measurement or the verdict.
 """
 
+from aurelis.research.lifecycle import Research, ResearchOutcome
+from aurelis.research.states import (
+    ComputedBy,
+    EvidenceKind,
+    HypothesisState,
+    Polarity,
+    RegistrationKind,
+    RunStatus,
+    Verdict,
+    may_transition,
+)
+from aurelis.research.tables import (
+    Evidence,
+    Experiment,
+    Finding,
+    Hypothesis,
+    Registration,
+    Replication,
+    Result,
+    Run,
+)
 from aurelis.research.triage import QUESTION_TASK, TRIAGE_TASK, raise_question, triage_question
+from aurelis.research.triggers import (
+    expected_research_trigger_names,
+    install_research_invariants,
+    verify_research_invariants,
+)
+from aurelis.research.verdict import Criterion, VerdictReport, derive_verdict, parse_criteria
 
-__all__ = ["QUESTION_TASK", "TRIAGE_TASK", "raise_question", "triage_question"]
+__all__ = [
+    "QUESTION_TASK",
+    "TRIAGE_TASK",
+    "ComputedBy",
+    "Criterion",
+    "Evidence",
+    "EvidenceKind",
+    "Experiment",
+    "Finding",
+    "Hypothesis",
+    "HypothesisState",
+    "Polarity",
+    "Registration",
+    "RegistrationKind",
+    "Replication",
+    "Research",
+    "ResearchOutcome",
+    "Result",
+    "Run",
+    "RunStatus",
+    "Verdict",
+    "VerdictReport",
+    "derive_verdict",
+    "expected_research_trigger_names",
+    "install_research_invariants",
+    "may_transition",
+    "parse_criteria",
+    "raise_question",
+    "triage_question",
+    "verify_research_invariants",
+]

@@ -36,6 +36,8 @@ from aurelis.platform.llm.factory import build_provider
 from aurelis.platform.llm.providers import ModelProvider
 from aurelis.platform.queue.queue import TaskQueue
 from aurelis.platform.scheduler.scheduler import Scheduler
+from aurelis.research.lifecycle import Research
+from aurelis.research.triggers import install_research_invariants
 
 __all__ = ["Runtime", "COMPANY_SCOPE_ID"]
 
@@ -63,6 +65,7 @@ class Runtime:
     missions: Missions
     chair: Chair
     forecasts: ForecastScorer
+    research: Research
     worker: AgentWorker
 
     @classmethod
@@ -106,6 +109,7 @@ class Runtime:
             clock=the_clock,
         )
         forecasts = ForecastScorer(ledger, the_clock)
+        research = Research(artifacts, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
             queue=queue,
@@ -134,6 +138,7 @@ class Runtime:
             missions=missions,
             chair=chair,
             forecasts=forecasts,
+            research=research,
             worker=worker,
         )
 
@@ -146,7 +151,11 @@ class Runtime:
         triggers = self.database.create_all(install_triggers=self.settings.strict_integrity)
         if self.settings.strict_integrity:
             with self.database.engine.begin() as connection:
-                triggers = (*triggers, *install_guards(connection))
+                triggers = (
+                    *triggers,
+                    *install_guards(connection),
+                    *install_research_invariants(connection),
+                )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0
             if first_run:

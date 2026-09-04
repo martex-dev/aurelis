@@ -22,6 +22,7 @@ from aurelis.missions import tables as _missions
 from aurelis.org import tables as _org
 from aurelis.platform.db import tables as _platform
 from aurelis.platform.db.tables import Base
+from aurelis.research import tables as _research
 
 __all__ = ["Base", "TABLE_MODULES"]
 
@@ -33,6 +34,7 @@ TABLE_MODULES = (
     _intel,
     _missions,
     _meetings,
+    _research,
 )
 """Every module that defines tables, in dependency order.
 

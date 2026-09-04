@@ -337,7 +337,14 @@ class RefSequence(Base):
     next_value: Mapped[int] = mapped_column(default=1)
 
 
-APPEND_ONLY_TABLES: tuple[str, ...] = ("events", "artifacts", "cost_entries", "model_calls")
+APPEND_ONLY_TABLES: tuple[str, ...] = (
+    "events",
+    "artifacts",
+    "cost_entries",
+    "model_calls",
+    "runs",
+    "results",
+)
 """Tables whose rows are facts about the past.
 
 ``UPDATE`` and ``DELETE`` are refused on these by trigger, in every dialect, so

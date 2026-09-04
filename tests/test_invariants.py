@@ -8,10 +8,13 @@ auditable by someone who does not trust the code that wrote it.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 import sqlalchemy as sa
 
 from aurelis.core.enums import EventKind
+from aurelis.engines.spec import DataSpec, ExperimentSpec, SignalSpec, UniverseSpec
 from aurelis.platform.budget.ledger import BudgetEnvelope, Spend
 from aurelis.platform.db.tables import APPEND_ONLY_TABLES
 from aurelis.platform.db.triggers import expected_trigger_names, verify_invariants
@@ -44,6 +47,40 @@ def seeded(runtime: Runtime) -> Runtime:
                 messages=(Message("user", "seed"),),
             ),
         )
+
+    # Runs and results need a real lifecycle behind them: a run cannot be
+    # inserted without a registration locked before it, which is the whole
+    # point of the preregistration triggers.
+    runtime.staff()
+    with runtime.database.session() as session:
+        quant = runtime.roster.by_handle(session, "QUANT").ref
+        registrar = runtime.roster.by_handle(session, "GOV").ref
+        hypothesis = runtime.research.propose(
+            session,
+            claim="seed",
+            author=quant,
+            minimum_effect=Decimal("0.05"),
+            primary_metric="sharpe",
+            family="seed.family",
+        )
+        runtime.research.screen(session, hypothesis.ref)
+        registration = runtime.research.register(
+            session,
+            hypothesis_ref=hypothesis.ref,
+            spec=ExperimentSpec(
+                engine="local",
+                universe=UniverseSpec(desk="crypto", symbols=("BTC/USDT",)),
+                data=DataSpec(source="fixture", bars=60),
+                signal=SignalSpec(kind="momentum", lookback=8),
+                metrics=("sharpe",),
+            ),
+            registrar=registrar,
+            pass_criteria=[{"metric": "sharpe", "comparison": "gt", "value": "0"}],
+        )
+        experiment = runtime.research.design(
+            session, registration_ref=registration.ref, designer=quant
+        )
+        runtime.research.execute(session, experiment_ref=experiment.ref)
     return runtime
 
 
@@ -56,10 +93,21 @@ def test_trigger_count_matches_the_protected_tables(runtime: Runtime) -> None:
     assert len(expected_trigger_names()) == len(APPEND_ONLY_TABLES) * 2
 
 
+def _any_column(runtime: Runtime, table: str) -> str:
+    """A column that exists on this table.
+
+    Introspected rather than assumed: the append-only tables do not share a
+    timestamp column, and hard-coding one makes the test fail with "no such
+    column" -- which is not the refusal it is supposed to be asserting.
+    """
+    return sa.inspect(runtime.database.engine).get_columns(table)[0]["name"]
+
+
 @pytest.mark.parametrize("table", APPEND_ONLY_TABLES)
 def test_update_is_refused_by_raw_sql(seeded: Runtime, table: str) -> None:
+    column = _any_column(seeded, table)
     with pytest.raises(Exception, match="append-only"), seeded.database.engine.begin() as conn:
-        conn.execute(sa.text(f"UPDATE {table} SET created_at = created_at"))
+        conn.execute(sa.text(f"UPDATE {table} SET {column} = {column}"))
 
 
 @pytest.mark.parametrize("table", APPEND_ONLY_TABLES)

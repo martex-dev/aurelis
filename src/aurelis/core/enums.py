@@ -106,6 +106,20 @@ class EventKind(StrEnum):
     DECISION_RECORDED = "meeting.decision_recorded"
     FORECAST_SCORED = "meeting.forecast_scored"
 
+    # Research
+    HYPOTHESIS_PROPOSED = "research.hypothesis_proposed"
+    HYPOTHESIS_STATE_CHANGED = "research.hypothesis_state_changed"
+    REGISTRATION_LOCKED = "research.registration_locked"
+    """The preregistration is hashed and frozen. Nothing may run before this."""
+
+    RUN_COMPLETED = "research.run_completed"
+    RUN_FAILED = "research.run_failed"
+    VERDICT_DERIVED = "research.verdict_derived"
+    """Computed from the registered criteria by a pure function. No model
+    chose it."""
+
+    REPLICATION_RECORDED = "research.replication_recorded"
+
     # Agent work
     TOOL_CALLED = "tool.called"
     OBSERVATION_RECORDED = "intel.observation_recorded"

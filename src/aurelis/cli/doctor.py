@@ -18,7 +18,6 @@ import platform as _platform
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 
 import sqlalchemy as sa
@@ -35,6 +34,10 @@ from aurelis.platform.db.tables import Base
 from aurelis.platform.db.triggers import expected_trigger_names, verify_invariants
 from aurelis.platform.llm.factory import raw_provider
 from aurelis.platform.llm.pricing import PRICE_TABLE_VERSION
+from aurelis.research.triggers import (
+    expected_research_trigger_names,
+    verify_research_invariants,
+)
 from aurelis.runtime import Runtime
 
 __all__ = ["Check", "Status", "run_checks"]
@@ -235,6 +238,24 @@ def _check_database(runtime: Runtime) -> list[Check]:
             ),
         )
     )
+    with runtime.database.engine.connect() as connection:
+        absent_prereg = verify_research_invariants(connection)
+    total_prereg = len(expected_research_trigger_names())
+    checks.append(
+        Check(
+            "database",
+            "preregistration",
+            Status.OK if not absent_prereg else Status.PROBLEM,
+            f"{total_prereg - len(absent_prereg)}/{total_prereg} installed"
+            + (
+                f" — MISSING: {', '.join(absent_prereg)}. A run could precede its "
+                "registration until repaired."
+                if absent_prereg
+                else " — a run cannot precede its registration, and a locked "
+                "registration cannot be edited"
+            ),
+        )
+    )
     return checks
 
 
@@ -341,23 +362,25 @@ def _check_provider(runtime: Runtime) -> list[Check]:
 
 
 def _check_engines() -> list[Check]:
-    """Report the research engines the desks will need.
+    """What each engine declares about itself.
 
-    Reported from M0 even though none is used yet, because the desk roadmap is
-    the thing an operator most wants to see the state of.
+    An engine that is present but cannot run anything is reported as such
+    rather than counted as working — that distinction is the whole reason
+    capabilities are declared instead of discovered.
     """
-    try:
-        import_module("martex_quant")
-    except ImportError:
-        return [
+    from aurelis.engines.registry import survey
+
+    checks: list[Check] = []
+    for capabilities in survey():
+        checks.append(
             Check(
                 "engines",
-                "crypto (martex-quant)",
-                Status.INFO,
-                "not installed — the CRYPTO desk's engine, first needed at M4",
+                capabilities.name,
+                Status.OK if capabilities.available else Status.INFO,
+                capabilities.detail,
             )
-        ]
-    return [Check("engines", "crypto (martex-quant)", Status.OK, "importable")]
+        )
+    return checks
 
 
 def run_checks(runtime: Runtime) -> list[Check]:

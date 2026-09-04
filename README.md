@@ -11,9 +11,9 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M3 complete — the company meets, argues and decides.** 76 charters,
-17 agents, meetings with forecasts, objections that carry tests, and dissent on
-the record. · 2026-09-04
+Status: **M4 complete — research runs, and can conclude it found nothing.**
+Preregistration locked by database trigger, verdicts derived by rule, every
+number traceable to an artifact. · 2026-09-05
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -251,7 +251,7 @@ automatically by the company, five milestones in.
 | **M1** ✅ | Agent runtime | 76 charters, 17 agents, permissions, views, tools, the loop |
 | **M2** ✅ | Missions | missions → projects → tasks, dependencies, the working day |
 | **M3** ✅ | **Meetings** | seven-phase protocol, forecasts, objections with tests, dissent |
-| **M4** | Research lifecycle | engines, preregistration, experiments, findings |
+| **M4** ✅ | Research lifecycle | engines, preregistration, experiments, verdicts |
 | **M5** | Critique & audit | objections with tests, the H71 reproduction |
 | **M6** | Memory & knowledge | graph, lessons, corpus import, vault export |
 | **M7** | **Mission Control** | the live facility |
