@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Type check
+        run: mypy
+
+      # The whole suite runs against the mock provider: no credentials, no
+      # network, no cost. That is a deliberate property of the architecture —
+      # a company of a hundred agents has to be free to test.
+      - name: Test
+        run: pytest -q
+
+      - name: End-to-end acceptance
+        shell: bash
+        run: |
+          mkdir -p /tmp/aurelis-ci
+          aurelis db init -w /tmp/aurelis-ci
+          aurelis doctor -w /tmp/aurelis-ci
+          aurelis demo -w /tmp/aurelis-ci
+          aurelis ledger verify -w /tmp/aurelis-ci

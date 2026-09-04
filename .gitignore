@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Aurelis runtime state — never committed
+aurelis.db
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+objects/
+var/
+site/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
