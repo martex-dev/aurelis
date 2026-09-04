@@ -22,10 +22,12 @@ from rich.panel import Panel
 from rich.table import Table
 
 import aurelis.intel.briefing  # noqa: F401  -- registers the briefing handler
+import aurelis.research.triage  # noqa: F401  -- registers question and triage
 from aurelis import __version__
 from aurelis.cli.company import agent_app, org_app
 from aurelis.cli.demo import run_demo
 from aurelis.cli.doctor import Status, run_checks
+from aurelis.cli.mission import mission_app
 from aurelis.core.config import load_settings
 from aurelis.runtime import Runtime
 
@@ -41,6 +43,7 @@ app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(org_app, name="org")
 app.add_typer(agent_app, name="agent")
+app.add_typer(mission_app, name="mission")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.
@@ -350,6 +353,69 @@ def run(
         else f"[red]{verification.describe()}[/red]",
     )
     console.print(table)
+
+
+@app.command()
+def tick(
+    workspace: WorkspaceOption = None,
+    rounds: Annotated[int, typer.Option(help="How many passes to make.")] = 1,
+) -> None:
+    """Advance the company's working day by one turn.
+
+    Fires any due scheduled jobs, clears work stranded behind a dependency
+    that can never succeed, then gives every active agent a chance to act.
+    Nothing here decides what to do — the schedule and the dependency graph do.
+    """
+    from aurelis.missions.schedule import register_standing_jobs
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        runtime.staff()
+
+        fired: list[str] = []
+        stranded = 0
+        turns = []
+        for _ in range(rounds):
+            with runtime.database.session() as session:
+                register_standing_jobs(session, runtime.scheduler, runtime.roster)
+                fired += [t.ref for t in runtime.scheduler.tick(session)]
+                stranded += len(runtime.queue.cancel_stranded(session))
+                for agent in runtime.roster.workable(session):
+                    runtime.worker.open_daily_budget(session, agent, tokens=50_000)
+                    result = runtime.worker.run_once(session, agent)
+                    if result is not None:
+                        turns.append(result)
+
+        with runtime.database.session() as session:
+            queued = runtime.queue.depth(session)
+            counts = runtime.queue.counts_by_status(session)
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    table = Table(show_header=False, box=None)
+    table.add_column("", style="bold", width=16)
+    table.add_column("")
+    table.add_row("jobs fired", str(len(fired)))
+    table.add_row("turns worked", str(len(turns)))
+    if stranded:
+        table.add_row("stranded", f"[yellow]{stranded} cancelled[/yellow]")
+    table.add_row("queue", ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "empty")
+    table.add_row("waiting", str(queued))
+    table.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(table)
+
+    for result in turns:
+        console.print(f"  [dim]·[/dim] {escape(result.summary)}")
+
+    if not verification.ok:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":  # pragma: no cover

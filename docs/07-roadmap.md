@@ -43,7 +43,7 @@ when exhausted.
 
 ---
 
-## M2 — Missions, projects, tasks
+## M2 — Missions, projects, tasks ✅
 
 - `missions/` — the three-level hierarchy, assignment, dependencies, progress,
   budget splits.

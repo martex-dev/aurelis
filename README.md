@@ -11,8 +11,8 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M1 complete — the company is staffed and working.** 76 charters,
-17 agents, permissions enforced by the database. · 2026-09-04
+Status: **M2 complete — missions decompose and agents collaborate.** 76
+charters, 17 agents, three-agent chains that sequence themselves. · 2026-09-04
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -25,27 +25,31 @@ Status: **M1 complete — the company is staffed and working.** 76 charters,
 pip install -e ".[dev]"
 aurelis db init          # schema, invariants, the org chart
 aurelis agent hire       # staff the launch roster
-aurelis run              # give the company a turn
+aurelis mission run      # open a mission and work it to completion
 aurelis doctor
 ```
 
-`run` gives an analyst a turn: it builds a view its charters permit, calls
-tools for every number, asks a model to *interpret* those numbers, records a
-bitemporal observation with the digest of the data it came from, and posts a
-briefing citing its evidence. It costs nothing — the mock provider is offline
-and deterministic, which is how a hundred-agent company gets built before a
-single token is spent.
+`mission run` opens a mission, records the kickoff that unlocks it, plans a
+project into three dependent tasks, and runs them. **INTEL** briefs the crypto
+desk from measured bars. **QUANT** reads that briefing, checks it against an
+independent window it measured itself, and raises a research question.
+**LEAD-R** decides whether the question earns a project. Each waits for the one
+before because the queue will not hand out a task whose dependency has not
+succeeded — there is no orchestrator.
 
 ```
- turns           1
- observations    1
- tokens          291
+ mission         MSN-0001
+ turns           3
+ progress        3/3 succeeded
+ tokens          866
  cost            $0.000000
- chain           chain verified: 51 events, seq 1..51
+ chain           chain verified: 83 events, seq 1..83
 ```
 
 Look around: `aurelis org show` · `aurelis org desks` · `aurelis agent list` ·
-`aurelis agent show INTEL` (what one agent holds, sees, writes and may invoke).
+`aurelis agent show INTEL` (what one agent holds, sees, writes and may invoke)
+· `aurelis mission show MSN-0001` (every task, its status, what it waits on) ·
+`aurelis tick` (advance the working day one turn).
 
 ---
 
@@ -240,7 +244,7 @@ automatically by the company, five milestones in.
 |---|---|---|
 | **M0** ✅ | Foundations | ledger, budgets, artifacts, queue, provider abstraction |
 | **M1** ✅ | Agent runtime | 76 charters, 17 agents, permissions, views, tools, the loop |
-| **M2** | Missions | missions → projects → tasks, scheduler |
+| **M2** ✅ | Missions | missions → projects → tasks, dependencies, the working day |
 | **M3** | **Meetings** | the seven-phase protocol; the company becomes a company |
 | **M4** | Research lifecycle | engines, preregistration, experiments, findings |
 | **M5** | Critique & audit | objections with tests, the H71 reproduction |

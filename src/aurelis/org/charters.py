@@ -281,6 +281,7 @@ CHARTERS: dict[str, Charter] = {
                 ReadView.EXPERIMENT_RESULT,
                 ReadView.PRIOR_ART,
                 ReadView.OPEN_OBJECTIONS,
+                ReadView.DESK_OBSERVATIONS,
             ),
             (
                 *_SPEAK_IN_MEETINGS,
@@ -305,6 +306,12 @@ CHARTERS: dict[str, Charter] = {
                 ReadView.EXPERIMENT_DESIGN,
                 ReadView.EXPERIMENT_RESULT,
                 ReadView.PRIOR_ART,
+                # Research starts from what Intelligence observed. A researcher
+                # who cannot see the desk's observations cannot do research on
+                # them -- and this is not a shortcut past any work, which is the
+                # test a view grant has to pass.
+                ReadView.DESK_OBSERVATIONS,
+                ReadView.DESK_MARKET_SNAPSHOT,
             ),
             (
                 *_SPEAK_IN_MEETINGS,
@@ -315,6 +322,7 @@ CHARTERS: dict[str, Charter] = {
             ),
             (
                 *_TALK,
+                ToolScope.DATA_OHLCV,
                 ToolScope.ENGINE_BACKTEST,
                 ToolScope.ENGINE_FEATURES,
                 ToolScope.ENGINE_STATISTICS,

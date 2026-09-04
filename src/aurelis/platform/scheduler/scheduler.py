@@ -60,6 +60,7 @@ class Scheduler:
         task_kind: str,
         interval_seconds: int,
         payload: dict[str, Any] | None = None,
+        assignee: str | None = None,
         first_due: dt.datetime | None = None,
         enabled: bool = True,
     ) -> ScheduledJob:
@@ -77,6 +78,7 @@ class Scheduler:
         if existing is not None:
             interval_changed = existing.interval_seconds != interval_seconds
             existing.task_kind = task_kind
+            existing.assignee = assignee
             existing.payload = dict(payload or {})
             existing.interval_seconds = interval_seconds
             existing.enabled = enabled
@@ -89,6 +91,7 @@ class Scheduler:
             job_id=uuid7(),
             name=name,
             task_kind=task_kind,
+            assignee=assignee,
             payload=dict(payload or {}),
             interval_seconds=interval_seconds,
             enabled=enabled,
@@ -128,6 +131,7 @@ class Scheduler:
             task = self._queue.enqueue(
                 session,
                 kind=job.task_kind,
+                assignee=job.assignee,
                 payload={**job.payload, "scheduled_job": job.name},
                 subject=job.name,
                 at=moment,

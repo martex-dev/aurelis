@@ -83,6 +83,14 @@ class EventKind(StrEnum):
     COVERAGE_GRANTED = "agent.coverage_granted"
     COVERAGE_REVOKED = "agent.coverage_revoked"
 
+    # Missions
+    MISSION_OPENED = "mission.opened"
+    MISSION_STATE_CHANGED = "mission.state_changed"
+    PROJECT_OPENED = "project.opened"
+    PROJECT_STATE_CHANGED = "project.state_changed"
+    KICKOFF_RECORDED = "mission.kickoff_recorded"
+    RETROSPECTIVE_RECORDED = "mission.retrospective_recorded"
+
     # Agent work
     TOOL_CALLED = "tool.called"
     OBSERVATION_RECORDED = "intel.observation_recorded"

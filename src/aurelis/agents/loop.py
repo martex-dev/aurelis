@@ -233,7 +233,12 @@ class AgentWorker:
             )
             return None
 
-        envelope = self.envelope_for(agent, at=moment)
+        # The envelope the task was dispatched under, plus this agent's own
+        # daily allowance. Both bind: a project can exhaust itself, and so can
+        # an agent that has had a busy day inside a healthy project.
+        envelope = self.envelope_for(agent, at=moment).merge(
+            BudgetEnvelope.from_scopes(task.budget_envelope or {})
+        )
         allowance = Spend(
             Decimal(task.allowance_usd or 0), int(task.allowance_tokens or 0)
         )

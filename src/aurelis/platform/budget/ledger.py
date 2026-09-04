@@ -82,6 +82,32 @@ class BudgetEnvelope:
     project: str | None = None
     agent_day: str | None = None
 
+    @classmethod
+    def from_scopes(cls, scopes: dict[str, str | None]) -> BudgetEnvelope:
+        """Rebuild an envelope from what a task recorded at dispatch."""
+        return cls(
+            company=scopes.get(BudgetScope.COMPANY.value),
+            department=scopes.get(BudgetScope.DEPARTMENT.value),
+            mission=scopes.get(BudgetScope.MISSION.value),
+            project=scopes.get(BudgetScope.PROJECT.value),
+            agent_day=scopes.get(BudgetScope.AGENT_DAY.value),
+        )
+
+    def merge(self, other: BudgetEnvelope) -> BudgetEnvelope:
+        """Combine two envelopes, preferring this one's values.
+
+        Used to attach the agent's own daily allowance to the project envelope
+        a task was dispatched under: both bind, and a refusal names whichever
+        ran out first.
+        """
+        return BudgetEnvelope(
+            company=self.company or other.company,
+            department=self.department or other.department,
+            mission=self.mission or other.mission,
+            project=self.project or other.project,
+            agent_day=self.agent_day or other.agent_day,
+        )
+
     def scope_ids(self) -> dict[BudgetScope, str]:
         pairs = {
             BudgetScope.COMPANY: self.company,

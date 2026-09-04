@@ -49,6 +49,7 @@ __all__ = [
     "RefSequence",
     "ScheduledJob",
     "Task",
+    "TaskDependency",
 ]
 
 
@@ -152,6 +153,14 @@ class Task(Base):
     budget_scope: Mapped[str | None] = mapped_column(sa.String(24))
     budget_scope_id: Mapped[str | None] = mapped_column(sa.String(64))
 
+    budget_envelope: Mapped[dict[str, Any]] = mapped_column(sa.JSON, default=dict)
+    """Every scope this task's spend counts against, as checked at dispatch.
+
+    Stored rather than re-derived because the envelope that was *checked* is
+    the one the spend belongs to. Re-deriving it later would attribute work to
+    whatever hierarchy exists then, and historical totals would quietly move.
+    It also keeps the worker from having to know what a mission is."""
+
     claimed_by: Mapped[str | None] = mapped_column(sa.String(64))
     claimed_at: Mapped[dt.datetime | None] = mapped_column()
     finished_at: Mapped[dt.datetime | None] = mapped_column()
@@ -167,6 +176,31 @@ class Task(Base):
             name="ck_tasks_status",
         ),
         sa.Index("ix_tasks_ready", "status", "priority", "created_at"),
+    )
+
+
+class TaskDependency(Base):
+    """``task_ref`` cannot start until ``depends_on_ref`` has succeeded.
+
+    A queue-level concept rather than a mission-level one, because the rule is
+    about work rather than about the company: the researcher's task waits for
+    the analyst's briefing whether or not either belongs to a mission.
+
+    Two consequences worth stating. A task whose dependency has not finished is
+    invisible to :meth:`TaskQueue.claim`, so nothing polls and no orchestrator
+    is needed. And a task whose dependency *terminally failed* is cancelled
+    rather than left waiting, because a chain that silently stalls forever is
+    indistinguishable from a chain nobody started.
+    """
+
+    __tablename__ = "task_dependencies"
+
+    task_ref: Mapped[str] = mapped_column(sa.String(24), primary_key=True, index=True)
+    depends_on_ref: Mapped[str] = mapped_column(sa.String(24), primary_key=True, index=True)
+    created_at: Mapped[dt.datetime] = mapped_column()
+
+    __table_args__ = (
+        sa.CheckConstraint("task_ref <> depends_on_ref", name="ck_task_not_self_dependent"),
     )
 
 
@@ -276,6 +310,9 @@ class ScheduledJob(Base):
     job_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(sa.String(64), unique=True, index=True)
     task_kind: Mapped[str] = mapped_column(sa.String(64))
+    assignee: Mapped[str | None] = mapped_column(sa.String(24))
+    """Which agent the fired task is for. Null means any eligible worker."""
+
     payload: Mapped[dict[str, Any]] = mapped_column(sa.JSON, default=dict)
 
     interval_seconds: Mapped[int] = mapped_column()

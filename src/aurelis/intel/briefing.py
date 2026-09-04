@@ -23,9 +23,9 @@ enforced here rather than requested in a prompt.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from aurelis.agents.interpret import interpret
 from aurelis.agents.loop import AgentContext, TurnResult, register_handler
 from aurelis.comms.tables import MessageKind
 from aurelis.core.clock import parse_utc
@@ -33,11 +33,9 @@ from aurelis.core.enums import EventKind, ModelTier
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.intel.tables import MarketObservation, ObservationKind
 from aurelis.org.scopes import ReadView, ToolScope
-from aurelis.platform.budget.ledger import Spend
 from aurelis.platform.db.refs import allocate_ref
-from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
 
-__all__ = ["TASK_KIND", "unsourced_numerals"]
+__all__ = ["TASK_KIND", "run_briefing"]
 
 TASK_KIND = "intel.briefing"
 
@@ -55,57 +53,6 @@ introduce a number of your own, and never round one into a different number.
 not claim an edge exists.
 - If the data is described as fixture or non-live, say so plainly."""
 
-#: Numerals that may appear in prose without being a claim about the data.
-#: Deliberately tiny: small counts and ordinals are unavoidable in English
-#: ("two things stand out"), and everything else must be sourced.
-_FREE_NUMERALS = frozenset({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"})
-
-_NUMERAL = re.compile(r"-?\d+(?:[.,]\d+)*%?")
-
-
-def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
-    """Numerals in ``text`` that do not appear in the measurements.
-
-    The check is deliberately literal: a figure is either one the tools
-    produced or it is not. Matching "approximately" would defeat the purpose,
-    since a model that rounds 1.47 to 1.5 has stated a number nothing
-    supports.
-    """
-    found: list[str] = []
-    for match in _NUMERAL.finditer(text):
-        token = match.group(0)
-        bare = token.rstrip("%").replace(",", "")
-        if bare in _FREE_NUMERALS or bare in allowed:
-            continue
-        # Tolerate a trailing zero difference: "0.50" cites "0.5".
-        if bare.rstrip("0").rstrip(".") in {a.rstrip("0").rstrip(".") for a in allowed}:
-            continue
-        found.append(token)
-    return found
-
-
-def _allowed_figures(*payloads: dict[str, Any]) -> set[str]:
-    """Every numeric token the agent was actually shown."""
-    allowed: set[str] = set()
-
-    def walk(value: Any) -> None:
-        if isinstance(value, dict):
-            for item in value.values():
-                walk(item)
-        elif isinstance(value, list):
-            for item in value:
-                walk(item)
-        elif isinstance(value, str):
-            for match in _NUMERAL.finditer(value):
-                allowed.add(match.group(0).rstrip("%").replace(",", ""))
-        elif isinstance(value, (int, float)):
-            allowed.add(str(value))
-
-    for payload in payloads:
-        walk(payload)
-    return allowed
-
-
 @register_handler(TASK_KIND)
 def run_briefing(context: AgentContext) -> TurnResult:
     """Produce one desk briefing."""
@@ -120,8 +67,10 @@ def run_briefing(context: AgentContext) -> TurnResult:
     bars = context.use(ToolScope.DATA_OHLCV, desk=desk, symbol=symbol, limit=limit).value
     measures = context.use(ToolScope.ENGINE_FEATURES, bars=bars["bars"]).value
 
-    # 3. The model interprets, and only interprets.
-    prompt = {
+    # 3. The model interprets, and only interprets. `interpret` renders the
+    #    material and validates the answer against that same object, so the
+    #    permitted figures cannot drift from what the agent was shown.
+    material = {
         "desk": desk,
         "symbol": bars["symbol"],
         "source": bars["source"],
@@ -129,33 +78,9 @@ def run_briefing(context: AgentContext) -> TurnResult:
         "caveat": bars["caveat"],
         "measurements": measures,
     }
-    response = context.provider.complete(
-        context.session,
-        LlmRequest(
-            model=ModelRef(
-                provider=context.provider.name,
-                model=context.task.payload.get("model", "mock-1"),
-                tier=ModelTier.LOW,
-                max_tokens=400,
-            ),
-            system=_SYSTEM,
-            messages=(Message("user", _render(prompt)),),
-            actor=context.agent.ref,
-            task_ref=context.task.ref,
-        ),
+    interpretation = interpret(
+        context, system=_SYSTEM, material=material, tier=ModelTier.LOW
     )
-
-    allowed = _allowed_figures(measures, {"symbol": bars["symbol"]})
-    invented = unsourced_numerals(response.text, allowed)
-    if invented:
-        # Not a warning. The turn fails, and the reason is recorded against the
-        # agent -- an analyst that states unsupported figures is exactly what
-        # the Agent Behavior Auditor is for.
-        raise ValueError(
-            f"briefing cites {len(invented)} figure(s) not present in the "
-            f"measurements: {', '.join(invented[:5])}. Agents interpret; "
-            "software computes."
-        )
 
     # 4. The observation, with its provenance.
     now = context.clock.now()
@@ -169,7 +94,7 @@ def run_briefing(context: AgentContext) -> TurnResult:
             "source": bars["source"],
             "data_digest": bars["data_digest"],
             "measurements": measures,
-            "interpretation": response.text,
+            "interpretation": interpretation.text,
         },
         kind="market_observation",
         produced_by=context.task.ref,
@@ -184,7 +109,7 @@ def run_briefing(context: AgentContext) -> TurnResult:
             desk=desk,
             symbol=bars["symbol"],
             kind=ObservationKind.PRICE_STRUCTURE.value,
-            statement=response.text.strip(),
+            statement=interpretation.text,
             measures=measures,
             as_of=as_of,
             observed_at=max(now, as_of),
@@ -219,7 +144,7 @@ def run_briefing(context: AgentContext) -> TurnResult:
         kind=MessageKind.BRIEFING,
         channel_id=f"desk-{desk}",
         subject=f"{bars['symbol']} — {measures['bars']} bars to {bars['as_of'][:10]}",
-        body=response.text.strip(),
+        body=interpretation.text,
         claims=(
             f"change over window: {measures['change']}",
             f"return volatility: {measures['return_volatility']}",
@@ -233,7 +158,7 @@ def run_briefing(context: AgentContext) -> TurnResult:
     return TurnResult(
         summary=f"{context.agent.handle} briefed {desk} on {bars['symbol']}",
         artifact_digest=stored.digest,
-        spend=Spend(response.usd, response.usage.total),
+        spend=interpretation.spend,
         produced={"observation": ref, "measures": measures},
     )
 
