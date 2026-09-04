@@ -70,6 +70,12 @@ class MarketDataSource(Protocol):
 
     def symbols(self) -> tuple[str, ...]: ...
 
+    def listed_as_of(self, moment: dt.datetime) -> tuple[str, ...]: ...
+
+    def surviving(self) -> tuple[str, ...]: ...
+
+    def anchor(self) -> dt.datetime: ...
+
 
 class FixtureSource:
     """Deterministic offline bars.
@@ -81,15 +87,84 @@ class FixtureSource:
 
     name = "fixture"
 
-    #: Symbols the CRYPTO desk can look at in M1. Real universes come from the
-    #: desk's data source once one exists.
+    #: What is still trading. The hindsight list, and what a careless universe
+    #: definition produces.
     SYMBOLS: tuple[str, ...] = ("BTC/USDT", "ETH/USDT", "SOL/USDT")
 
+    #: Names that were listed at the start and later died.
+    #:
+    #: These exist so survivorship bias is **measurable rather than
+    #: discussable**. A universe that quietly drops them cannot lose money on a
+    #: delisting, and the difference between running with and without them is
+    #: exactly what a SURVIVORSHIP objection predicts. Their price paths decay
+    #: hard and then stop, which is what delisting looks like from the outside.
+    DELISTED: tuple[str, ...] = ("LUNC/USDT", "FTT/USDT", "HOTAIR/USDT")
+
     _ANCHOR = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
-    _BASE = {"BTC/USDT": Decimal("42000"), "ETH/USDT": Decimal("2300"), "SOL/USDT": Decimal("98")}
+    _BASE = {
+        "BTC/USDT": Decimal("42000"),
+        "ETH/USDT": Decimal("2300"),
+        "SOL/USDT": Decimal("98"),
+        "LUNC/USDT": Decimal("64"),
+        "FTT/USDT": Decimal("25"),
+        "HOTAIR/USDT": Decimal("12"),
+    }
+
+    #: The bar index at which each dead name stops trading. After this its
+    #: price is flat at whatever was left, which is the honest representation:
+    #: the position could not be exited into a market that no longer existed.
+    _DELISTS_AT = {"LUNC/USDT": 96, "FTT/USDT": 132, "HOTAIR/USDT": 168}
+
+    #: Per-bar drift applied to the dying names before they delist.
+    #:
+    #: **Positive**, and that is the whole point. Survivorship bias is
+    #: dangerous precisely because the names that died usually looked like the
+    #: best names right up until they did not -- LUNA and FTT both outperformed
+    #: for months before going to nothing. A momentum or rotation rule is
+    #: therefore *attracted* to them, and a universe that quietly drops them
+    #: reports the attraction without ever paying for it.
+    #:
+    #: If the dying names merely drifted down, no ranking rule would ever hold
+    #: one and survivorship would be undetectable here -- which is exactly what
+    #: the first version of this fixture got wrong.
+    _PRE_DELISTING_DRIFT = Decimal("0.006")
+
+    #: The one-bar loss at delisting. A holder recovers a fraction and cannot
+    #: have traded out beforehand -- this is the event survivorship bias
+    #: removes from the record entirely.
+    _DELISTING_MARK = Decimal("-0.60")
 
     def symbols(self) -> tuple[str, ...]:
         return self.SYMBOLS
+
+    def all_symbols(self) -> tuple[str, ...]:
+        """Everything that ever listed, survivors and casualties alike."""
+        return (*self.SYMBOLS, *self.DELISTED)
+
+    def surviving(self) -> tuple[str, ...]:
+        """What is still trading. Choosing from this list IS the bias."""
+        return self.SYMBOLS
+
+    def listed_as_of(self, moment: dt.datetime) -> tuple[str, ...]:
+        """What a person could actually have chosen on ``moment``.
+
+        Everything that had listed by then, including the names that later
+        died -- which is the whole point of asking the question this way.
+        """
+        index = max(0, int((moment - self._ANCHOR).total_seconds() // 3600))
+        return tuple(
+            symbol
+            for symbol in self.all_symbols()
+            if self._DELISTS_AT.get(symbol, 10**9) > index
+        ) or self.SYMBOLS
+
+    def anchor(self) -> dt.datetime:
+        """The start of the fixture history."""
+        return self._ANCHOR
+
+    def delisted_at(self, symbol: str) -> int | None:
+        """The bar this name stopped trading, or ``None`` if it survived."""
+        return self._DELISTS_AT.get(symbol)
 
     def bars(self, symbol: str, *, limit: int = 120) -> list[Bar]:
         if symbol not in self._BASE:
@@ -101,11 +176,23 @@ class FixtureSource:
             raise ValueError("limit must be positive")
 
         price = self._BASE[symbol]
+        delists_at = self._DELISTS_AT.get(symbol)
         bars: list[Bar] = []
         for index in range(limit):
             # A hash-derived step: deterministic, reproducible across machines
             # and Python versions, and not seeded from any global RNG state.
             step = self._step(symbol, index)
+            if delists_at is not None:
+                if index == delists_at:
+                    # The delisting mark. A holder does not walk away flat:
+                    # they get back a fraction, once, and cannot trade out at
+                    # any price in between. This single bar is the cost that a
+                    # survivors-only universe never pays.
+                    step = self._DELISTING_MARK
+                elif index > delists_at:
+                    step = Decimal(0)  # no market left to move in
+                else:
+                    step += self._PRE_DELISTING_DRIFT
             open_price = price
             close_price = (price * (Decimal(1) + step)).quantize(_SCALE)
             high = max(open_price, close_price) * Decimal("1.004")

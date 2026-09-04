@@ -23,7 +23,7 @@ that can actually run those tests.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -80,6 +80,13 @@ class TestOutcome:
     upheld: bool
     observed: str | None
     detail: str
+    context: dict[str, Any] = field(default_factory=dict)
+    """Scalar fields the tool returned alongside the one being compared.
+
+    Kept because a reader of the record needs to see *what the varied run
+    actually was* -- how many instruments it traded, on what basis -- and not
+    merely the single number that settled the objection.
+    """
 
     def as_payload(self) -> dict[str, Any]:
         return {
@@ -87,6 +94,7 @@ class TestOutcome:
             "upheld": self.upheld,
             "observed": self.observed,
             "detail": self.detail,
+            **self.context,
         }
 
 
@@ -174,6 +182,11 @@ def dispatch(
         )
 
     holds = _COMPARISONS[spec.comparison](measured, spec.value)
+    context = {
+        key: value
+        for key, value in (result.value or {}).items()
+        if key != spec.field and isinstance(value, (str, int, float))
+    }
     return TestOutcome(
         ran=True,
         upheld=bool(holds),
@@ -182,6 +195,7 @@ def dispatch(
             f"measured {spec.field}={measured}; predicted {spec.comparison} "
             f"{spec.value} -> {'upheld' if holds else 'rejected'}"
         ),
+        context=context,
     )
 
 

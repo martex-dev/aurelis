@@ -320,3 +320,123 @@ def research_engines() -> None:
             console.print(f"  metrics  {', '.join(sorted(capabilities.metrics))}")
             console.print(f"  desks    {', '.join(sorted(capabilities.desks))}")
         console.print()
+
+@research_app.command("review")
+def research_review(
+    workspace: WorkspaceOption = None,
+    bars: Annotated[int, typer.Option(help="Window length in bars.")] = 200,
+) -> None:
+    """The M5 demonstration: a confirmed claim, challenged and killed.
+
+    A researcher registers a drawdown claim over the universe of instruments
+    still trading, runs it, and it is CONFIRMED. A Critic names SURVIVORSHIP.
+    The Chair dispatches the generated test -- the same rule over the universe
+    as it actually stood, delisted names restored. The measurement comes back,
+    the objection is upheld, and the hypothesis is refuted.
+
+    Nobody intervenes at any point.
+    """
+    from aurelis.research.review import hold_research_review
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        runtime.staff()
+        with runtime.database.session() as session:
+            quant = runtime.roster.by_handle(session, "QUANT").ref
+            critic = runtime.roster.by_handle(session, "CRITIC").ref
+            lead = runtime.roster.by_handle(session, "LEAD-R").ref
+            outcome = hold_research_review(
+                session,
+                research=runtime.research,
+                chair=runtime.chair,
+                author=quant,
+                critic=critic,
+                chair_ref=runtime.roster.by_handle(session, "OPS").ref,
+                participants=(quant, critic, lead),
+                registrar=runtime.roster.by_handle(session, "GOV").ref,
+                bars=bars,
+            )
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    console.print()
+    console.print(
+        f"[bold]{outcome.hypothesis_ref}[/bold]  "
+        f"[green]{outcome.verdict_before.value.upper()}[/green] -> "
+        f"[red]{outcome.verdict_after.value.upper()}[/red]"
+    )
+    console.print()
+
+    table = Table(show_header=False, box=None)
+    table.add_column("", style="bold", width=18)
+    table.add_column("")
+    table.add_row("claimed", f"{outcome.metric} < 0.20, measured {outcome.claimed}")
+    table.add_row("universe", f"{outcome.universe_before} names (still trading)")
+    table.add_row("objection", f"{outcome.objection_ref} SURVIVORSHIP, critical")
+    table.add_row("test", "the same rule, universe restored to point-in-time")
+    table.add_row("re-run universe", f"{outcome.universe_after} names")
+    table.add_row("restored", ", ".join(outcome.excluded))
+    table.add_row(
+        outcome.metric,
+        f"[green]{outcome.claimed}[/green] -> [red]{outcome.measured}[/red]",
+    )
+    table.add_row("verdict", f"[red]{outcome.objection_status.value.upper()}[/red]")
+    table.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(table)
+
+    console.print()
+    console.print(f"  [dim]{escape(outcome.detail)}[/dim]")
+    console.print()
+    console.print(
+        "[dim]The universe was chosen knowing which names survived. A top-1 "
+        "rotation is drawn to whatever runs hottest, and the names that later "
+        "delisted ran hottest of all right before they stopped.[/dim]"
+    )
+    console.print(
+        "[dim]martex-quant found this same defect on real crypto history, where "
+        "it took a Sharpe of 1.47 to 0.86. Those figures belong to that corpus; "
+        "the ones above are what this engine measured.[/dim]"
+    )
+    console.print()
+
+    if not outcome.overturned:
+        console.print("[yellow]The review did not overturn the claim.[/yellow]")
+        raise typer.Exit(code=1)
+    console.print(
+        "[green]M5 acceptance: a confirmed result refuted by a measurement, "
+        "with no human in the loop.[/green]"
+    )
+
+
+@research_app.command("defects")
+def research_defects() -> None:
+    """The market defects a Critic can allege, and how each is settled."""
+    from aurelis.meetings.taxonomy import MARKET_DEFECTS
+
+    table = Table(show_header=True, header_style="bold", box=None)
+    table.add_column("defect", style="bold", width=20)
+    table.add_column("severity", width=10)
+    table.add_column("varies", width=30)
+    table.add_column("asks", overflow="fold")
+    for defect in MARKET_DEFECTS.values():
+        colour = "red" if defect.severity.value == "critical" else "yellow"
+        table.add_row(
+            defect.name,
+            f"[{colour}]{defect.severity.value}[/{colour}]",
+            defect.varies,
+            defect.asks,
+        )
+    console.print(table)
+    console.print()
+    console.print(
+        "[dim]A Critic names a defect; the test is generated from the "
+        "specification under review. The prose is the critic's; the arithmetic "
+        "is not.[/dim]"
+    )

@@ -254,3 +254,84 @@ def _engine_features(arguments: dict[str, Any]) -> ToolResult:
         raise ValueError("features requires a non-empty 'bars' list from data.ohlcv")
     measures = describe_bars(bars)
     return ToolResult(value=measures, detail=f"{len(measures)} measures over {len(bars)} bars")
+
+@register_tool(
+    ToolScope.ENGINE_BACKTEST,
+    "Run an experiment specification and return its metrics as scalars",
+)
+def _engine_backtest(arguments: dict[str, Any]) -> ToolResult:
+    """Run a specification through the engine registry.
+
+    This is what makes a discriminating test executable. A Critic alleging
+    survivorship supplies the same rule over a point-in-time universe, the
+    Chair dispatches it here, and the room sees the number rather than the
+    argument.
+
+    Metrics come back flat -- ``{"sharpe": "0.12", ...}`` -- so a test can name
+    a field and compare it without the objection needing to know the artifact
+    format.
+    """
+    from aurelis.engines.registry import engine_for
+    from aurelis.engines.spec import ExperimentSpec
+    from aurelis.research.lifecycle import _spec_from_payload
+
+    payload = arguments.get("spec")
+    if not isinstance(payload, dict):
+        raise ValueError("engine.backtest requires a 'spec' payload")
+
+    spec: ExperimentSpec = _spec_from_payload(payload)
+    artifact = engine_for(spec).run(spec)
+
+    flat: dict[str, Any] = {m.name: str(m.value) for m in artifact.metrics.metrics}
+    for metric in artifact.metrics.metrics:
+        if metric.low is not None:
+            flat[f"{metric.name}_low"] = str(metric.low)
+            flat[f"{metric.name}_high"] = str(metric.high)
+    flat["spec_digest"] = artifact.spec_digest
+    flat["data_fingerprint"] = artifact.data_fingerprint
+    flat["universe_basis"] = str(artifact.diagnostics.get("universe_basis", ""))
+    flat["universe_size"] = str(len(artifact.diagnostics.get("universe", [])))
+
+    return ToolResult(
+        value=flat,
+        detail=(
+            f"{spec.signal.kind} over {flat['universe_size']} symbols, "
+            f"{flat['universe_basis']}"
+        ),
+    )
+
+
+@register_tool(
+    ToolScope.INTEGRITY_POINT_IN_TIME,
+    "Report whether a universe was chosen with hindsight, and what it dropped",
+)
+def _integrity_point_in_time(arguments: dict[str, Any]) -> ToolResult:
+    """Check a universe definition for survivorship exposure.
+
+    Deterministic and free. It does not re-run anything -- it answers the
+    prior question of whether the universe *could* be biased, which is what a
+    Data Auditor samples for and what tells a Critic whether the objection is
+    worth raising at all.
+    """
+    from aurelis.engines.universe import resolve_universe
+    from aurelis.intel.sources import source_for
+
+    desk = str(arguments.get("desk", "crypto"))
+    symbols = tuple(arguments.get("symbols") or ())
+    point_in_time = bool(arguments.get("point_in_time", False))
+
+    source = source_for(desk)
+    resolved = resolve_universe(
+        desk, symbols, point_in_time=point_in_time, as_of=source.anchor()
+    )
+    return ToolResult(
+        value={
+            "point_in_time": str(resolved.point_in_time),
+            "universe_size": str(len(resolved.symbols)),
+            "excluded_count": str(len(resolved.excluded)),
+            "excluded": list(resolved.excluded),
+            "survivorship_exposed": str(resolved.survivorship_exposed),
+            "summary": resolved.describe(),
+        },
+        detail=resolved.describe(),
+    )

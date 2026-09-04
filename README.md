@@ -11,9 +11,9 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M4 complete — research runs, and can conclude it found nothing.**
-Preregistration locked by database trigger, verdicts derived by rule, every
-number traceable to an artifact. · 2026-09-05
+Status: **M5 complete — the company overturns its own confirmed result.**
+A Critic names survivorship, the Chair runs the test, the claim dies. No human
+in the loop. · 2026-09-05
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -24,37 +24,69 @@ number traceable to an artifact. · 2026-09-05
 
 ```bash
 pip install -e ".[dev]"
-aurelis db init          # schema, invariants, the org chart
-aurelis agent hire       # staff the launch roster
-aurelis mission run      # open a mission and work it to completion
-aurelis doctor
+aurelis db init            # schema, invariants, the org chart
+aurelis agent hire         # staff the launch roster
+aurelis research review    # the demonstration
 ```
 
-`mission run` opens a mission with a **Kickoff meeting**, plans a project into
-three dependent tasks, runs them, and closes with a **Retrospective** that
-scores the kickoff's forecasts against what actually happened.
-
-Between the meetings: **INTEL** briefs the crypto desk from measured bars.
-**QUANT** reads that briefing, checks it against an independent window it
-measured itself, and raises a research question. **LEAD-R** decides whether the
-question earns a project. Each waits for the one before because the queue will
-not hand out a task whose dependency has not succeeded — there is no
-orchestrator.
+### The demonstration
 
 ```
- mission         MSN-0001
- kickoff         MTG-0001 — 5 turns, 0 exchange round(s)
- turns           3
- progress        3/3 succeeded
- retrospective   MTG-0006 — 5 turns
- calibration     AG-0004: Brier 0.2500 over 1 forecast — no better than 50/50
- chain           chain verified: 141 events, seq 1..141
+HYP-0001  CONFIRMED -> REFUTED
+
+ claimed           max_drawdown < 0.20, measured 0.12364208
+ universe          3 names (still trading)
+ objection         OBJ-0001 SURVIVORSHIP, critical
+ test              the same rule, universe restored to point-in-time
+ re-run universe   6 names
+ restored          LUNC/USDT, FTT/USDT, HOTAIR/USDT
+ max_drawdown      0.12364208 -> 0.64507263
+ verdict           UPHELD
+ chain             chain verified: 68 events, seq 1..68
 ```
 
-Look around: `aurelis org show` · `aurelis org desks` · `aurelis agent list` ·
-`aurelis agent show INTEL` (what one agent holds, sees, writes and may invoke)
-· `aurelis mission show MSN-0001` (every task, its status, what it waits on) ·
-`aurelis tick` (advance the working day one turn).
+A researcher registers a drawdown claim over the instruments still trading,
+runs it, and it is **confirmed**. A Critic names `SURVIVORSHIP` — it does not
+write the test; the taxonomy generates it from the specification under review.
+The Chair dispatches it. The point-in-time re-run restores three delisted names
+and drawdown goes from 12% to 65%. The objection is upheld and the claim is
+**refuted by a measurement**.
+
+Nobody intervenes at any point.
+
+*martex-quant found this same defect on real crypto history, where it took a
+Sharpe of 1.47 to 0.86. Those figures belong to that corpus; the ones above are
+what this engine measured on fixture instruments where the bias is present by
+construction.*
+
+### The rest of the company
+
+`aurelis mission run` opens a mission with a **Kickoff meeting**, plans a
+project into three dependency-sequenced tasks, runs them, and closes with a
+**Retrospective** that scores the kickoff's forecasts against what happened.
+**INTEL** briefs the desk, **QUANT** checks that briefing against a window it
+measured itself, **LEAD-R** decides. There is no orchestrator — a task whose
+dependency has not succeeded is simply invisible to the queue.
+
+`aurelis research run` takes a single hypothesis from claim to verdict:
+propose, screen for prior art, **lock a preregistration**, design, run, and
+derive the verdict from criteria fixed before anything executed. On 240 bars it
+returns `UNDERPOWERED`, because 240 bars genuinely cannot detect a Sharpe of
+0.05 — and saying so is the point.
+
+Look around:
+
+| | |
+|---|---|
+| `aurelis org show` · `org desks` · `org charters` | the company as designed |
+| `aurelis agent list` · `agent show INTEL` | what one agent holds, sees, writes, may invoke |
+| `aurelis mission show MSN-0001` | every task, its status, what it waits on |
+| `aurelis meeting show MTG-0001` | the transcript, who changed their mind, who dissented |
+| `aurelis meeting calibration` | how good the company's forecasts have been |
+| `aurelis research show HYP-0001` | every metric, its interval, and who computed it |
+| `aurelis research graveyard` | everything killed, and why |
+| `aurelis research defects` | every market defect and how it is settled |
+| `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
 ---
 
@@ -252,7 +284,7 @@ automatically by the company, five milestones in.
 | **M2** ✅ | Missions | missions → projects → tasks, dependencies, the working day |
 | **M3** ✅ | **Meetings** | seven-phase protocol, forecasts, objections with tests, dissent |
 | **M4** ✅ | Research lifecycle | engines, preregistration, experiments, verdicts |
-| **M5** | Critique & audit | objections with tests, the H71 reproduction |
+| **M5** ✅ | Critique & audit | market defects, point-in-time, the review that kills |
 | **M6** | Memory & knowledge | graph, lessons, corpus import, vault export |
 | **M7** | **Mission Control** | the live facility |
 | **M8** | Strategy, portfolio, risk | versions, gates, veto |

@@ -178,11 +178,13 @@ class ObjectionType(StrEnum):
     them, and a free-text objection cannot be matched against a planted
     defect.
 
-    M3 carries the general research types. The market-specific taxonomy —
-    survivorship, look-ahead, understated costs — arrives at M5 with the
-    engines that can test for them.
+    The market types each have a **mechanical test builder** in
+    :mod:`aurelis.meetings.taxonomy`: a Critic names the defect and the varied
+    specification is generated, so the test's construction is written down and
+    identical every time the same defect is alleged.
     """
 
+    # General research defects.
     WEAK_BASELINE = "weak_baseline"
     CONFOUND = "confound"
     ALTERNATIVE_EXPLANATION = "alternative_explanation"
@@ -193,6 +195,18 @@ class ObjectionType(StrEnum):
     IMPLEMENTATION_BUG = "implementation_bug"
     DATA_QUALITY = "data_quality"
     UNSOURCED_CLAIM = "unsourced_claim"
+
+    # Market defects. Each has a mechanical test.
+    SURVIVORSHIP = "survivorship"
+    """The universe was chosen knowing which names survived."""
+
+    LOOKAHEAD = "lookahead"
+    COST_UNDERSTATED = "cost_understated"
+    LIQUIDITY_UNREALISTIC = "liquidity_unrealistic"
+    REGIME_SPECIFIC = "regime_specific"
+    CAPACITY_IGNORED = "capacity_ignored"
+    CROWDING = "crowding"
+    DATA_REVISION = "data_revision"
 
 
 class ObjectionSeverity(StrEnum):

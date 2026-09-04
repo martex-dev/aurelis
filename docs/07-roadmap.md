@@ -94,7 +94,7 @@ identical artifact hash. No agent can write a `Result` row.
 
 ---
 
-## M5 — Critique, replication, and the Research Review
+## M5 — Critique, replication, and the Research Review ✅
 
 - Strategy Lab roles: Critic, Adversarial, Replication, Robustness, Validation.
 - Market objection taxonomy with mechanical discriminating tests:

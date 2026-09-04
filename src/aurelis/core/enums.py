@@ -119,6 +119,10 @@ class EventKind(StrEnum):
     chose it."""
 
     REPLICATION_RECORDED = "research.replication_recorded"
+    VERDICT_OVERTURNED = "research.verdict_overturned"
+    """A confirmed result was refuted by a later measurement. Its own kind,
+    because a corpus that quietly rewrote conclusions would be worse than one
+    that never revised them."""
 
     # Agent work
     TOOL_CALLED = "tool.called"
