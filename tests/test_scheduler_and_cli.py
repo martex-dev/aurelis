@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -214,3 +215,30 @@ def test_ledger_tail_renders(tmp_path: Path) -> None:
     result = runner.invoke(app, ["ledger", "tail", "-w", str(tmp_path), "-n", "5"])
     assert result.exit_code == 0
     assert "seq" in result.stdout
+
+
+def test_doctor_survives_a_legacy_terminal_encoding(tmp_path: Path) -> None:
+    """A report must not die on a character the terminal cannot encode.
+
+    Reproduces the CI failure this guard was written for: Windows consoles
+    default to a legacy code page, and Rich's box-drawing characters are not
+    representable in cp1252. Agent output will be far less predictable than a
+    box-drawing character, so the CLI forces UTF-8 on its own streams and
+    replaces anything the terminal genuinely cannot show.
+    """
+    import subprocess
+    import sys
+
+    subprocess.run(
+        [sys.executable, "-m", "aurelis.cli.main", "db", "init", "-w", str(tmp_path)],
+        check=True,
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "aurelis.cli.main", "doctor", "-w", str(tmp_path)],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    assert b"UnicodeEncodeError" not in result.stderr

@@ -25,27 +25,37 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
+      # A uv-managed venv pinned to the matrix version. `uv pip --system`
+      # cannot be used here: the Linux runner's interpreter is externally
+      # managed, and it would also silently ignore the matrix version.
       - name: Install
-        run: uv pip install --system -e ".[dev]"
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev]"
+
+      - name: Confirm the interpreter is the one the matrix asked for
+        run: uv run python -c "import sys; assert sys.version.startswith('${{ matrix.python-version }}'), sys.version; print(sys.version)"
 
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Type check
-        run: mypy
+        run: uv run mypy
 
       # The whole suite runs against the mock provider: no credentials, no
-      # network, no cost. That is a deliberate property of the architecture —
+      # network, no cost. That is a deliberate property of the architecture --
       # a company of a hundred agents has to be free to test.
       - name: Test
-        run: pytest -q
+        run: uv run pytest -q
 
       - name: End-to-end acceptance
         shell: bash
         run: |
-          mkdir -p /tmp/aurelis-ci
-          aurelis db init -w /tmp/aurelis-ci
-          aurelis doctor -w /tmp/aurelis-ci
-          aurelis demo -w /tmp/aurelis-ci
-          aurelis ledger verify -w /tmp/aurelis-ci
+          workspace="${RUNNER_TEMP}/aurelis-ci"
+          mkdir -p "$workspace"
+          uv run aurelis db init -w "$workspace"
+          uv run aurelis doctor -w "$workspace"
+          uv run aurelis demo -w "$workspace"
+          uv run aurelis ledger verify -w "$workspace"

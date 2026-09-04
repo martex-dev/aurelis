@@ -10,6 +10,8 @@ Exit codes matter — this is called from CI and will be called from monitors:
 
 from __future__ import annotations
 
+import contextlib
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +38,29 @@ ledger_app = typer.Typer(help="The company's append-only record.", no_args_is_he
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
 
+def _force_utf8() -> None:
+    """Make the console safe for arbitrary text.
+
+    Windows terminals still default to a legacy code page, and Rich renders
+    box-drawing characters that cp1252 cannot encode -- which crashed
+    ``aurelis doctor`` on CI before this existed. Agent output will be far
+    less predictable than a box-drawing character, so the fix is at the
+    stream rather than in the strings: encode as UTF-8, and replace anything
+    the terminal genuinely cannot show rather than raising.
+
+    A report that dies on an em dash is worse than a report with a question
+    mark in it.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            # An exotic stream that refuses to be reconfigured is not a reason
+            # to fail: fall back to whatever it already does.
+            with contextlib.suppress(ValueError, OSError):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
+_force_utf8()
 console = Console()
 
 WorkspaceOption = Annotated[
