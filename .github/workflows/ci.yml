@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
     runs-on: ${{ matrix.os }}
@@ -27,35 +31,42 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
-      # A uv-managed venv pinned to the matrix version. `uv pip --system`
-      # cannot be used here: the Linux runner's interpreter is externally
-      # managed, and it would also silently ignore the matrix version.
+      # A venv pinned to the matrix version, put on PATH. Deliberately not
+      # `uv run`: without a lockfile that re-resolves the project across every
+      # interpreter `requires-python` allows, which fails on a dependency that
+      # has nothing to do with the version under test. `uv pip --system` is
+      # also out -- the Linux runner's interpreter is externally managed, and
+      # it would silently ignore the matrix version.
       - name: Install
         run: |
           uv venv --python ${{ matrix.python-version }}
           uv pip install -e ".[dev]"
+          if [ -d .venv/Scripts ]; then echo "$PWD/.venv/Scripts" >> "$GITHUB_PATH"
+          else echo "$PWD/.venv/bin" >> "$GITHUB_PATH"; fi
 
+      # A matrix that silently tests one version twice reports coverage it
+      # does not have. This is the guard against that.
       - name: Confirm the interpreter is the one the matrix asked for
-        run: uv run python -c "import sys; assert sys.version.startswith('${{ matrix.python-version }}'), sys.version; print(sys.version)"
+        run: |
+          python -c "import sys; v='${{ matrix.python-version }}'; assert sys.version.startswith(v), f'wanted {v}, got {sys.version}'; print(sys.version)"
 
       - name: Lint
-        run: uv run ruff check .
+        run: ruff check .
 
       - name: Type check
-        run: uv run mypy
+        run: mypy
 
       # The whole suite runs against the mock provider: no credentials, no
       # network, no cost. That is a deliberate property of the architecture --
       # a company of a hundred agents has to be free to test.
       - name: Test
-        run: uv run pytest -q
+        run: pytest -q
 
       - name: End-to-end acceptance
-        shell: bash
         run: |
           workspace="${RUNNER_TEMP}/aurelis-ci"
           mkdir -p "$workspace"
-          uv run aurelis db init -w "$workspace"
-          uv run aurelis doctor -w "$workspace"
-          uv run aurelis demo -w "$workspace"
-          uv run aurelis ledger verify -w "$workspace"
+          aurelis db init -w "$workspace"
+          aurelis doctor -w "$workspace"
+          aurelis demo -w "$workspace"
+          aurelis ledger verify -w "$workspace"
