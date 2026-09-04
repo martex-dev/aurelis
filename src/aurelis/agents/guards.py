@@ -55,6 +55,9 @@ class ScopeGuard:
 SCOPE_GUARDS: tuple[ScopeGuard, ...] = (
     ScopeGuard("market_observations", "author", WriteScope.MARKET_OBSERVATION),
     ScopeGuard("messages", "from_agent", WriteScope.MESSAGE),
+    ScopeGuard("meeting_turns", "speaker", WriteScope.MEETING_TURN),
+    ScopeGuard("meeting_objections", "author", WriteScope.OBJECTION),
+    ScopeGuard("forecasts", "agent_ref", WriteScope.FORECAST),
 )
 """Guarded tables. Each new entity kind joins this tuple as its table lands —
 findings and objections at M4, risk assessments and orders at M8 and M9."""

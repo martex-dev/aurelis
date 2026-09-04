@@ -91,6 +91,21 @@ class EventKind(StrEnum):
     KICKOFF_RECORDED = "mission.kickoff_recorded"
     RETROSPECTIVE_RECORDED = "mission.retrospective_recorded"
 
+    # Meetings
+    MEETING_CONVENED = "meeting.convened"
+    MEETING_CLOSED = "meeting.closed"
+    MEETING_UNPRODUCTIVE = "meeting.unproductive"
+    """No decision, action item or objection. A metric on the Chair and on the
+    meeting type, not a failure of any individual turn."""
+
+    TURN_REFUSED = "meeting.turn_refused"
+    """A speaker stated a figure nothing it was shown supports."""
+
+    MIND_CHANGED = "meeting.mind_changed"
+    OBJECTION_RAISED = "meeting.objection_raised"
+    DECISION_RECORDED = "meeting.decision_recorded"
+    FORECAST_SCORED = "meeting.forecast_scored"
+
     # Agent work
     TOOL_CALLED = "tool.called"
     OBSERVATION_RECORDED = "intel.observation_recorded"

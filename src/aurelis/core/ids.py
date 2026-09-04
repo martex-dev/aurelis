@@ -60,6 +60,13 @@ class RefKind(StrEnum):
     TASK = "TSK"
     MESSAGE = "MSG"
     MEETING = "MTG"
+    KICKOFF = "KCK"
+    """The plan a mission starts from. Its own prefix rather than MTG-,
+    because a kickoff RECORD and the MEETING that produced it are two
+    different things and a shared numbering makes the ledger read as though
+    twice as many meetings were held."""
+
+    RETROSPECTIVE = "RTR"
     DECISION = "DEC"
     OBSERVATION = "OBS"
     HYPOTHESIS = "HYP"

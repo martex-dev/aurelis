@@ -105,9 +105,20 @@ def test_handles_are_unique(staffed: Runtime) -> None:
 
 
 def test_write_scope_guards_are_installed(staffed: Runtime) -> None:
+    from aurelis.agents.guards import SCOPE_GUARDS
+
     with staffed.database.engine.connect() as connection:
         assert verify_guards(connection) == ()
-    assert len(expected_guard_names()) == 2
+    assert len(expected_guard_names()) == len(SCOPE_GUARDS)
+
+
+def test_every_guard_names_a_table_that_exists(staffed: Runtime) -> None:
+    """A guard on a missing table is a security guarantee that is really an
+    OperationalError at startup."""
+    from aurelis.agents.guards import SCOPE_GUARDS
+
+    present = set(sa.inspect(staffed.database.engine).get_table_names())
+    assert {g.table for g in SCOPE_GUARDS} <= present
 
 
 def test_an_agent_without_the_scope_cannot_write_through_raw_sql(staffed: Runtime) -> None:

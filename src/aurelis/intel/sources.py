@@ -165,6 +165,7 @@ def snapshot_for(desk: str, symbol: str | None = None, *, limit: int = 48) -> di
             "No research conclusion may be drawn from it."
         ),
         "bars": payload,
+        "bar_count": str(len(payload)),
         "data_digest": sha256_of(payload),
         "as_of": bars[-1].timestamp.isoformat(),
     }

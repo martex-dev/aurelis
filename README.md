@@ -11,8 +11,9 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M2 complete — missions decompose and agents collaborate.** 76
-charters, 17 agents, three-agent chains that sequence themselves. · 2026-09-04
+Status: **M3 complete — the company meets, argues and decides.** 76 charters,
+17 agents, meetings with forecasts, objections that carry tests, and dissent on
+the record. · 2026-09-04
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -29,21 +30,25 @@ aurelis mission run      # open a mission and work it to completion
 aurelis doctor
 ```
 
-`mission run` opens a mission, records the kickoff that unlocks it, plans a
-project into three dependent tasks, and runs them. **INTEL** briefs the crypto
-desk from measured bars. **QUANT** reads that briefing, checks it against an
-independent window it measured itself, and raises a research question.
-**LEAD-R** decides whether the question earns a project. Each waits for the one
-before because the queue will not hand out a task whose dependency has not
-succeeded — there is no orchestrator.
+`mission run` opens a mission with a **Kickoff meeting**, plans a project into
+three dependent tasks, runs them, and closes with a **Retrospective** that
+scores the kickoff's forecasts against what actually happened.
+
+Between the meetings: **INTEL** briefs the crypto desk from measured bars.
+**QUANT** reads that briefing, checks it against an independent window it
+measured itself, and raises a research question. **LEAD-R** decides whether the
+question earns a project. Each waits for the one before because the queue will
+not hand out a task whose dependency has not succeeded — there is no
+orchestrator.
 
 ```
  mission         MSN-0001
+ kickoff         MTG-0001 — 5 turns, 0 exchange round(s)
  turns           3
  progress        3/3 succeeded
- tokens          866
- cost            $0.000000
- chain           chain verified: 83 events, seq 1..83
+ retrospective   MTG-0006 — 5 turns
+ calibration     AG-0004: Brier 0.2500 over 1 forecast — no better than 50/50
+ chain           chain verified: 141 events, seq 1..141
 ```
 
 Look around: `aurelis org show` · `aurelis org desks` · `aurelis agent list` ·
@@ -245,7 +250,7 @@ automatically by the company, five milestones in.
 | **M0** ✅ | Foundations | ledger, budgets, artifacts, queue, provider abstraction |
 | **M1** ✅ | Agent runtime | 76 charters, 17 agents, permissions, views, tools, the loop |
 | **M2** ✅ | Missions | missions → projects → tasks, dependencies, the working day |
-| **M3** | **Meetings** | the seven-phase protocol; the company becomes a company |
+| **M3** ✅ | **Meetings** | seven-phase protocol, forecasts, objections with tests, dissent |
 | **M4** | Research lifecycle | engines, preregistration, experiments, findings |
 | **M5** | Critique & audit | objections with tests, the H71 reproduction |
 | **M6** | Memory & knowledge | graph, lessons, corpus import, vault export |

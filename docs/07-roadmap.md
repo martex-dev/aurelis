@@ -57,7 +57,7 @@ explicitly stubbed and tested as blocked).
 
 ---
 
-## M3 — Meetings
+## M3 — Meetings ✅
 
 The milestone that makes it a company.
 

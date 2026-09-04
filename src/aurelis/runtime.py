@@ -23,6 +23,8 @@ from aurelis.comms.channels import Comms
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
+from aurelis.meetings.chair import Chair
+from aurelis.meetings.forecasts import ForecastScorer
 from aurelis.missions.missions import Missions
 from aurelis.org.seed import registry_fingerprint, seed_org
 from aurelis.platform.artifacts.store import ArtifactStore
@@ -59,6 +61,8 @@ class Runtime:
     tools: ToolBox
     comms: Comms
     missions: Missions
+    chair: Chair
+    forecasts: ForecastScorer
     worker: AgentWorker
 
     @classmethod
@@ -92,6 +96,16 @@ class Runtime:
         tools = ToolBox(ledger, the_clock)
         comms = Comms(artifacts, ledger, the_clock)
         missions = Missions(artifacts, budget, ledger, the_clock)
+        chair = Chair(
+            roster=roster,
+            provider=model_provider,
+            tools=tools,
+            artifacts=artifacts,
+            ledger=ledger,
+            queue=queue,
+            clock=the_clock,
+        )
+        forecasts = ForecastScorer(ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
             queue=queue,
@@ -118,6 +132,8 @@ class Runtime:
             tools=tools,
             comms=comms,
             missions=missions,
+            chair=chair,
+            forecasts=forecasts,
             worker=worker,
         )
 

@@ -23,8 +23,14 @@ from rich.table import Table
 from aurelis.comms.tables import MessageKind
 from aurelis.core.enums import TaskStatus
 from aurelis.intel.briefing import TASK_KIND as BRIEFING_TASK
+from aurelis.meetings.ceremonies import (
+    close_out,
+    hold_kickoff,
+    hold_retrospective,
+    kickoff_meeting_ref,
+)
 from aurelis.missions.pipeline import Step, plan_project
-from aurelis.missions.states import KickoffKind, MissionState, ProjectState
+from aurelis.missions.states import MissionState, ProjectState
 from aurelis.platform.db.tables import Task
 from aurelis.research.triage import QUESTION_TASK, TRIAGE_TASK
 from aurelis.runtime import Runtime
@@ -80,7 +86,8 @@ def mission_run(
             intel = runtime.roster.by_handle(session, "INTEL")
             quant = runtime.roster.by_handle(session, "QUANT")
             lead = runtime.roster.by_handle(session, "LEAD-R")
-            for agent in (intel, quant, lead):
+            ops = runtime.roster.by_handle(session, "OPS")
+            for agent in (intel, quant, lead, ops):
                 runtime.worker.open_daily_budget(session, agent, tokens=100_000)
 
             mission = runtime.missions.open_mission(
@@ -92,20 +99,23 @@ def mission_run(
                 budget_tokens=60_000,
             )
 
-            # The gate: PLANNING -> ACTIVE is refused without this.
-            runtime.missions.record_kickoff(
+            # The gate: PLANNING -> ACTIVE is refused until a kickoff
+            # exists. At M3 a real meeting produces it.
+            ceremony = hold_kickoff(
                 session,
+                chair=runtime.chair,
+                missions=runtime.missions,
+                roster=runtime.roster,
                 subject_ref=mission.ref,
-                plan=(
-                    "INTEL briefs the crypto desk from measured bars. QUANT "
-                    "checks that briefing against an independent window and "
-                    "raises one research question. LEAD-R decides whether the "
-                    "question earns a project. Declining is the expected "
-                    "outcome."
-                ),
                 participants=(intel.ref, quant.ref, lead.ref),
-                kind=KickoffKind.OPERATOR,
+                chair_ref=ops.ref,
+                desk="crypto",
+                evidence={
+                    "desk": "crypto",
+                    "data": "fixture (offline, not a market simulation)",
+                },
             )
+            kickoff = ceremony.meeting
             runtime.missions.transition(session, mission.ref, MissionState.ACTIVE)
 
             project = runtime.missions.open_project(
@@ -124,6 +134,7 @@ def mission_run(
                 participants=(intel.ref, quant.ref, lead.ref),
             )
             runtime.missions.transition(session, project.ref, ProjectState.ACTIVE)
+            chair_ref = ops.ref
 
             payload: dict[str, object] = {"bars": 48}
             if symbol:
@@ -147,6 +158,7 @@ def mission_run(
                 ),
             )
             mission_ref = mission.ref
+            project_ref = project.ref
             actors = [intel.ref, quant.ref, lead.ref]
 
         # Turn by turn. Each pass gives every agent a chance; the dependency
@@ -165,12 +177,43 @@ def mission_run(
             if not progressed:
                 break
 
+        # The mission closes the way it opened: with a meeting. Both levels
+        # need one -- the rule applies to projects as well, which is why the
+        # project cannot close on the mission's retrospective.
+        with runtime.database.session() as session:
+            hold_retrospective(
+                session,
+                chair=runtime.chair,
+                missions=runtime.missions,
+                roster=runtime.roster,
+                scorer=runtime.forecasts,
+                subject_ref=project_ref,
+                participants=(actors[0], actors[1], actors[2]),
+                chair_ref=chair_ref,
+                desk="crypto",
+            )
+            close_out(session, runtime.missions, project_ref)
+            retro = hold_retrospective(
+                session,
+                chair=runtime.chair,
+                missions=runtime.missions,
+                roster=runtime.roster,
+                scorer=runtime.forecasts,
+                subject_ref=mission_ref,
+                participants=(actors[0], actors[1], actors[2]),
+                chair_ref=chair_ref,
+                kickoff_meeting_ref=kickoff_meeting_ref(session, mission_ref),
+                desk="crypto",
+            ).meeting
+            close_out(session, runtime.missions, mission_ref)
+
         with runtime.database.session() as session:
             progress = runtime.missions.progress(session, mission_ref)
             spent = runtime.missions.spent(session, mission_ref)
             messages = runtime.comms.read(
                 session, channel_id="desk-crypto", agent_ref=actors[2], limit=10
             )
+            calibration = runtime.forecasts.company_calibration(session)
             verification = runtime.ledger.verify(session)
     finally:
         runtime.close()
@@ -190,8 +233,14 @@ def mission_run(
     table.add_column("", style="bold", width=14)
     table.add_column("")
     table.add_row("mission", mission_ref)
+    table.add_row("kickoff", f"{kickoff.ref} — {kickoff.describe()}")
     table.add_row("turns", str(len(turns)))
     table.add_row("progress", progress.describe())
+    table.add_row("retrospective", f"{retro.ref} — {retro.describe()}")
+    if calibration:
+        table.add_row(
+            "calibration", "; ".join(c.describe() for c in calibration[:3])
+        )
     table.add_row("tokens", f"{spent.tokens:,}")
     table.add_row("cost", f"${spent.usd:.6f}")
     table.add_row(
@@ -204,7 +253,10 @@ def mission_run(
 
     if progress.succeeded != progress.total or not verification.ok:
         raise typer.Exit(code=1)
-    console.print("\n[green]M2 acceptance: mission decomposed, worked and traceable.[/green]")
+    console.print(
+        "\n[green]M3 acceptance: opened and closed with meetings; "
+        "every claim sourced.[/green]"
+    )
 
 
 @mission_app.command("list")

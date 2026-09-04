@@ -78,6 +78,12 @@ class Database:
         Returns the trigger names installed. Idempotent: safe to run against a
         live workspace.
         """
+        # Importing the schema module registers every table. Without it,
+        # `create_all` would build whatever happened to be imported first,
+        # and the write-scope guards would try to protect tables that do not
+        # exist.
+        import aurelis.schema  # noqa: F401
+
         Base.metadata.create_all(self._engine)
         if not install_triggers:
             return ()

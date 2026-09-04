@@ -33,6 +33,7 @@ __all__ = [
     "UnsourcedFigures",
     "allowed_figures",
     "interpret",
+    "interpret_as",
     "render_material",
     "unsourced_numerals",
 ]
@@ -130,34 +131,40 @@ def render_material(material: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
-def interpret(
-    context: AgentContext,
+def interpret_as(
+    provider: Any,
+    session: Any,
     *,
+    agent_ref: str,
     system: str,
     material: dict[str, Any],
     tier: ModelTier = ModelTier.MID,
     max_tokens: int = 400,
+    task_ref: str | None = None,
+    model: str = "mock-1",
 ) -> Interpretation:
-    """Ask the model to interpret ``material``, and refuse anything else.
+    """Ask the model to interpret ``material`` as ``agent_ref``, and refuse
+    anything else.
+
+    Takes the provider and session directly rather than an ``AgentContext``,
+    because a meeting turn is not a task and inventing one to satisfy a
+    signature would put rows in the queue for work nobody dispatched.
 
     Raises :class:`UnsourcedFigures` if the response contains a numeral that
-    does not appear in ``material``. The turn then fails and the reason is
-    recorded against the agent, which is the outcome an Agent Behavior Auditor
-    needs to be able to sample for.
+    does not appear in ``material``. The caller then fails the turn and the
+    reason is recorded against the agent, which is the outcome an Agent
+    Behavior Auditor needs to be able to sample for.
     """
-    response = context.provider.complete(
-        context.session,
+    response = provider.complete(
+        session,
         LlmRequest(
             model=ModelRef(
-                provider=context.provider.name,
-                model=str(context.task.payload.get("model", "mock-1")),
-                tier=tier,
-                max_tokens=max_tokens,
+                provider=provider.name, model=model, tier=tier, max_tokens=max_tokens
             ),
             system=system,
             messages=(Message("user", render_material(material)),),
-            actor=context.agent.ref,
-            task_ref=context.task.ref,
+            actor=agent_ref,
+            task_ref=task_ref,
         ),
     )
 
@@ -166,3 +173,25 @@ def interpret(
     if invented:
         raise UnsourcedFigures(invented, len(permitted))
     return Interpretation(response)
+
+
+def interpret(
+    context: AgentContext,
+    *,
+    system: str,
+    material: dict[str, Any],
+    tier: ModelTier = ModelTier.MID,
+    max_tokens: int = 400,
+) -> Interpretation:
+    """:func:`interpret_as`, bound to the agent whose turn is running."""
+    return interpret_as(
+        context.provider,
+        context.session,
+        agent_ref=context.agent.ref,
+        system=system,
+        material=material,
+        tier=tier,
+        max_tokens=max_tokens,
+        task_ref=context.task.ref,
+        model=str(context.task.payload.get("model", "mock-1")),
+    )

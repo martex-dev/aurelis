@@ -264,7 +264,7 @@ class Missions:
                 "gate without doing the thing the gate exists for"
             )
 
-        ref = allocate_ref(session, RefKind.MEETING)
+        ref = allocate_ref(session, RefKind.KICKOFF)
         stored = self._artifacts.put_json(
             session,
             {
@@ -333,7 +333,7 @@ class Missions:
             "cancelled": progress.cancelled,
         }
 
-        ref = allocate_ref(session, RefKind.MEETING)
+        ref = allocate_ref(session, RefKind.RETROSPECTIVE)
         stored = self._artifacts.put_json(
             session,
             {
