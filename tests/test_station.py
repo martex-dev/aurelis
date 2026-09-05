@@ -460,3 +460,16 @@ def test_the_server_starts_and_answers(reviewed: Runtime) -> None:
         assert "<svg" in body
     finally:
         server.stop()
+
+
+def test_there_is_no_way_to_draw_text_except_through_a_label() -> None:
+    """The overlap check is only worth having if nothing can bypass it.
+
+    A raw text primitive — even one meant for plant markings — is a caption
+    waiting to be added that the check would never measure.
+    """
+    from aurelis.station import svg
+
+    assert "text" not in svg.__all__
+    assert not hasattr(svg, "text")
+    assert hasattr(svg.Label, "box")

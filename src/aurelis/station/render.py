@@ -37,14 +37,6 @@ from aurelis.station.svg import (
 
 __all__ = ["STYLE", "facility_svg", "page", "render_facility"]
 
-_TONES = {
-    "working": "working",
-    "attention": "attention",
-    "stopped": "stopped",
-    "dim": "dim",
-}
-
-
 def render_facility(
     facility: Facility,
     statuses: dict[Department, RoomStatus],

@@ -16,6 +16,12 @@ width is a constant multiple of the font size. The multiple is
 :data:`ADVANCE_RATIO` and it is deliberately generous: the check is worth
 having only if it errs toward reporting collisions that a real renderer might
 just squeak past, never the reverse.
+
+**There is no way to draw text except through a Label.** This module exports no
+raw text primitive, so a caption cannot reach the drawing without being
+measured and added to the set the overlap check reads. An escape hatch — even
+one documented as being for plant markings — is a caption waiting to be added
+that the check would never see.
 """
 
 from __future__ import annotations
@@ -28,14 +34,13 @@ from itertools import combinations
 __all__ = [
     "ADVANCE_RATIO",
     "Anchor",
+    "Drawing",
     "Label",
     "Palette",
     "collisions",
     "escape_text",
-    "rect",
     "line",
-    "polyline",
-    "text",
+    "rect",
 ]
 
 ADVANCE_RATIO = 0.62
@@ -214,17 +219,3 @@ def line(
     )
 
 
-def polyline(points: list[tuple[float, float]], *, stroke: str, width: float = 1) -> str:
-    rendered = " ".join(f"{x},{y}" for x, y in points)
-    return (
-        f'<polyline points="{rendered}" fill="none" '
-        f'stroke="{stroke}" stroke-width="{width}"/>'
-    )
-
-
-def text(content: str, x: float, y: float, *, size: int = 11, fill: str) -> str:
-    """Raw text with no box. For plant markings only — never for data."""
-    return (
-        f'<text x="{x}" y="{y}" font-size="{size}" fill="{fill}">'
-        f"{escape_text(content)}</text>"
-    )
