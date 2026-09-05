@@ -40,7 +40,7 @@ from aurelis.memory.priorart import family_distance, search, tokenise
 from aurelis.memory.tables import CorpusReconciliation, CorpusTrial, KnowledgeEdge
 from aurelis.memory.vault import export_vault
 from aurelis.research.states import EvidenceKind, Polarity, Verdict
-from aurelis.research.tables import Evidence, Finding
+from aurelis.research.tables import Evidence, Finding, Hypothesis
 from aurelis.runtime import Runtime
 
 # The corpus ships inside the martex-quant wheel. When it is not installed the
@@ -1056,3 +1056,74 @@ def test_mirror_edges_are_signed_by_the_mirror_not_an_agent(company: Runtime) ->
         }
 
     assert authors == {"mirror"}
+
+
+def test_a_declared_figure_is_rendered_as_declared(
+    company: Runtime, tmp_path: Path
+) -> None:
+    """The money column pads to eight places; a threshold somebody chose
+    should not be printed as though it were computed."""
+    with company.database.session() as session:
+        quant = company.roster.by_handle(session, "QUANT").ref
+        hypothesis = company.research.propose(
+            session,
+            claim="Something with a round threshold.",
+            author=quant,
+            minimum_effect=Decimal("0.11"),
+            primary_metric="sharpe",
+            family="strategy.momentum.crypto",
+        )
+        export_vault(session, tmp_path / "vault", clock=company.clock)
+
+    page = (tmp_path / "vault" / "hypotheses" / f"{hypothesis.ref}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "`0.11`" in page
+    assert "0.11000000" not in page
+
+
+def test_a_page_says_when_its_support_predates_the_verdict(
+    company: Runtime, tmp_path: Path
+) -> None:
+    """A confirmed finding under a refuted hypothesis is not a contradiction
+    in the record; it is a finding that was not rewritten."""
+    with company.database.session() as session:
+        quant = company.roster.by_handle(session, "QUANT").ref
+        hypothesis = company.research.propose(
+            session,
+            claim="A claim that will be overturned.",
+            author=quant,
+            minimum_effect=Decimal("0.1"),
+            primary_metric="sharpe",
+            family="strategy.momentum.crypto",
+        )
+        session.add(
+            Finding(
+                finding_id=uuid7(),
+                ref="FND-8001",
+                hypothesis_ref=hypothesis.ref,
+                run_ref=None,
+                statement="It held.",
+                verdict=Verdict.CONFIRMED.value,
+                verdict_reason="every criterion held",
+                verdict_checks=[],
+                author=quant,
+                created_at=company.clock.now(),
+            )
+        )
+        session.flush()
+        mirror_research(session, graph=company.graph, clock=company.clock)
+        company.research.screen(session, hypothesis.ref, shelve=True, reason="dropped")
+        session.execute(
+            sa.update(Hypothesis)
+            .where(Hypothesis.ref == hypothesis.ref)
+            .values(state="refuted")
+        )
+        session.flush()
+        export_vault(session, tmp_path / "vault", clock=company.clock)
+
+    page = (tmp_path / "vault" / "hypotheses" / f"{hypothesis.ref}.md").read_text(
+        encoding="utf-8"
+    )
+    assert "predate the `refuted` verdict" in page
+    assert "never rewritten to match a later conclusion" in page

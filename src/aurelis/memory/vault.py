@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -34,6 +35,7 @@ from aurelis.memory.confidence import assess
 from aurelis.memory.graph import KnowledgeGraph
 from aurelis.memory.tables import CorpusReconciliation, CorpusTrial, Lesson
 from aurelis.platform.ledger.ledger import Ledger
+from aurelis.research.states import HypothesisState
 from aurelis.research.tables import Finding, Hypothesis
 
 __all__ = ["ExportReport", "export_vault"]
@@ -154,6 +156,28 @@ def _write(path: Path, body: str) -> None:
     path.write_text(_BANNER + "\n" + body, encoding="utf-8")
 
 
+def _plain(value: Decimal) -> str:
+    """A declared figure as it was declared.
+
+    The money column fixes the scale at eight places, so ``0.11`` comes back as
+    ``0.11000000``. Padding is a storage detail; printing it makes a threshold
+    somebody chose look like a computed result.
+    """
+    text = format(value.normalize(), "f")
+    return (text if "." not in text else text.rstrip("0").rstrip(".")) or "0"
+
+
+def _support_disagrees_with(
+    hypothesis: Hypothesis, supporting: tuple[str, ...]
+) -> bool:
+    """Whether the claim was settled against its own supporting findings."""
+    return bool(supporting) and hypothesis.state in (
+        HypothesisState.REFUTED,
+        HypothesisState.INCONCLUSIVE,
+        HypothesisState.UNDERPOWERED,
+    )
+
+
 def _frontmatter(**fields: object) -> str:
     lines = ["---"]
     for key, value in fields.items():
@@ -195,12 +219,26 @@ def _hypothesis_page(
         parts.append(f" — {hypothesis.verdict_reason}")
     parts.append("\n\n## Support\n\n" + support.describe() + "\n")
 
+    if _support_disagrees_with(hypothesis, support.supporting):
+        # A finding that said CONFIRMED still supports the claim in the graph,
+        # because that is what the finding says and findings are not rewritten.
+        # But a reader seeing "1 supporting" under a refuted hypothesis needs
+        # to be told which way the record actually ended, or the page reads as
+        # though the two disagree by accident.
+        parts.append(
+            f"\nThe supporting finding(s) above predate the `{hypothesis.state}` "
+            "verdict and are kept as written. What overturned the claim is in "
+            "the State section, not in the graph — a finding is never rewritten "
+            "to match a later conclusion.\n"
+        )
+
     if hypothesis.rationale:
         parts.append(f"\n## Rationale\n\n{hypothesis.rationale}\n")
     parts.append(
         f"\n## Declared before the run\n\n"
         f"- primary metric: `{hypothesis.primary_metric}`\n"
-        f"- minimum effect worth caring about: `{hypothesis.minimum_effect}`\n"
+        f"- minimum effect worth caring about: "
+        f"`{_plain(hypothesis.minimum_effect)}`\n"
     )
     if hypothesis.prior_art:
         links = ", ".join(f"[[{str(ref)}]]" for ref in hypothesis.prior_art)
