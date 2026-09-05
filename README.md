@@ -11,9 +11,10 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M5 complete — the company overturns its own confirmed result.**
-A Critic names survivorship, the Chair runs the test, the claim dies. No human
-in the loop. · 2026-09-05
+Status: **M6 complete — the company remembers, and inherits.**
+Another organisation's research corpus imported with its own figures preserved
+and its five-trial reconciliation gap carried, not closed. Confidence is
+derived, so an objection lowers it the moment it opens. · 2026-09-05
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -27,6 +28,8 @@ pip install -e ".[dev]"
 aurelis db init            # schema, invariants, the org chart
 aurelis agent hire         # staff the launch roster
 aurelis research review    # the demonstration
+aurelis memory import      # 125 inherited trials, gap and all
+aurelis memory export      # the corpus as an Obsidian vault
 ```
 
 ### The demonstration
@@ -58,6 +61,66 @@ Nobody intervenes at any point.
 Sharpe of 1.47 to 0.86. Those figures belong to that corpus; the ones above are
 what this engine measured on fixture instruments where the bias is present by
 construction.*
+
+### What the company already knows
+
+```
+aurelis memory import
+
+imported 21 ledger entries from martex-quant (29 hypothesis documents)
+  claimed by the source      125
+  documented by its entries  120
+  unallocated                5
+  carried because            Documented per-hypothesis deltas do not sum to
+                             the ledger's stated total. The gap is reported,
+                             not absorbed.
+  reconciles                 yes
+```
+
+The import **reproduces the source's own arithmetic instead of tidying it**.
+125 claimed, 120 accounted for by its committed documents, and a five-trial gap
+that the source itself says would be fabrication to distribute. Deflated
+Sharpes arrive as published — `0.99 against 65 trials`, never re-deflated
+against Aurelis's own count, because that would restate a figure somebody else
+computed.
+
+That is the snapshot bundled in the installed wheel, so the import is
+reproducible from the lockfile alone. `--bundle <repo>` reads a live
+repository instead — 174 claimed, 169 documented, the same gap of five. The
+reconciliation row stores the SHA-256 of whichever ledger was read, so a corpus
+that changed under a re-import is detectable rather than silently merged.
+
+Ask whether an idea is new, and the answer comes from the record:
+
+```
+aurelis memory prior-art "Do funding rate extremes predict forward returns?"   --family info.derivatives.funding
+
+MQ-H08 (martex-quant, killed) - close match on extremes, funding
+```
+
+That answer is now in every Brainstorm's evidence pack before anyone speaks.
+
+Confidence is **derived, never stored**, which is what makes it degrade on its
+own:
+
+```
+aurelis memory confidence FND-0001
+
+FND-0001  none
+  verdict             confirmed
+  independent support 1
+  capped by           OBJ-0001 was upheld by measurement: survivorship
+```
+
+The finding still says `confirmed`. Nobody edited it, and nobody had to
+remember to. An objection was upheld against the claim, so the company is no
+longer entitled to believe it — and the reason is on the record rather than in
+somebody's head. Support is counted the same way: three results that correlate
+above 0.7 collapse to one, and the discount **says what it discounted** instead
+of quietly returning a smaller number.
+
+There is no confidence column to go stale, which is the whole point
+([ADR-0008](docs/adr/0008-confidence-is-derived-never-stored.md)).
 
 ### The rest of the company
 
@@ -102,7 +165,7 @@ Look around:
 | [`docs/05-lifecycles.md`](docs/05-lifecycles.md) | Research → strategy → portfolio → risk → trading |
 | [`docs/06-mission-control.md`](docs/06-mission-control.md) | The station: the facility, drill-down, every view |
 | [`docs/07-roadmap.md`](docs/07-roadmap.md) | M0–M13, each with an acceptance test |
-| [`docs/adr/`](docs/adr/) | The seven decisions that are hard to reverse |
+| [`docs/adr/`](docs/adr/) | The eight decisions that are hard to reverse |
 
 ---
 
@@ -285,7 +348,7 @@ automatically by the company, five milestones in.
 | **M3** ✅ | **Meetings** | seven-phase protocol, forecasts, objections with tests, dissent |
 | **M4** ✅ | Research lifecycle | engines, preregistration, experiments, verdicts |
 | **M5** ✅ | Critique & audit | market defects, point-in-time, the review that kills |
-| **M6** | Memory & knowledge | graph, lessons, corpus import, vault export |
+| **M6** ✅ | Memory & knowledge | graph, lessons, corpus import, vault export |
 | **M7** | **Mission Control** | the live facility |
 | **M8** | Strategy, portfolio, risk | versions, gates, veto |
 | **M9** | Paper trading | approval chain, the backtest-live gap |

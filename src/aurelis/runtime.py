@@ -25,6 +25,8 @@ from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
 from aurelis.meetings.chair import Chair
 from aurelis.meetings.forecasts import ForecastScorer
+from aurelis.memory.graph import KnowledgeGraph
+from aurelis.memory.lessons import Lessons
 from aurelis.missions.missions import Missions
 from aurelis.org.seed import registry_fingerprint, seed_org
 from aurelis.platform.artifacts.store import ArtifactStore
@@ -66,6 +68,8 @@ class Runtime:
     chair: Chair
     forecasts: ForecastScorer
     research: Research
+    graph: KnowledgeGraph
+    lessons: Lessons
     worker: AgentWorker
 
     @classmethod
@@ -110,6 +114,8 @@ class Runtime:
         )
         forecasts = ForecastScorer(ledger, the_clock)
         research = Research(artifacts, ledger, the_clock)
+        graph = KnowledgeGraph(the_clock)
+        lessons = Lessons(ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
             queue=queue,
@@ -139,6 +145,8 @@ class Runtime:
             chair=chair,
             forecasts=forecasts,
             research=research,
+            graph=graph,
+            lessons=lessons,
             worker=worker,
         )
 

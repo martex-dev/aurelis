@@ -28,6 +28,7 @@ from aurelis.cli.company import agent_app, org_app
 from aurelis.cli.demo import run_demo
 from aurelis.cli.doctor import Status, run_checks
 from aurelis.cli.meeting import meeting_app
+from aurelis.cli.memory import memory_app
 from aurelis.cli.mission import mission_app
 from aurelis.cli.research import research_app
 from aurelis.core.config import load_settings
@@ -48,6 +49,7 @@ app.add_typer(agent_app, name="agent")
 app.add_typer(mission_app, name="mission")
 app.add_typer(meeting_app, name="meeting")
 app.add_typer(research_app, name="research")
+app.add_typer(memory_app, name="memory")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

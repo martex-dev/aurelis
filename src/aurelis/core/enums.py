@@ -124,6 +124,25 @@ class EventKind(StrEnum):
     because a corpus that quietly rewrote conclusions would be worse than one
     that never revised them."""
 
+    # Institutional memory
+    CORPUS_IMPORTED = "memory.corpus_imported"
+    """History arrived from another system, with its own figures preserved."""
+
+    CORPUS_RECONCILED = "memory.corpus_reconciled"
+    """An import's claimed totals were checked against what its documents
+    account for. The gap is carried on the event, because an import that
+    quietly made its numbers add up would be presenting a reconstruction as a
+    verified figure."""
+
+    KNOWLEDGE_LINKED = "memory.knowledge_linked"
+    LESSON_RECORDED = "memory.lesson_recorded"
+    LESSON_RETIRED = "memory.lesson_retired"
+    PRIOR_ART_SEARCHED = "memory.prior_art_searched"
+    """Recorded even when nothing was found, so "did anyone check?" is a query
+    rather than a matter of trust."""
+
+    VAULT_EXPORTED = "memory.vault_exported"
+
     # Agent work
     TOOL_CALLED = "tool.called"
     OBSERVATION_RECORDED = "intel.observation_recorded"

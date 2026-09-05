@@ -500,16 +500,21 @@ and "risk was never consulted" are different rows rather than the same silence.
 
 ```
 KnowledgeNode:  node_id · kind (HYPOTHESIS|FINDING|META_FINDING|STRATEGY
-                             |LEAD|OBSERVATION|LESSON|DECISION)
-                subject_id · desk · created_at
-KnowledgeEdge:  from · to · kind (SUPPORTS|CONTRADICTS|DEPENDS_ON
+                             |LEAD|OBSERVATION|LESSON|DECISION|TRIAL)
+                label · family · desk · origin · payload · created_at
+KnowledgeEdge:  source · target · kind (SUPPORTS|CONTRADICTS|DEPENDS_ON
                              |SUPERSEDES|CORRELATED_WITH|INSPIRED_BY
                              |REPLICATES|INVALIDATES)
-                weight · evidence_ref · created_by
-Lesson:         lesson_id · statement · source_meeting · source_mission
-                standing_rule · applies_to[] · created_at
-MemoryEntry:    entry_id · scope (AGENT|TEAM|DEPARTMENT|COMPANY)
-                subject · content · confidence · confidence_cap · sources[]
+                weight · evidence_ref · note · created_by · created_at
+Lesson:         lesson_id · ref · statement · source_ref · author
+                standing_rule · applies_to[] · retired_at · retired_reason
+CorpusTrial:    trial_id · corpus · ref · hypothesis · title · family
+                trial_count · ambiguous_allocation · grade · protocol
+                verdict · maturity · dsr · dsr_published · dsr_n_trials
+                source · evidence · notes
+CorpusRecon.:   corpus · period · digest · claimed_total · claimed_run
+                claimed_data_blocked · documented_total
+                unallocated · unallocated_reason · entries · documents
 Alert:          alert_id · severity · source · subject · message
                 recommended_action · raised_at · acknowledged_by
 AuditRecord:    record_id · auditor_agent · target · finding · severity
@@ -525,6 +530,36 @@ what it discounted** rather than silently shrinking a number.
 
 The graph **assigns no confidence scores of its own** — a graph that scores its
 nodes invites the reader to trust the score instead of the sources.
+
+`node_id` is the subject's own reference (`HYP-0001`, `MQ-H11`), so an edge
+cannot point at something that does not exist. `origin` separates what this
+company established from what it inherited, and every node from an import
+carries the corpus name.
+
+**Confidence is derived, not stored.** There is no confidence column, and the
+absence is the design: a stored band needs somebody to remember to lower it,
+and the one time that matters is the time nobody does. `memory/confidence.py`
+computes a band — NONE · WEAK · MODERATE · STRONG — from the verdict, the
+reportable evidence, the graph's independent-support count, the replications
+that held, and the objections still open. Rules are **caps, not contributions**:
+evidence raises the band, anything wrong with the finding lowers it, and the
+lowest cap wins — so accumulating support can never outvote an unresolved
+critical objection. Only the *explanation* is persisted, on
+`Finding.confidence_cap_reason`; a stale explanation is cosmetic, a stale band
+would not be.
+
+An objection merely **open** lowers the band. It does not have to be upheld or
+even tested: the company does not keep believing something at full strength
+while a stated, unanswered doubt sits against it, and resolving it either way
+lifts the cap.
+
+`CorpusTrial` holds another organisation's figures **as published**. `dsr` and
+`dsr_n_trials` travel together and are never recomputed — a deflated Sharpe
+means "survived deflation against *that many* trials" — and `dsr_published`
+keeps the literal text, because the money column pads the scale to eight places
+and "as published" has to survive a round-trip. `CorpusReconciliation` records
+what an import claimed against what its documents accounted for; the difference
+is carried with the source's own reason, never distributed by guess.
 
 `Event` is append-only (triggers refuse `UPDATE` and `DELETE`) and hash-chained,
 with sequence contiguity checked, because deleting a trailing run of events is
@@ -546,7 +581,7 @@ The table that makes the whole permission model checkable at a glance.
 | Run / Result | **no agent** — engines only | never | `computed_by` CHECK |
 | Sealed-split metric | **no agent** — Custodian only | never | CHECK |
 | Finding | Analysts, Researchers | author, pre-review | state guard |
-| Finding confidence | **no agent** — computed | never | computed column |
+| Finding confidence | **no agent** — derived on read | there is no column to modify | absence of a column |
 | Evidence | analyst roles, kind-restricted | never | assertion ladder |
 | Objection | Critics, Adversarial, Auditors, Skeptic | resolution is the engine's | FK |
 | Strategy version | Architect proposes | **never once VALIDATED** | trigger |
@@ -558,6 +593,9 @@ The table that makes the whole permission model checkable at a glance.
 | OrgChange | Org Development Lead proposes | decision by meeting | write scope |
 | Turn | speaker, through the meeting runtime | never | immutable |
 | Decision | Chair / decision-maker | never | append-only |
+| CorpusTrial | **no agent** — importer only | never | figures copied as published |
+| Knowledge edge | any agent, signed | never | endpoints must exist; correlation must state its weight |
+| Lesson / standing rule | any agent, must cite a source | retirement only, with a reason | checked on write |
 | Event | **no agent** | never | append-only trigger |
 
 The pattern, in one line:

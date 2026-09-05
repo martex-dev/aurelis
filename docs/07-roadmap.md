@@ -115,22 +115,57 @@ and it is the single most convincing thing this project can show early.
 
 ---
 
-## M6 — Institutional memory and the knowledge graph
+## M6 — Institutional memory and the knowledge graph ✅
 
-- `memory/` — lessons, standing rules, memory entries with computed confidence
-  and confidence caps.
+- `memory/` — lessons, standing rules, and confidence **derived on read** with
+  every cap and its reason. Confidence is a band (NONE · WEAK · MODERATE ·
+  STRONG), never a stored number: a column would need somebody to remember to
+  update it, and the one time that mattered would be the time nobody did.
 - Knowledge graph: nodes, edges, dependency and contradiction structure,
-  independent-support with correlation discounting.
-- Novelty and prior-art check on every new hypothesis.
-- Import the martex-quant corpus: 174 trials, 72 hypothesis documents, existing
-  graph edges — preserving published figures rather than recomputing them.
+  independent-support with correlation discounting. The graph assigns no
+  confidence of its own, and the discount **reports what it discounted**.
+- `memory/mirror.py` projects the research record onto the graph. A projection,
+  not a second copy — it draws only relationships the record already states,
+  and every derived edge is signed `mirror` so it is distinguishable from one
+  an agent asserted.
+- Novelty and prior-art check, deterministic (no model call, no embedding) over
+  the company's own hypotheses and every imported corpus at once. It
+  distinguishes *searched and found nothing* from *nothing to search*.
+- Import the martex-quant corpus, preserving published figures rather than
+  recomputing them.
 - Obsidian-compatible vault export, generated from the database, never edited
-  back.
+  back. The module offers no function that could read one — asserted by a test.
 
-**Acceptance:** a Brainstorm's evidence pack automatically contains "we tried
-this before" from the imported corpus. Ledger reconciliation reproduces the
-corpus's own claimed totals. A finding's confidence degrades when an objection
-opens against it.
+**Which corpus, and why the numbers differ.** The audit counted **174 trials**
+in the martex-quant *repository*. The corpus bundled inside the installed
+*wheel* is an earlier snapshot claiming **125** (124 run, 1 data-blocked) across
+21 entries and 29 hypothesis documents. Both figures are right about different
+artifacts, and the importer reads either:
+
+```
+aurelis memory import                          # the wheel's snapshot: 125 claimed, 120 documented, 5 carried
+aurelis memory import --bundle <repo>          # the live repository:  174 claimed, 169 documented, 5 carried
+```
+
+The default is the wheel, so an import is reproducible from the lockfile alone.
+The reconciliation row stores the SHA-256 of whichever ledger was read, so
+"which corpus is loaded?" is always answerable and a corpus that changed under
+a re-import is detectable rather than silently merged. The five-trial gap
+survives both — it is a property of the research record, not of the snapshot.
+
+**Acceptance — met:**
+
+| | |
+|---|---|
+| Brainstorm evidence pack contains "we tried this before" | `memory/brainstorm.py` searches before the room opens; the pack is stored as an artifact, so what everyone saw is citable |
+| Ledger reconciliation reproduces the corpus's claimed totals | Claimed = documented + carried, on both corpora. The gap is not distributed — the source itself says doing so "would be fabrication" |
+| A finding's confidence degrades when an objection opens | MODERATE → WEAK on an open major objection, → NONE on a critical or an upheld one, and back when it resolves |
+
+Two figures are preserved rather than recomputed: `dsr` alongside the
+`dsr_n_trials` it was actually deflated against (0.99 against 65, not against
+today's count), and `dsr_published` holding the literal text, because the money
+column pads the scale to eight places and "as published" has to survive a
+database round-trip.
 
 ---
 
