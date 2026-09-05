@@ -247,15 +247,20 @@ artifacts alone, so it cannot drift from the record it describes.
 
 | Concern | Choice |
 |---|---|
-| Server | FastAPI over read-only projections |
-| Push | SSE on ledger append — traffic is server → client only |
-| Rendering | Server-generated SVG facility + a light interactive shell for pan/zoom/drill-down |
-| State | Projections rebuilt from events; the station holds no authoritative state |
-| Static build | `aurelis station build --out site/station.html` — single file, vector only |
+| Server | `http.server.ThreadingHTTPServer` over read-only projections ([ADR-0009](adr/0009-the-station-is-served-by-the-standard-library.md)) |
+| Push | SSE polling the ledger's sequence column — traffic is server → client only |
+| Rendering | Server-generated SVG facility, plain HTML pages, no build step |
+| State | Projections read from the record on every request; the station holds none |
+| Static build | `aurelis station build --out station.html` — single file, vector only |
 
-Deliberately **not** a heavyweight SPA by default. The facility is a generated
-drawing; a full framework earns its place only if drill-down proves painful in
-the light shell, and that would be recorded as an ADR when the pain appears.
+Deliberately **not** a heavyweight SPA, and — as built — not a framework at
+all. §7 originally specified FastAPI; the station turned out to have thirteen
+GET routes, no request body anywhere, and no authentication, so the standard
+library covers it with no dependency. The gain that decided it: read-only stops
+being a promise and becomes structural, because the handler implements `do_GET`
+and there is no code path through which the station could write. ADR-0009
+records the reasoning and names the trigger to revisit it — the moment the
+station accepts input.
 
 ---
 
@@ -275,6 +280,25 @@ The station must let you:
 - verify the ledger chain and the custody query budget
 
 If any of those requires a terminal, the station is not finished.
+
+**Where M7 leaves it, plainly.** Six of those ten are done and four are not.
+Done: seeing every agent with its permissions and cost; reading any meeting
+with its arguments and dissent; tracing any claim to the artifact that produced
+it; browsing the graveyard; verifying the ledger chain; and — as a bonus the
+list did not ask for — reading the whole company timeline.
+
+Not done: opening a mission, approving an org change, risk limits and vetoes,
+and paper trading. Three of those describe records that do not exist yet (M8,
+M9, M11 own them), and the fourth — opening a mission — is a *write*, which the
+station deliberately cannot do at M7 (ADR-0009). So M7 delivers **"understand
+without a terminal"**, which is exactly what the roadmap's acceptance criterion
+asks for; **"operate without a terminal"** needs the write surface, and it
+arrives with the milestones that own those decisions.
+
+The distinction is worth keeping sharp rather than blurring: a station that
+quietly claimed to be operable while every state change still required the CLI
+would be the kind of half-truth this project spends most of its design budget
+avoiding.
 
 And the questions it must answer at a glance, from `CLAUDE.md` §35: *What is
 happening? Why? Who is doing it? What has the company learned? What is it going

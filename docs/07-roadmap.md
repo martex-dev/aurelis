@@ -169,20 +169,41 @@ database round-trip.
 
 ---
 
-## M7 — Mission Control, live
+## M7 — Mission Control, live ✅
 
 - `station/` — facility layout generated from the department and desk
-  registries; the ten rooms plus Registry, Vault, Floor and Graveyard.
+  registries: ten department rooms, the Registry and the Vault (no corridor),
+  the Floor with a bay per desk, and the Graveyard. Fixtures are placed by a
+  hash of each room's id, so two builds of the same state produce the same
+  picture. Staff figures are drawn from the **headcount**, not from scenery.
 - Drill-down: company → department → agent → mission → meeting → hypothesis →
-  experiment → artifact.
-- Company timeline from the event stream; SSE live updates.
-- `Figure(value, source)` with no source-less constructor; label-overlap test.
-- Sealed static build retained.
+  registration → run → measurement → artifact digest.
+- Company timeline from the event stream, with SSE live updates.
+- `Figure(value, source)` with **no source-less constructor** — `Figure(42)` is
+  a `TypeError`, and a test asserts it. Every caption carries its own box and a
+  test asserts that no two overlap.
+- Sealed static build: one file, no external requests, stamped with the ledger
+  head and the chain verification result.
+- Served by the standard library rather than FastAPI
+  ([ADR-0009](adr/0009-the-station-is-served-by-the-standard-library.md)),
+  which makes read-only structural: the handler implements `do_GET` and nothing
+  else, so there is no code path through which the station can write.
 
-**Acceptance:** run a full mission and understand what happened, who did it,
-what it cost, what was decided, who disagreed and what failed — **without
-opening a terminal, a source file or a raw log.** Every number on screen opens
-its source.
+**Acceptance — met.** `test_the_whole_review_is_legible_without_a_terminal`
+runs the M5 review and then reads the answers off rendered pages: what happened
+(`REFUTED`), what failed (`survivorship`, upheld), the measurement that killed
+it (`0.64507263`), why it was believed (`REG-0001`, the criteria committed
+before the run, the data fingerprint, `computed_by = ENGINE`), who did it
+(the agent page, with what it may see and write), what was decided and who
+disagreed (the transcript, decision and dissent), and what it cost.
+
+**What M7 does not deliver, stated rather than implied.** The station is
+read-only. It delivers *understand* without a terminal, which is what the
+criterion above asks; *operate* without a terminal needs the write surface, and
+that arrives with the milestones owning those decisions (M8 risk, M9 paper
+trading, M11 org changes). Rooms for records that do not exist yet read
+`NO DATA — arrives in M8` rather than `0`, because a zero would be a fabricated
+fact about a world nobody looked at.
 
 ---
 

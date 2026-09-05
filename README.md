@@ -11,10 +11,10 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M6 complete — the company remembers, and inherits.**
-Another organisation's research corpus imported with its own figures preserved
-and its five-trial reconciliation gap carried, not closed. Confidence is
-derived, so an objection lowers it the moment it opens. · 2026-09-05
+Status: **M7 complete — the company has a window.**
+Mission Control renders the facility from the registries and lights it from the
+record. Every number on screen names its source, and `Figure(42)` without one
+is a `TypeError`. · 2026-09-05
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -28,8 +28,8 @@ pip install -e ".[dev]"
 aurelis db init            # schema, invariants, the org chart
 aurelis agent hire         # staff the launch roster
 aurelis research review    # the demonstration
-aurelis memory import      # 125 inherited trials, gap and all
-aurelis memory export      # the corpus as an Obsidian vault
+aurelis memory import      # inherited trials, gap and all
+aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
 ### The demonstration
@@ -122,6 +122,43 @@ of quietly returning a smaller number.
 There is no confidence column to go stale, which is the whole point
 ([ADR-0008](docs/adr/0008-confidence-is-derived-never-stored.md)).
 
+### The window
+
+```bash
+aurelis station serve
+```
+
+A facility drawn from the registries and lit by the record. Ten department
+rooms, a bay per desk, the Graveyard as a full room — and the Registry and the
+Vault with **no corridor**, because you cannot walk into a process boundary.
+Staff figures are the headcount: a room with three people has three, and a room
+with none is drawn unlit at full size rather than left out.
+
+The rule that makes it trustworthy is a type:
+
+```python
+Figure(42)                                  # TypeError — no source
+Figure(42, Source.table("agents", "..."))   # fine, and hovering shows the query
+```
+
+`Figure` has no constructor that omits its source, so a number cannot reach a
+page without naming the row, artifact or registry entry it came from. "Nothing
+on this page was typed" is checkable by reading the type rather than by
+auditing every call site. Where nothing was measured, the page says `NO DATA`
+and why — never `0`, because a zero is a measurement and the two justify
+different conclusions.
+
+Open `/hypothesis/HYP-0001` after the demonstration and the whole story is one
+page: the claim, the preregistration hash and its lock time, the criteria
+committed before the run, the code version and data fingerprint, every metric
+with `computed_by = ENGINE`, the survivorship objection, and the measurement
+that killed it. *Why does the company believe this?* is answered by scrolling.
+
+`aurelis station build` writes the same record to a single file that fetches
+nothing — no stylesheet, script, font or image — stamped with the ledger head
+and the chain verification, so a finding can be cited years after the database
+has moved on.
+
 ### The rest of the company
 
 `aurelis mission run` opens a mission with a **Kickoff meeting**, plans a
@@ -165,7 +202,7 @@ Look around:
 | [`docs/05-lifecycles.md`](docs/05-lifecycles.md) | Research → strategy → portfolio → risk → trading |
 | [`docs/06-mission-control.md`](docs/06-mission-control.md) | The station: the facility, drill-down, every view |
 | [`docs/07-roadmap.md`](docs/07-roadmap.md) | M0–M13, each with an acceptance test |
-| [`docs/adr/`](docs/adr/) | The eight decisions that are hard to reverse |
+| [`docs/adr/`](docs/adr/) | The nine decisions that are hard to reverse |
 
 ---
 
@@ -349,7 +386,7 @@ automatically by the company, five milestones in.
 | **M4** ✅ | Research lifecycle | engines, preregistration, experiments, verdicts |
 | **M5** ✅ | Critique & audit | market defects, point-in-time, the review that kills |
 | **M6** ✅ | Memory & knowledge | graph, lessons, corpus import, vault export |
-| **M7** | **Mission Control** | the live facility |
+| **M7** ✅ | **Mission Control** | the live facility, every figure sourced |
 | **M8** | Strategy, portfolio, risk | versions, gates, veto |
 | **M9** | Paper trading | approval chain, the backtest-live gap |
 | **M10** | Training scenarios | onboarding and playbook regression |
