@@ -57,7 +57,7 @@ def company(runtime: Runtime) -> Runtime:
 def _refs(company: Runtime, session: sa.orm.Session) -> dict[str, str]:
     return {
         handle: company.roster.by_handle(session, handle).ref
-        for handle in ("STRAT", "QUANT", "GOV", "RISK", "PM", "TRADE", "CRITIC")
+        for handle in ("STRAT", "VALID", "QUANT", "GOV", "RISK", "PM", "TRADE", "CRITIC")
     }
 
 
@@ -117,7 +117,7 @@ def _compose(
         desk=Desk.CRYPTO,
         owner=refs["STRAT"],
     )
-    signal = _signal(company, session, refs["QUANT"], assumes=assumes)
+    signal = _signal(company, session, refs["STRAT"], assumes=assumes)
     sizing = _sizing(company, session, refs["STRAT"])
     composition = company.synthesis.compose(
         session,
@@ -229,7 +229,7 @@ def test_a_component_must_state_why_it_should_work(company: Runtime) -> None:
                 rationale="works",
                 origin=Origin.INVENTED,
                 origin_ref="MTG-0001",
-                author=refs["QUANT"],
+                author=refs["STRAT"],
                 desk=Desk.CRYPTO,
             )
 
@@ -242,14 +242,21 @@ def test_an_invented_component_may_not_cite_inherited_work(company: Runtime) -> 
             _signal(
                 company,
                 session,
-                refs["QUANT"],
+                refs["STRAT"],
                 origin=Origin.INVENTED,
                 origin_ref="MQ-H11",
             )
 
 
 def test_the_database_refuses_a_component_with_no_origin(company: Runtime) -> None:
-    """The same rule, around the runtime entirely."""
+    """The same rule, around the runtime entirely.
+
+    Written by an agent that genuinely holds the scope, so the CHECK is what
+    refuses it rather than the write-scope guard firing first.
+    """
+    with company.database.session() as session:
+        author = _refs(company, session)["STRAT"]
+
     with pytest.raises(Exception, match="ck_component_cites_its_origin"), \
             company.database.engine.begin() as connection:
         connection.execute(
@@ -258,9 +265,9 @@ def test_the_database_refuses_a_component_with_no_origin(company: Runtime) -> No
                 "spec_digest, rationale, origin, origin_ref, author, desk, "
                 "assumes, retired_reason, created_at) VALUES "
                 "(:i,'CMP-9999','signal','x','{}','d','because','invented','   ',"
-                "'AG-0001','crypto','[]','','2026-01-01 00:00:00')"
+                ":a,'crypto','[]','','2026-01-01 00:00:00')"
             ),
-            {"i": uuid7().hex},
+            {"i": uuid7().hex, "a": author},
         )
 
 
@@ -291,7 +298,7 @@ def test_an_inherited_composition_reads_as_inherited(company: Runtime) -> None:
         borrowed = _signal(
             company,
             session,
-            refs["QUANT"],
+            refs["STRAT"],
             name="cross-sectional rotation",
             origin=Origin.ADAPTED,
             origin_ref="MQ-H11",
@@ -344,7 +351,7 @@ def test_authors_must_name_a_weakness(company: Runtime) -> None:
             desk=Desk.CRYPTO,
             owner=refs["STRAT"],
         )
-        signal = _signal(company, session, refs["QUANT"])
+        signal = _signal(company, session, refs["STRAT"])
         with pytest.raises(IntegrityViolation, match="known weakness"):
             company.synthesis.compose(
                 session,
@@ -512,7 +519,7 @@ def test_a_component_cannot_be_composed_onto_a_desk_that_lacks_its_assumption(
         signal = _signal(
             company,
             session,
-            refs["QUANT"],
+            refs["STRAT"],
             assumes=("perpetual_funding",),
             desk=Desk.EQUITIES,
         )
@@ -541,7 +548,7 @@ def test_a_component_may_not_declare_an_uncheckable_assumption(
     with company.database.session() as session:
         refs = _refs(company, session)
         with pytest.raises(IntegrityViolation, match="market model does not know"):
-            _signal(company, session, refs["QUANT"], assumes=("lunar_cycle",))
+            _signal(company, session, refs["STRAT"], assumes=("lunar_cycle",))
 
 
 # ------------------------------------------------------------- gates
@@ -558,7 +565,7 @@ def test_a_gate_cannot_be_registered_twice(company: Runtime) -> None:
             metric="deflated_sharpe",
             comparison="gte",
             value=Decimal("0.95"),
-            registered_by=refs["GOV"],
+            registered_by=refs["VALID"],
         )
         with pytest.raises(IntegrityViolation, match="already registered"):
             company.gates.register(
@@ -568,7 +575,7 @@ def test_a_gate_cannot_be_registered_twice(company: Runtime) -> None:
                 metric="deflated_sharpe",
                 comparison="gte",
                 value=Decimal("0.50"),
-                registered_by=refs["GOV"],
+                registered_by=refs["VALID"],
             )
 
 
@@ -583,7 +590,7 @@ def test_an_unregistered_gate_cannot_be_evaluated(company: Runtime) -> None:
                 version_ref=version_ref,
                 gate=Gate.A_STATISTICAL,
                 observed=Decimal("0.99"),
-                evaluated_by=refs["GOV"],
+                evaluated_by=refs["VALID"],
             )
 
 
@@ -599,7 +606,7 @@ def test_promotion_needs_every_registered_gate_evaluated(company: Runtime) -> No
                 metric=criterion["metric"],
                 comparison=criterion["comparison"],
                 value=criterion["value"],
-                registered_by=refs["GOV"],
+                registered_by=refs["VALID"],
             )
         outcome = company.strategies.promote(
             session,
@@ -636,7 +643,7 @@ def test_a_strategy_that_passes_solo_and_fails_gate_c_is_blocked(
             company,
             session,
             version_ref,
-            refs["GOV"],
+            refs["VALID"],
             overrides={Gate.C_INDEPENDENCE: Decimal("0.83")},
         )
         outcome = company.strategies.promote(
@@ -675,7 +682,7 @@ def test_the_book_measures_correlation_against_its_members(company: Runtime) -> 
     with company.database.session() as session:
         refs = _refs(company, session)
         first = _compose(company, session, refs)
-        _pass_every_gate(company, session, first, refs["GOV"])
+        _pass_every_gate(company, session, first, refs["VALID"])
         company.strategies.promote(
             session,
             version_ref=first,
@@ -796,7 +803,7 @@ def test_modifying_a_validated_version_is_refused_by_the_database(
     with company.database.session() as session:
         refs = _refs(company, session)
         version_ref = _compose(company, session, refs)
-        _pass_every_gate(company, session, version_ref, refs["GOV"])
+        _pass_every_gate(company, session, version_ref, refs["VALID"])
         promoted = company.strategies.promote(
             session,
             version_ref=version_ref,
@@ -824,7 +831,7 @@ def test_a_material_change_becomes_a_new_version_under_review(
     with company.database.session() as session:
         refs = _refs(company, session)
         first = _compose(company, session, refs)
-        _pass_every_gate(company, session, first, refs["GOV"])
+        _pass_every_gate(company, session, first, refs["VALID"])
         company.strategies.promote(
             session,
             version_ref=first,
@@ -875,7 +882,7 @@ def test_a_gate_cannot_be_evaluated_before_it_was_registered(
             metric="deflated_sharpe",
             comparison="gte",
             value=Decimal("0.95"),
-            registered_by=refs["GOV"],
+            registered_by=refs["VALID"],
         )
 
     with pytest.raises(Exception, match="cannot be evaluated before"), \
@@ -1083,6 +1090,10 @@ def test_a_latched_kill_halts_everything_and_code_cannot_clear_it(
 
 
 def test_a_veto_allows_nothing_and_the_database_agrees(company: Runtime) -> None:
+    """Written by a risk role, so the CHECK is what refuses it."""
+    with company.database.session() as session:
+        assessor = _refs(company, session)["RISK"]
+
     with pytest.raises(Exception, match="ck_veto_allows_nothing"), \
             company.database.engine.begin() as connection:
         connection.execute(
@@ -1090,10 +1101,10 @@ def test_a_veto_allows_nothing_and_the_database_agrees(company: Runtime) -> None
                 "INSERT INTO risk_assessments (assessment_id, ref, proposal_ref, "
                 "assessor, desired_exposure, allowed_exposure, decision, "
                 "limits_applied, reason, assessed_at) VALUES "
-                "(:i,'RSK-9999','TPR-0001','AG-0001','100','50','veto','[]','x',"
+                "(:i,'RSK-9999','TPR-0001',:a,'100','50','veto','[]','x',"
                 "'2026-01-01 00:00:00')"
             ),
-            {"i": uuid7().hex},
+            {"i": uuid7().hex, "a": assessor},
         )
 
 
@@ -1125,7 +1136,7 @@ def test_degradation_carries_the_measurement_that_fired_it(company: Runtime) -> 
     with company.database.session() as session:
         refs = _refs(company, session)
         first = _compose(company, session, refs)
-        _pass_every_gate(company, session, first, refs["GOV"])
+        _pass_every_gate(company, session, first, refs["VALID"])
         promoted = company.strategies.promote(
             session,
             version_ref=first,
@@ -1160,7 +1171,7 @@ def test_the_whole_layer_is_recorded_in_the_ledger(company: Runtime) -> None:
     with company.database.session() as session:
         refs = _refs(company, session)
         version_ref = _compose(company, session, refs)
-        _pass_every_gate(company, session, version_ref, refs["GOV"])
+        _pass_every_gate(company, session, version_ref, refs["VALID"])
         company.strategies.promote(
             session,
             version_ref=version_ref,

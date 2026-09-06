@@ -19,6 +19,7 @@ from aurelis.agents.guards import install_guards
 from aurelis.agents.loop import AgentWorker
 from aurelis.agents.roster import Roster
 from aurelis.agents.tools import ToolBox
+from aurelis.alerts.service import Alerts
 from aurelis.comms.channels import Comms
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
@@ -46,6 +47,12 @@ from aurelis.strategy.gates import Gates
 from aurelis.strategy.lifecycle import Strategies
 from aurelis.strategy.synthesis import Synthesis
 from aurelis.strategy.triggers import install_strategy_invariants
+from aurelis.trading.brokers import BrokerAdapter, adapters
+from aurelis.trading.cycle import PaperCycle
+from aurelis.trading.execution import Execution
+from aurelis.trading.posttrade import PostTrade
+from aurelis.trading.states import BrokerKind
+from aurelis.trading.triggers import install_trading_invariants
 
 __all__ = ["Runtime", "COMPANY_SCOPE_ID"]
 
@@ -79,6 +86,11 @@ class Runtime:
     strategies: Strategies
     book: Book
     risk: Risk
+    execution: Execution
+    posttrade: PostTrade
+    cycle: PaperCycle
+    alerts: Alerts
+    brokers: dict[BrokerKind, BrokerAdapter]
     graph: KnowledgeGraph
     lessons: Lessons
     worker: AgentWorker
@@ -130,6 +142,19 @@ class Runtime:
         strategies = Strategies(gates, ledger, the_clock)
         book = Book(ledger, the_clock)
         risk = Risk(ledger, the_clock)
+        execution = Execution(ledger, the_clock)
+        posttrade = PostTrade(ledger, the_clock)
+        alerts = Alerts(ledger, the_clock)
+        brokers = adapters()
+        cycle = PaperCycle(
+            risk=risk,
+            execution=execution,
+            posttrade=posttrade,
+            book=book,
+            alerts=alerts,
+            ledger=ledger,
+            clock=the_clock,
+        )
         graph = KnowledgeGraph(the_clock)
         lessons = Lessons(ledger, the_clock)
         worker = AgentWorker(
@@ -166,6 +191,11 @@ class Runtime:
             strategies=strategies,
             book=book,
             risk=risk,
+            execution=execution,
+            posttrade=posttrade,
+            cycle=cycle,
+            alerts=alerts,
+            brokers=brokers,
             graph=graph,
             lessons=lessons,
             worker=worker,
@@ -185,6 +215,7 @@ class Runtime:
                     *install_guards(connection),
                     *install_research_invariants(connection),
                     *install_strategy_invariants(connection),
+                    *install_trading_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

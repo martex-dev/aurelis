@@ -247,16 +247,43 @@ desk.
 
 ---
 
-## M9 — Paper trading
+## M9 — Paper trading ✅
 
-- `trading/` — proposals, approvals, orders, positions, post-trade.
-- `BacktestBroker`, `SimulationBroker`, `PaperBroker`. **No `LiveBroker`.**
-- Trading Operations roles; scheduled paper cycle; monitors and alerts.
-- Backtest-live gap measured and forecast.
+- `trading/` — orders, fills, positions, post-trade reports and gap
+  measurements. Proposals, assessments and approvals arrived with M8's risk
+  layer; M9 adds the half that reaches a broker.
+- `BacktestBroker`, `SimulationBroker`, `PaperBroker`. **No `LiveBroker`** —
+  no adapter, no `BrokerKind` member, no registry entry, and `resolve("live")`
+  refuses with an explanation rather than a `KeyError`.
+- `alerts/` — raise, acknowledge, resolve, with acknowledgement and resolution
+  as separate acts. Open alerts deduplicate while unresolved.
+- `PaperCycle` runs the whole chain in order and records what it refused.
+- Backtest-live gap measured against the artifact digest of the number that
+  justified deployment, with a scored forecast per deployment.
+- **The write-scope guards M8 promised.** `trade_proposals`,
+  `risk_assessments`, `trade_approvals` and `orders` are four different scopes
+  held by four different roles, so "the agent that wants the exposure is not
+  the one that approves it" is enforced by the database. Components, strategy
+  versions, gates and allocations are guarded too.
 
-**Acceptance:** a validated strategy reaches paper only through the recorded
-chain. The gap is measured daily and its forecast scored. A test asserts no
-module imports martex-quant's MT5 adapter.
+**Acceptance — met:**
+
+| | |
+|---|---|
+| Paper only through the recorded chain | An order's approval FK is non-nullable, and a trigger re-checks the approval still cites a permitting assessment of its own proposal. A second trigger caps the notional at what Risk approved |
+| The gap is measured and its forecast scored | Expectation copied from the supporting run with its artifact digest; a deployment forecasts whether its backtest will hold and the first period scores it with a Brier |
+| No module imports the MT5 adapter | `test_no_module_imports_the_live_broker_adapter`, now parsing imports rather than grepping for a substring |
+
+**Two bugs the demonstration caught that reading did not.** Money is stored as
+text so it round-trips exactly, and SQLite compares an integer to a string by
+type class rather than value — so `12000 > '5000.00000000'` is false and
+`'1000.00000000' >= 0` is *true*. Several CHECK constraints were therefore
+vacuous and one trigger silently permitted every oversized approval it existed
+to stop. Every money comparison now casts, and the trap is documented on the
+`Money` type itself. Separately, the gap's `held` compared `realised - expected
+>= 0` for every metric, which reported a deployment that *beat* its drawdown
+estimate as having fallen short; direction is now read from an explicit table
+that raises on an unknown metric rather than guessing.
 
 ---
 

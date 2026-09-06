@@ -104,7 +104,8 @@ class TradeProposal(Base):
     __table_args__ = (
         sa.CheckConstraint("side IN ('buy','sell')", name="ck_proposal_side"),
         sa.CheckConstraint(
-            "desired_exposure >= 0", name="ck_proposal_desired_not_negative"
+            "CAST(desired_exposure AS REAL) >= 0",
+            name="ck_proposal_desired_not_negative",
         ),
     )
 
@@ -133,14 +134,16 @@ class RiskAssessment(Base):
             "decision IN ('allow','shrink','veto','halt')", name="ck_risk_decision"
         ),
         sa.CheckConstraint(
-            "allowed_exposure >= 0", name="ck_allowed_not_negative"
+            "CAST(allowed_exposure AS REAL) >= 0",
+            name="ck_allowed_not_negative",
         ),
         sa.CheckConstraint(
-            "decision <> 'veto' OR allowed_exposure = 0",
+            "decision <> 'veto' OR CAST(allowed_exposure AS REAL) = 0",
             name="ck_veto_allows_nothing",
         ),
         sa.CheckConstraint(
-            "decision <> 'allow' OR allowed_exposure = desired_exposure",
+            "decision <> 'allow' OR CAST(allowed_exposure AS REAL) = "
+            "CAST(desired_exposure AS REAL)",
             name="ck_allow_means_the_full_size",
         ),
         sa.CheckConstraint(
@@ -168,7 +171,10 @@ class TradeApproval(Base):
     approved_at: Mapped[dt.datetime] = mapped_column(index=True)
 
     __table_args__ = (
-        sa.CheckConstraint("final_target >= 0", name="ck_approval_target_not_negative"),
+        sa.CheckConstraint(
+            "CAST(final_target AS REAL) >= 0",
+            name="ck_approval_target_not_negative",
+        ),
     )
 
 

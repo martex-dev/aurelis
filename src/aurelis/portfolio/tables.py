@@ -79,7 +79,10 @@ class Allocation(Base):
     withdrawn_reason: Mapped[str] = mapped_column(sa.Text, default="")
 
     __table_args__ = (
-        sa.CheckConstraint("weight >= 0", name="ck_allocation_weight_not_negative"),
+        sa.CheckConstraint(
+            "CAST(weight AS REAL) >= 0",
+            name="ck_allocation_weight_not_negative",
+        ),
         sa.CheckConstraint(
             "length(trim(rationale)) > 0", name="ck_allocation_states_its_reason"
         ),

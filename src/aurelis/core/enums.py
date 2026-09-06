@@ -153,6 +153,22 @@ class EventKind(StrEnum):
     TRADE_PROPOSED = "trading.proposed"
     TRADE_APPROVED = "trading.approved"
     TRADE_REFUSED = "trading.refused"
+    ORDER_SUBMITTED = "trading.order_submitted"
+    ORDER_FILLED = "trading.order_filled"
+    ORDER_REJECTED = "trading.order_rejected"
+    """A broker refused. Recorded rather than raised: a rejection is
+    information about the venue, the instruction or the assumed price."""
+
+    POSITION_CHANGED = "trading.position_changed"
+    POST_TRADE_ANALYSED = "trading.post_trade_analysed"
+    GAP_MEASURED = "trading.gap_measured"
+    """Backtest expectation against what paper trading produced. The only
+    measurement where reality gets a vote."""
+
+    PAPER_CYCLE_RAN = "trading.paper_cycle_ran"
+    ALERT_RAISED = "ops.alert_raised"
+    ALERT_ACKNOWLEDGED = "ops.alert_acknowledged"
+    ALERT_RESOLVED = "ops.alert_resolved"
     KILL_LATCHED = "risk.kill_latched"
     """Execution stopped and latched. Never cleared by code."""
 

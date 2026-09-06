@@ -11,10 +11,10 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M8 complete — the company builds strategies rather than picking them.**
-A strategy is composed from components agents authored, each citing where it
-came from. Risk cannot be bypassed, and a promoted version is frozen by the
-database. · 2026-09-06
+Status: **M9 complete — paper trading, and the measurement reality votes on.**
+An order cannot exist without the approval chain behind it. The backtest-live
+gap is measured against the artifact that justified deployment, and every
+deployment forecasts its own gap. · 2026-09-06
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -186,6 +186,47 @@ desired 12000 -> allowed 5000 -> final 5000     SHRINK
 
 so "Risk allowed it" and "Risk was never asked" are different rows rather than
 the same silence.
+
+### Paper trading, and the one measurement reality votes on
+
+An order cannot exist without the chain behind it. `aurelis trading chain`
+walks one backwards:
+
+```
+ORD-0001  filled
+  TPR-0001  proposed by AG-0012: paper cycle intent for SV-0001
+  RSK-0001  SHRINK by AG-0011
+      desired 12000 exceeds the tightest live limit 5000 (desk: new desk,
+      unproven in paper)
+  TAP-0001  approved by AG-0013
+  ORD-0001  buy 50 BTC/USDT on the paper broker
+      filled 50 at 100.025 (fee 5.00)
+
+The three numbers
+  desired  12000    allowed  5000    final  5000
+```
+
+Four rows, four different write scopes, four different roles. The agent that
+wants the exposure is not the one that permits it and not the one that sends
+the order — enforced by database triggers, not by everyone remembering.
+
+**There is no live broker.** Not disabled — absent: no adapter, no enum member,
+no registry entry, and `resolve("live")` refuses with an explanation rather
+than a `KeyError`. A test parses every module's imports to prove nothing can
+reach martex-quant's MT5 adapter.
+
+The gap is what M9 exists for:
+
+```
+SV-0001 max_drawdown: backtest 0.12364208, paper 0.17364208 (+0.05) — fell short
+deployment forecast 0.7 that it would hold → outcome False, Brier 0.49
+```
+
+The expectation is copied from the run that justified deployment, **with its
+artifact digest** — not recomputed, because re-deriving it would compare paper
+against today's estimate rather than against the claim actually made. And the
+mean gap is tracked as a company competence: how wrong our backtests tend to be
+is a fact about us, not about any one strategy.
 
 ### The window
 
@@ -453,7 +494,7 @@ automatically by the company, five milestones in.
 | **M6** ✅ | Memory & knowledge | graph, lessons, corpus import, vault export |
 | **M7** ✅ | **Mission Control** | the live facility, every figure sourced |
 | **M8** ✅ | Strategy, portfolio, risk | authored components, gates, veto |
-| **M9** | Paper trading | approval chain, the backtest-live gap |
+| **M9** ✅ | Paper trading | approval chain, the backtest-live gap |
 | **M10** | Training scenarios | onboarding and playbook regression |
 | **M11** | **Org development** | the company grows itself |
 | **M12** | Multi-desk | equities → options → futures → commodities → FX → memecoins |

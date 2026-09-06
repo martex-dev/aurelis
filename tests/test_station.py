@@ -236,18 +236,34 @@ def test_a_room_reads_working_when_its_staff_are(company: Runtime) -> None:
     assert statuses[Department.TRADING_OPERATIONS].plate == "IDLE"
 
 
-def test_what_does_not_exist_yet_is_absent_rather_than_zero(company: Runtime) -> None:
-    """Reporting `0 strategies` would be a fact about a world nobody looked at."""
+def test_measured_zero_and_unmeasured_are_different_figures(company: Runtime) -> None:
+    """The distinction the whole `Figure` type exists to hold.
+
+    Strategies and alerts illustrated this until M8 and M9 built them; they now
+    legitimately read `0`, which is the *right* answer and a different sentence
+    from `NO DATA`. The principle is unchanged, so the test now uses a figure
+    that is still genuinely unmeasured.
+    """
     with company.database.session() as session:
         desk = proj.desk_view(session, next(iter(DESKS)))
         status = proj.company_status(session, chain_ok=True, chain_detail="ok")
+        agent = proj.agent_view(session, company.roster.by_handle(session, "QUANT").ref)
 
-    assert desk.strategies.render() == "NO DATA"
-    assert "M8" in desk.strategies.title()
-    assert status.alerts.render() == "NO DATA"
-    # But things that DO exist and happen to be zero are drawn as zero.
-    assert status.missions_open.value == 0
-    assert status.missions_open.present
+    # Measured, and the measurement is zero.
+    for figure in (desk.strategies, status.alerts, status.missions_open):
+        assert figure.present
+        assert figure.render() == "0"
+
+    # Not measured. Never rendered as a zero.
+    assert agent is not None
+    assert not agent.observations.present
+    assert agent.observations.render() == "NO DATA"
+    assert not agent.brier.present, "no forecast this agent made has been scored"
+
+
+def test_nothing_on_the_station_is_a_placeholder(company: Runtime) -> None:
+    """An empty not-yet map is a checkable statement, not a comment."""
+    assert proj._NOT_YET == {}
 
 
 def test_every_company_figure_names_a_real_source(company: Runtime) -> None:

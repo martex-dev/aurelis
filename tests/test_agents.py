@@ -602,13 +602,38 @@ def test_second_identical_briefing_is_served_from_cache(staffed: Runtime) -> Non
 
 
 def test_no_module_imports_the_live_broker_adapter() -> None:
-    """ADR-0006: live execution is absent, not disabled."""
+    """ADR-0006: live execution is absent, not disabled.
+
+    Checks **imports**, parsed, rather than the substring ``mt5`` anywhere in
+    the file. The earlier version forbade the string outright, which also
+    forbade *documenting* the boundary — and a rule that punishes explaining
+    itself gets worked around rather than followed. Reachability is the
+    property that matters, so this walks the import graph and every string
+    literal that could name a module.
+    """
+    import ast
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "src" / "aurelis"
-    offenders = [
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*.py")
-        if "mt5" in path.read_text(encoding="utf-8").lower()
-    ]
-    assert offenders == [], f"modules referencing the MT5 adapter: {offenders}"
+    banned = ("mt5", "martex_quant.live", "martexquant.live")
+    offenders: list[str] = []
+
+    for path in root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        names: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names.append(node.module)
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                # A dynamic import hides its target in a string. Only strings
+                # shaped like a module path count; prose about the boundary
+                # does not.
+                text = node.value.strip()
+                if text and " " not in text and "." in text:
+                    names.append(text)
+        if any(banned_name in name.lower() for name in names for banned_name in banned):
+            offenders.append(path.relative_to(root).as_posix())
+
+    assert offenders == [], f"modules that could reach the MT5 adapter: {offenders}"

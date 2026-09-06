@@ -33,6 +33,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from aurelis.agents.tables import Agent, AgentState, ToolCall
+from aurelis.alerts.tables import Alert
 from aurelis.meetings.tables import (
     Decision,
     Forecast,
@@ -60,6 +61,7 @@ from aurelis.research.tables import (
     Run,
 )
 from aurelis.station.figures import Figure, Source
+from aurelis.strategy.tables import Strategy
 
 __all__ = [
     "AgentView",
@@ -86,18 +88,17 @@ __all__ = [
     "timeline",
 ]
 
-_NOT_YET = {
-    "strategies": "the strategy record arrives in M8",
-    "portfolio": "portfolio construction arrives in M8",
-    "risk": "the risk authority arrives in M8",
-    "orders": "paper execution arrives in M9",
-    "alerts": "the alert record arrives in M8",
-}
+_NOT_YET: dict[str, str] = {}
 """What the station cannot show because it does not exist yet.
 
 Named individually rather than hidden. A room whose instruments read `NO DATA —
 arrives in M8` tells a reader something true; the same room silently omitted
 tells them the company has no risk function.
+
+Empty as of M9: strategies, the book, risk and orders all have records now, and
+alerts arrived with paper trading. The map stays because the *next* layer will
+need it, and because an empty one is a checkable statement that nothing on the
+station is a placeholder.
 """
 
 
@@ -189,7 +190,12 @@ def company_status(session: Session, *, chain_ok: bool, chain_detail: str) -> Co
         desks_active=desks,
         chain_ok=chain_ok,
         chain_detail=chain_detail,
-        alerts=Figure.absent(_NOT_YET["alerts"]),
+        alerts=_count(
+            session,
+            Alert,
+            Alert.resolved_at.is_(None),
+            detail="unresolved",
+        ),
     )
 
 
@@ -875,7 +881,12 @@ def desk_view(session: Session, desk: Desk) -> DeskView:
         hypotheses=_count(
             session, Hypothesis, Hypothesis.desk == desk.value, detail=f"desk = {desk.value}"
         ),
-        strategies=Figure.absent(_NOT_YET["strategies"]),
+        strategies=_count(
+            session,
+            Strategy,
+            Strategy.desk == desk.value,
+            detail=f"desk = {desk.value}",
+        ),
         notes=spec.notes,
     )
 

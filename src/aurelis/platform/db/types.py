@@ -56,6 +56,15 @@ class Money(sa.TypeDecorator[Decimal]):
 
     Scale is fixed at 8 places: model pricing is quoted per million tokens, so
     a single call routinely costs a fraction of a cent.
+
+    **Anything comparing one of these columns numerically must CAST first.**
+    Text storage means SQLite compares by type class rather than by value:
+    ``12000 > '5000.00000000'`` is false because every integer sorts before
+    every string, and ``'1000.00000000' >= 0`` is *true* for the same reason —
+    so a naive ``>= 0`` CHECK is vacuous rather than merely wrong. Three
+    constraints and two triggers were written the obvious way before this was
+    noticed; every one of them silently permitted exactly what it existed to
+    stop. Cast to ``REAL`` on SQLite and ``NUMERIC`` on Postgres.
     """
 
     impl = sa.String(40)

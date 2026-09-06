@@ -58,9 +58,31 @@ SCOPE_GUARDS: tuple[ScopeGuard, ...] = (
     ScopeGuard("meeting_turns", "speaker", WriteScope.MEETING_TURN),
     ScopeGuard("meeting_objections", "author", WriteScope.OBJECTION),
     ScopeGuard("forecasts", "agent_ref", WriteScope.FORECAST),
+    # Strategy content. Components share the strategy-version scope: a
+    # component *is* strategy specification, and the roles that may write one
+    # are the roles that may write the other.
+    ScopeGuard("components", "author", WriteScope.STRATEGY_VERSION),
+    ScopeGuard("strategy_versions", "created_by", WriteScope.STRATEGY_VERSION),
+    ScopeGuard("promotion_gates", "registered_by", WriteScope.PROMOTION_GATE),
+    ScopeGuard("allocations", "decided_by", WriteScope.PORTFOLIO_ALLOCATION),
+    # The execution chain. Each link is a different role on purpose: the agent
+    # that wants the exposure is not the one that permits it, and neither is
+    # the one that sends the order.
+    ScopeGuard("trade_proposals", "proposed_by", WriteScope.TRADE_PROPOSAL),
+    ScopeGuard("risk_assessments", "assessor", WriteScope.RISK_ASSESSMENT),
+    ScopeGuard("trade_approvals", "approved_by", WriteScope.TRADE_APPROVAL),
+    ScopeGuard("orders", "submitted_by", WriteScope.ORDER),
+    ScopeGuard("alerts", "raised_by", WriteScope.ALERT),
 )
-"""Guarded tables. Each new entity kind joins this tuple as its table lands —
-findings and objections at M4, risk assessments and orders at M8 and M9."""
+"""Guarded tables, and the separation of duties they make real.
+
+Each entry means: inserting into this table requires the author named in that
+column to hold this scope through a charter they cover. The trading rows are
+the ones that matter most — ``trade_proposals``, ``risk_assessments``,
+``trade_approvals`` and ``orders`` are four different scopes held by four
+different roles, so "the agent that wants the exposure is not the agent that
+approves it" is enforced by the database rather than by everyone remembering.
+"""
 
 
 def expected_guard_names() -> tuple[str, ...]:

@@ -228,10 +228,10 @@ FEEDBACK                   The gap becomes research input and a scored forecast
 
 | Adapter | Status |
 |---|---|
-| `BacktestBroker` | implemented — the engine's simulated fills |
-| `SimulationBroker` | implemented — scenario replay |
-| `PaperBroker` | implemented — forward testing on simulated capital |
-| `LiveBroker` | **not written, not registered, not reachable** |
+| `BacktestBroker` | implemented — fills at the expected price plus the declared cost model, so it cannot surprise anyone. That is its job: it is the baseline |
+| `SimulationBroker` | implemented — replays a scripted sequence, to test how the *company* reacts rather than how a market did |
+| `PaperBroker` | implemented — fills against an observed price, and refuses to fill without one. A paper fill against an assumed price would be a backtest wearing a paper label |
+| `LiveBroker` | **not written, not registered, not reachable.** `BrokerKind` has no member for it, `resolve("live")` refuses with an explanation rather than a `KeyError`, and a CHECK on `orders.broker` rejects the value |
 
 `Portfolio.mode` has no `LIVE` member. Aurelis creates no path to
 martex-quant's MT5 adapter, and a test asserts no module imports it. Enabling

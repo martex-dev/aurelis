@@ -15,6 +15,7 @@ test asserts that every module defining a table appears.
 from __future__ import annotations
 
 from aurelis.agents import tables as _agents
+from aurelis.alerts import tables as _alerts
 from aurelis.comms import tables as _comms
 from aurelis.intel import tables as _intel
 from aurelis.meetings import tables as _meetings
@@ -27,6 +28,7 @@ from aurelis.portfolio import tables as _portfolio
 from aurelis.research import tables as _research
 from aurelis.risk import tables as _risk
 from aurelis.strategy import tables as _strategy
+from aurelis.trading import tables as _trading
 
 __all__ = ["Base", "TABLE_MODULES"]
 
@@ -43,6 +45,8 @@ TABLE_MODULES = (
     _strategy,
     _portfolio,
     _risk,
+    _trading,
+    _alerts,
 )
 """Every module that defines tables, in dependency order.
 
