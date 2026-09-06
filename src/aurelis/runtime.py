@@ -38,8 +38,14 @@ from aurelis.platform.llm.factory import build_provider
 from aurelis.platform.llm.providers import ModelProvider
 from aurelis.platform.queue.queue import TaskQueue
 from aurelis.platform.scheduler.scheduler import Scheduler
+from aurelis.portfolio.construction import Book
 from aurelis.research.lifecycle import Research
 from aurelis.research.triggers import install_research_invariants
+from aurelis.risk.authority import Risk
+from aurelis.strategy.gates import Gates
+from aurelis.strategy.lifecycle import Strategies
+from aurelis.strategy.synthesis import Synthesis
+from aurelis.strategy.triggers import install_strategy_invariants
 
 __all__ = ["Runtime", "COMPANY_SCOPE_ID"]
 
@@ -68,6 +74,11 @@ class Runtime:
     chair: Chair
     forecasts: ForecastScorer
     research: Research
+    synthesis: Synthesis
+    gates: Gates
+    strategies: Strategies
+    book: Book
+    risk: Risk
     graph: KnowledgeGraph
     lessons: Lessons
     worker: AgentWorker
@@ -114,6 +125,11 @@ class Runtime:
         )
         forecasts = ForecastScorer(ledger, the_clock)
         research = Research(artifacts, ledger, the_clock)
+        synthesis = Synthesis(ledger, the_clock)
+        gates = Gates(ledger, the_clock)
+        strategies = Strategies(gates, ledger, the_clock)
+        book = Book(ledger, the_clock)
+        risk = Risk(ledger, the_clock)
         graph = KnowledgeGraph(the_clock)
         lessons = Lessons(ledger, the_clock)
         worker = AgentWorker(
@@ -145,6 +161,11 @@ class Runtime:
             chair=chair,
             forecasts=forecasts,
             research=research,
+            synthesis=synthesis,
+            gates=gates,
+            strategies=strategies,
+            book=book,
+            risk=risk,
             graph=graph,
             lessons=lessons,
             worker=worker,
@@ -163,6 +184,7 @@ class Runtime:
                     *triggers,
                     *install_guards(connection),
                     *install_research_invariants(connection),
+                    *install_strategy_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

@@ -50,6 +50,15 @@ class MeetingType(StrEnum):
     """Where a finding is challenged. The only M3 type with a CHALLENGE phase,
     because it is the only one that has something to test."""
 
+    STRATEGY_COMMITTEE = "strategy_committee"
+    """Decides whether a composed version is deployed. Risk and Audit are
+    required, not invited: a promotion meeting without the roles that can
+    refuse it is a ceremony."""
+
+    RISK_COMMITTEE = "risk_committee"
+    """Sets and reviews limits. Convened by Risk, and the only meeting whose
+    decisions bind other departments without their agreement."""
+
     RETROSPECTIVE = "retrospective"
     """Mandatory at the end. Scores the kickoff's forecasts against what
     actually happened, and extracts lessons."""

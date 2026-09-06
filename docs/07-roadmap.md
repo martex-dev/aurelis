@@ -207,18 +207,43 @@ fact about a world nobody looked at.
 
 ---
 
-## M8 — Strategy, portfolio, risk
+## M8 — Strategy, portfolio, risk ✅
 
-- `strategy/` — registry, versions, immutability trigger, promotion gates A–G.
-- `portfolio/` — construction, allocation, exposure, correlation, capacity.
+- `strategy/` — **components, compositions and lineage**; versions, the
+  immutability trigger, promotion gates A–G. A strategy is composed from pieces
+  agents authored, never promoted from a result
+  ([ADR-0010](adr/0010-strategies-are-composed-not-promoted.md)).
+- `strategy/markets.py` — what each of the seven desks structurally provides,
+  derived from the desk registry. A component declares what it *assumes*;
+  a desk that cannot meet it is `INAPPLICABLE`, not merely untested.
+- `portfolio/` — construction, allocation, exposure, measured correlation,
+  concentration. Separate from risk so the two can disagree.
 - `risk/` — assessments, limits, veto, halts, kill latch; the three persisted
-  numbers.
-- Strategy Committee and Risk Committee meeting types.
+  numbers. `approve()` takes no exposure argument.
+- Strategy Committee and Risk Committee meeting types. The Strategy Committee
+  gets a CHALLENGE phase: "gate C measured correlation over 90 days, re-measure
+  over 365" is a discriminating test, and a promotion meeting that could not
+  run it would be deciding on an argument it had no way to end.
 
-**Acceptance:** modifying a `VALIDATED` version is refused by the database and
-becomes a new version at `UNDER_REVIEW`. A trade proposal without a risk
-assessment cannot be approved. A strategy that passes solo and fails gate C is
-blocked, with the correlation evidence on the record.
+**Creation, not selection.** The distinction the milestone is built around:
+there is no `promote_hypothesis`, no `from_finding`, and no `hypothesis_ref` on
+a version — a test asserts the absence of each. `Origin.DERIVED_FROM_FAILURE`
+is the only bridge from research, and it makes a refuted hypothesis *material*
+rather than a candidate. `Synthesis.novelty()` counts origins, so "did the
+agents create this?" is measured rather than claimed.
+
+**Seven markets, not one.** The inherited corpus was measured on crypto alone.
+Every version is native to exactly one desk and `UNPROVEN` on the other six
+until measured there; claiming `PORTED` requires evidence from a run on that
+desk.
+
+**Acceptance — met:**
+
+| | |
+|---|---|
+| A `VALIDATED` version cannot be modified | The trigger refuses the `UPDATE` against raw SQL; a material change becomes a new version at `UNDER_REVIEW` with the parent untouched |
+| A proposal without a risk assessment cannot be approved | Refused by the service *and* by a trigger that also rejects an approval borrowing another proposal's assessment, or exceeding the size Risk allowed |
+| Gate C blocks a strategy that passes solo | Six gates pass, C fails at a measured 0.83 against a registered bound of 0.5, and the correlation stays on the record |
 
 ---
 

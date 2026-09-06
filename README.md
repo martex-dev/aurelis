@@ -11,10 +11,10 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M7 complete — the company has a window.**
-Mission Control renders the facility from the registries and lights it from the
-record. Every number on screen names its source, and `Figure(42)` without one
-is a `TypeError`. · 2026-09-05
+Status: **M8 complete — the company builds strategies rather than picking them.**
+A strategy is composed from components agents authored, each citing where it
+came from. Risk cannot be bypassed, and a promoted version is frozen by the
+database. · 2026-09-06
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -122,6 +122,71 @@ of quietly returning a smaller number.
 There is no confidence column to go stale, which is the whole point
 ([ADR-0008](docs/adr/0008-confidence-is-derived-never-stored.md)).
 
+### Building a strategy, rather than picking one
+
+The corpus Aurelis inherited holds 125 crypto trials. The obvious thing to
+build on top of it is a pipeline that promotes the best one. That system is a
+**selection engine**: it produces whatever the corpus already contains and
+stops the day the corpus runs out.
+
+So there is no `promote_hypothesis`, no `from_finding`, and no
+`hypothesis_ref` column on a strategy version — a test asserts the absence of
+each. A strategy is *composed* from pieces agents wrote:
+
+```
+aurelis strategy components
+
+ref        kind    name                     origin                cites
+CMP-0001   signal  funding skew reversal    derived_from_failure  HYP-0001
+CMP-0002   sizing  inverse vol sizing       invented              MTG-0001
+CMP-0003   signal  funding skew, basis-neu… refined               CMP-0001
+```
+
+Every component states why it should work and cites where it came from, and
+the citation *shape* is checked — an `INVENTED` component may not cite a corpus
+trial, because then it was not invented. A refuted hypothesis is material, not
+a candidate: `DERIVED_FROM_FAILURE` is the only bridge from research, which is
+what a graveyard is actually for.
+
+That makes novelty measurable rather than claimed:
+
+```
+SV-0002: 1 of 2 component(s) authored here, 0 inherited (1 invented, 1 refined)
+```
+
+**And a market is not a market.** Those 125 trials were run on crypto alone,
+while the company covers seven desks. A funding-rate signal is not a market
+regularity — it is a perpetual-swap regularity — so a version is native to one
+desk and unproven on the others until measured there:
+
+```
+crypto       native — composed and measured on this desk
+equities     inapplicable — CMP-0001 assumes perpetual_funding
+futures      inapplicable — CMP-0001 assumes perpetual_funding
+```
+
+`INAPPLICABLE` is not a failed backtest. It says the test could not mean
+anything, which is worth more than the number it prevents. The reasoning is in
+[ADR-0010](docs/adr/0010-strategies-are-composed-not-promoted.md).
+
+Deployment is gated on criteria registered **before** they are evaluated, and
+gate C is the one that bites: six gates pass, the correlation with the deployed
+book does not, and the version stays at `UNDER_REVIEW`. Once a version *is*
+promoted the database freezes its spec — a material change becomes a new
+version, so no result row can quietly end up describing something else.
+
+Risk is an authority rather than a reviewer. `approve()` takes no exposure
+argument at all; it reads the permitted size off the assessment, and a trigger
+refuses an approval that borrows another proposal's assessment or exceeds what
+Risk allowed. All three numbers are always persisted:
+
+```
+desired 12000 -> allowed 5000 -> final 5000     SHRINK
+```
+
+so "Risk allowed it" and "Risk was never asked" are different rows rather than
+the same silence.
+
 ### The window
 
 ```bash
@@ -202,7 +267,7 @@ Look around:
 | [`docs/05-lifecycles.md`](docs/05-lifecycles.md) | Research → strategy → portfolio → risk → trading |
 | [`docs/06-mission-control.md`](docs/06-mission-control.md) | The station: the facility, drill-down, every view |
 | [`docs/07-roadmap.md`](docs/07-roadmap.md) | M0–M13, each with an acceptance test |
-| [`docs/adr/`](docs/adr/) | The nine decisions that are hard to reverse |
+| [`docs/adr/`](docs/adr/) | The ten decisions that are hard to reverse |
 
 ---
 
@@ -387,7 +452,7 @@ automatically by the company, five milestones in.
 | **M5** ✅ | Critique & audit | market defects, point-in-time, the review that kills |
 | **M6** ✅ | Memory & knowledge | graph, lessons, corpus import, vault export |
 | **M7** ✅ | **Mission Control** | the live facility, every figure sourced |
-| **M8** | Strategy, portfolio, risk | versions, gates, veto |
+| **M8** ✅ | Strategy, portfolio, risk | authored components, gates, veto |
 | **M9** | Paper trading | approval chain, the backtest-live gap |
 | **M10** | Training scenarios | onboarding and playbook regression |
 | **M11** | **Org development** | the company grows itself |

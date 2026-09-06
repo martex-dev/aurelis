@@ -124,6 +124,38 @@ class EventKind(StrEnum):
     because a corpus that quietly rewrote conclusions would be worse than one
     that never revised them."""
 
+    # Strategy, portfolio and risk
+    COMPONENT_AUTHORED = "strategy.component_authored"
+    """An agent wrote a piece of a strategy, with a cited origin. The event
+    the company's claim to have *created* an edge rests on."""
+
+    STRATEGY_OPENED = "strategy.opened"
+    STRATEGY_VERSION_COMPOSED = "strategy.version_composed"
+    STRATEGY_STATE_CHANGED = "strategy.state_changed"
+    GATE_REGISTERED = "strategy.gate_registered"
+    """A promotion criterion, fixed before it was evaluated."""
+
+    GATE_EVALUATED = "strategy.gate_evaluated"
+    VERSION_PROMOTED = "strategy.version_promoted"
+    PORTABILITY_ASSESSED = "strategy.portability_assessed"
+    """What is known about a version on a desk other than its own. The corpus
+    is crypto-only; this is where that stops being invisible."""
+
+    PORTFOLIO_OPENED = "portfolio.opened"
+    ALLOCATION_DECIDED = "portfolio.allocation_decided"
+    EXPOSURE_SNAPSHOT = "portfolio.exposure_snapshot"
+
+    RISK_ASSESSED = "risk.assessed"
+    """Recorded even when Risk changed nothing, so "Risk allowed it" and "Risk
+    was never consulted" are different rows rather than the same silence."""
+
+    RISK_LIMIT_SET = "risk.limit_set"
+    TRADE_PROPOSED = "trading.proposed"
+    TRADE_APPROVED = "trading.approved"
+    TRADE_REFUSED = "trading.refused"
+    KILL_LATCHED = "risk.kill_latched"
+    """Execution stopped and latched. Never cleared by code."""
+
     # Institutional memory
     CORPUS_IMPORTED = "memory.corpus_imported"
     """History arrived from another system, with its own figures preserved."""

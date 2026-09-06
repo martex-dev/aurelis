@@ -77,9 +77,17 @@ class RefKind(StrEnum):
     EVIDENCE = "EVD"
     OBJECTION = "OBJ"
     REPLICATION = "RPL"
+    COMPONENT = "CMP"
+    """An authored piece of a strategy. Its own prefix because components are
+    reused across strategies and outlive any one of them."""
+
     STRATEGY = "STR"
+    STRATEGY_VERSION = "SV"
     PORTFOLIO = "PTF"
     RISK_ASSESSMENT = "RSK"
+    TRADE_PROPOSAL = "TPR"
+    TRADE_APPROVAL = "TAP"
+    ALLOCATION = "ALC"
     PROPOSAL = "PRP"
     ORDER = "ORD"
     ALERT = "ALT"

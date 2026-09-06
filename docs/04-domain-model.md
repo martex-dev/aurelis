@@ -407,15 +407,41 @@ surviving one confers no significance.
 ### Strategy / StrategyVersion
 
 ```
-Strategy:         strategy_id · name · thesis · desk · state
+Component:        component_id · ref · kind (SIGNAL|FILTER|ENTRY|EXIT|SIZING)
+                  name · spec · spec_digest · rationale
+                  origin (INVENTED|DERIVED_FROM_FAILURE|ADAPTED|REFINED|COMBINED)
+                  origin_ref · author · desk · assumes[]
+Strategy:         strategy_id · ref · name · thesis · desk · state
                   current_version · owner_agent · created_at
                   retired_at · retirement_reason
-StrategyVersion:  version_id · strategy_id · n · spec · spec_hash
-                  universe · signals · entry · exit · sizing · constraints
-                  cost_model · risk_assumptions
+StrategyVersion:  version_id · ref · strategy_ref · n · spec · spec_digest
+                  desk · universe · cost_model · constraints · risk_assumptions
                   evidence[] · known_weaknesses[] · supersedes
-                  created_at · created_by · promoted_at
+                  material_change · created_by · promoted_at · promoted_by_meeting
+VersionComponent: version_ref · component_ref · role · position · weight
+StrategyLineage:  version_ref · act · parent_ref · detail · author · meeting_ref
+StrategyPortab.:  version_ref · desk · status (NATIVE|UNPROVEN|PORTED
+                                              |REFUTED_HERE|INAPPLICABLE)
+                  reason · evidence_ref · assessed_at
 ```
+
+**A strategy is composed, never promoted.** There is no `hypothesis_ref` here
+and no function that creates one from a result
+([ADR-0010](adr/0010-strategies-are-composed-not-promoted.md)). Agents author
+`Component` pieces with a stated rationale and a cited, shape-checked origin,
+and a version is what those pieces make. `Origin.DERIVED_FROM_FAILURE` is the
+only bridge from research: a refuted hypothesis is *material*, not a candidate.
+
+Counting origins gives a measured answer to "did the company create this?" —
+a version built entirely from `ADAPTED` components reads as inheritance on its
+own page, which is honest rather than damning.
+
+**A version is native to one desk.** `StrategyPortability` carries a row per
+desk, everything but the native one starting `UNPROVEN`; claiming `PORTED`
+requires evidence from a run on *that* desk. A component whose declared
+assumptions a desk cannot structurally meet is `INAPPLICABLE` — a category
+error rather than an untested idea. The inherited corpus covers one market of
+seven, and this is where that stops being invisible.
 
 **Lifecycle:**
 ```
@@ -440,8 +466,9 @@ version and cannot be silently restated.
 
 ### PromotionGate
 
-`gate_id · strategy_version_id · gate (A..F) · criterion · registered_at ·
-evaluated_at · passed · evidence_ref`
+`gate_id · version_ref · gate (A..G) · criterion · criterion_digest ·
+owner_charter · registered_at · registered_by · evaluated_at · evaluated_by ·
+passed · observed · evidence_ref`
 
 Gates are **registered before evaluation**. Default set in
 `docs/05-lifecycles.md` §3.

@@ -110,10 +110,21 @@ def test_forecast_precedes_opening_in_every_protocol_that_has_it() -> None:
             )
 
 
-def test_only_research_review_can_challenge() -> None:
-    """The only M3 type with something to test."""
-    with_challenge = [t for t, p in PROTOCOLS.items() if Phase.CHALLENGE in p.phases]
-    assert with_challenge == [MeetingType.RESEARCH_REVIEW]
+def test_only_meetings_with_something_to_measure_can_challenge() -> None:
+    """The challenge phase dispatches a real tool call, so it belongs only to
+    meeting types where an objection can be settled by measurement.
+
+    Research Review had the only such question at M3. The Strategy Committee
+    earned one at M8: "gate C measured correlation over 90 days; re-measure
+    over 365 and it breaches the bound" is a discriminating test, and a
+    promotion meeting that could not run it would be deciding on an argument
+    it had no way to end.
+    """
+    with_challenge = {t for t, p in PROTOCOLS.items() if Phase.CHALLENGE in p.phases}
+    assert with_challenge == {
+        MeetingType.RESEARCH_REVIEW,
+        MeetingType.STRATEGY_COMMITTEE,
+    }
 
 
 def test_brainstorm_requires_no_decision() -> None:

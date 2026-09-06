@@ -108,6 +108,41 @@ PROTOCOLS: dict[MeetingType, Protocol] = {
             "What has been tried before, and what happened?",
         ),
     ),
+    MeetingType.STRATEGY_COMMITTEE: Protocol(
+        type=MeetingType.STRATEGY_COMMITTEE,
+        purpose="Deploy a composed version, or refuse it. Gates decide; the "
+        "room decides what to do about what the gates said.",
+        phases=(
+            Phase.BRIEF,
+            Phase.FORECAST,
+            Phase.OPENING,
+            Phase.CHALLENGE,
+            Phase.SYNTHESIS,
+            Phase.DECIDE,
+        ),
+        max_exchange_rounds=1,
+        max_tokens_total=16_000,
+        requires_decision=True,
+        agenda=(
+            "Which gates passed, and against criteria registered when?",
+            "What did the authors name as this version's known weaknesses?",
+            "How much of this did we write, and how much did we inherit?",
+            "Where has it actually been measured, and where is it unproven?",
+        ),
+    ),
+    MeetingType.RISK_COMMITTEE: Protocol(
+        type=MeetingType.RISK_COMMITTEE,
+        purpose="Set, tighten or lift limits. Risk holds the pen.",
+        phases=(Phase.BRIEF, Phase.OPENING, Phase.SYNTHESIS, Phase.DECIDE),
+        max_exchange_rounds=1,
+        max_tokens_total=10_000,
+        requires_decision=True,
+        agenda=(
+            "What exposure is being requested, and on what evidence?",
+            "Which limits bind it, and why do they exist?",
+            "What would have to be true for this limit to be wrong?",
+        ),
+    ),
     MeetingType.RESEARCH_REVIEW: Protocol(
         type=MeetingType.RESEARCH_REVIEW,
         purpose="Challenge a finding, and settle the challenge with a test.",
