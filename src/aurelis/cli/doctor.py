@@ -30,6 +30,7 @@ from aurelis.core.errors import AurelisError
 from aurelis.org import CHARTERS, DESKS
 from aurelis.org.desks import DeskStatus
 from aurelis.org.seed import registry_fingerprint, stored_fingerprint
+from aurelis.orgdev.invariants import ORG_TRIGGERS, verify_org_invariants
 from aurelis.platform.db.tables import Base
 from aurelis.platform.db.triggers import expected_trigger_names, verify_invariants
 from aurelis.platform.llm.factory import raw_provider
@@ -272,6 +273,23 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 if absent_gate
                 else " — an agent whose latest training run failed cannot become "
                 "active"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_org = verify_org_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "coverage conservation",
+            Status.OK if not absent_org else Status.PROBLEM,
+            f"{len(ORG_TRIGGERS) - len(absent_org)}/{len(ORG_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_org)}. A charter could be "
+                "orphaned, or a locked prediction re-aimed, until repaired."
+                if absent_org
+                else " — a charter cannot be orphaned and a locked prediction "
+                "cannot be edited"
             ),
         )
     )

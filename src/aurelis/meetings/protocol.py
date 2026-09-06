@@ -165,6 +165,28 @@ PROTOCOLS: dict[MeetingType, Protocol] = {
             "Does the claim survive?",
         ),
     ),
+    MeetingType.BOARD: Protocol(
+        type=MeetingType.BOARD,
+        purpose="Decide a change to the company itself, against a prediction "
+        "that was locked before anyone in the room saw it.",
+        phases=(
+            Phase.BRIEF,
+            Phase.FORECAST,
+            Phase.OPENING,
+            Phase.EXCHANGE,
+            Phase.SYNTHESIS,
+            Phase.DECIDE,
+        ),
+        max_exchange_rounds=1,
+        max_tokens_total=14_000,
+        requires_decision=True,
+        agenda=(
+            "What measurement fired, and against which declared threshold?",
+            "What does the proposal predict, and how will that be checked?",
+            "What breaks if this is wrong, and who picks up the work?",
+            "What would we expect to see if the change made no difference?",
+        ),
+    ),
     MeetingType.RETROSPECTIVE: Protocol(
         type=MeetingType.RETROSPECTIVE,
         purpose="What happened, what was learned, and how good our forecasts were.",

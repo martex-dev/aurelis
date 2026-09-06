@@ -29,11 +29,11 @@ __all__ = [
 
 
 class MeetingType(StrEnum):
-    """The five types M3 implements.
+    """Meeting types arrive with the layers whose decisions they exist to make.
 
-    Debate, the committees, Incident Review, Board and All-Hands arrive with
-    the layers whose decisions they exist to make — a Strategy Committee with
-    no strategies to promote would be a room with nothing in it.
+    A Strategy Committee with no strategies to promote would be a room with
+    nothing in it, so the committees appeared at M8 and M9. The Board appeared
+    at M11, when the company first had a structural change to decide.
     """
 
     KICKOFF = "kickoff"
@@ -62,6 +62,12 @@ class MeetingType(StrEnum):
     RETROSPECTIVE = "retrospective"
     """Mandatory at the end. Scores the kickoff's forecasts against what
     actually happened, and extracts lessons."""
+
+    BOARD = "board"
+    """Decides changes to the company itself. The only meeting whose subject
+    is the organisation rather than the market, and the only one where the
+    proposal in front of the room carries a **locked** prediction the room
+    cannot influence (ADR-0012)."""
 
 
 class Phase(StrEnum):

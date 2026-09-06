@@ -30,6 +30,7 @@ from aurelis.cli.doctor import Status, run_checks
 from aurelis.cli.meeting import meeting_app
 from aurelis.cli.memory import memory_app
 from aurelis.cli.mission import mission_app
+from aurelis.cli.orgdev import orgdev_app
 from aurelis.cli.research import research_app
 from aurelis.cli.station import station_app
 from aurelis.cli.strategy import strategy_app
@@ -49,6 +50,7 @@ ledger_app = typer.Typer(help="The company's append-only record.", no_args_is_he
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(org_app, name="org")
+app.add_typer(orgdev_app, name="orgdev")
 app.add_typer(agent_app, name="agent")
 app.add_typer(mission_app, name="mission")
 app.add_typer(meeting_app, name="meeting")

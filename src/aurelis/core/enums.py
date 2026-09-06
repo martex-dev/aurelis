@@ -83,6 +83,16 @@ class EventKind(StrEnum):
     COVERAGE_GRANTED = "agent.coverage_granted"
     COVERAGE_REVOKED = "agent.coverage_revoked"
 
+    # Org development
+    ORG_CHANGE_PROPOSED = "org.change_proposed"
+    ORG_CHANGE_LOCKED = "org.change_locked"
+    ORG_CHANGE_DECIDED = "org.change_decided"
+    ORG_CHANGE_APPLIED = "org.change_applied"
+    ORG_CHANGE_MEASURED = "org.change_measured"
+    ORG_FISSION = "org.fission"
+    ORG_FUSION = "org.fusion"
+    ORG_EXPERIMENT_RUN = "org.experiment_run"
+
     # Training
     SCENARIO_SUITE_RUN = "training.suite_run"
     AGENT_SCORED = "training.agent_scored"

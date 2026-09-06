@@ -30,6 +30,10 @@ from aurelis.memory.graph import KnowledgeGraph
 from aurelis.memory.lessons import Lessons
 from aurelis.missions.missions import Missions
 from aurelis.org.seed import registry_fingerprint, seed_org
+from aurelis.orgdev.development import OrgDevelopment
+from aurelis.orgdev.experiments import OrgExperiments
+from aurelis.orgdev.handover import Handover
+from aurelis.orgdev.invariants import install_org_invariants
 from aurelis.platform.artifacts.store import ArtifactStore
 from aurelis.platform.budget.ledger import BudgetLedger
 from aurelis.platform.db.session import Database
@@ -98,6 +102,9 @@ class Runtime:
     lessons: Lessons
     training: TrainingSuite
     onboarding: Onboarding
+    handover: Handover
+    orgdev: OrgDevelopment
+    org_experiments: OrgExperiments
     worker: AgentWorker
 
     @classmethod
@@ -167,6 +174,9 @@ class Runtime:
         # a cohort of seventeen costs what onboarding one costs.
         training = TrainingSuite()
         onboarding = Onboarding(training, ledger, the_clock)
+        handover = Handover(comms, ledger, the_clock)
+        orgdev = OrgDevelopment(handover, ledger, the_clock)
+        org_experiments = OrgExperiments(training, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
             queue=queue,
@@ -210,6 +220,9 @@ class Runtime:
             lessons=lessons,
             training=training,
             onboarding=onboarding,
+            handover=handover,
+            orgdev=orgdev,
+            org_experiments=org_experiments,
             worker=worker,
         )
 
@@ -229,6 +242,7 @@ class Runtime:
                     *install_strategy_invariants(connection),
                     *install_trading_invariants(connection),
                     *install_training_invariants(connection),
+                    *install_org_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

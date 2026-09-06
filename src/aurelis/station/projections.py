@@ -49,6 +49,7 @@ from aurelis.missions.tables import Mission, Project, WorkItem
 from aurelis.org.departments import DEPARTMENTS, Department
 from aurelis.org.desks import DESKS, Desk, DeskStatus
 from aurelis.org.registry import charter, resolve_authority
+from aurelis.orgdev.tables import OrgChange
 from aurelis.platform.db.tables import CostEntry, Event, ModelCall, Task
 from aurelis.research.states import HypothesisState
 from aurelis.research.tables import (
@@ -121,11 +122,21 @@ class CompanyStatus:
     chain_ok: bool
     chain_detail: str
     alerts: Figure
+    org_changes: Figure
+    """Structural changes the company has made to itself. Its own version
+    history, and drawn from the same record as everything else."""
+
+    org_changes_helped: Figure
+    """How many of them did what they predicted. Shown beside the total on
+    purpose: a company that reported only the count would be reporting
+    activity, and the point of the record is that some of them did not work."""
 
     def figures(self) -> list[tuple[str, Figure]]:
         return [
             ("agents", self.agents),
             ("working", self.working),
+            ("org changes", self.org_changes),
+            ("of those, helped", self.org_changes_helped),
             ("missions", self.missions_open),
             ("meetings", self.meetings_held),
             ("settled", self.hypotheses_settled),
@@ -180,7 +191,17 @@ def company_status(session: Session, *, chain_ok: bool, chain_detail: str) -> Co
         Source.registry("desks", f"status = active, of {len(DESKS)} registered"),
     )
 
+    changes = _count(session, OrgChange, detail="proposed")
+    helped = _count(
+        session,
+        OrgChange,
+        OrgChange.effect == "improved",
+        detail="effect = improved",
+    )
+
     return CompanyStatus(
+        org_changes=changes,
+        org_changes_helped=helped,
         agents=agents,
         working=working,
         missions_open=missions,

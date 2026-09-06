@@ -22,6 +22,7 @@ from aurelis.meetings import tables as _meetings
 from aurelis.memory import tables as _memory
 from aurelis.missions import tables as _missions
 from aurelis.org import tables as _org
+from aurelis.orgdev import tables as _orgdev
 from aurelis.platform.db import tables as _platform
 from aurelis.platform.db.tables import Base
 from aurelis.portfolio import tables as _portfolio
@@ -49,6 +50,7 @@ TABLE_MODULES = (
     _trading,
     _alerts,
     _training,
+    _orgdev,
 )
 """Every module that defines tables, in dependency order.
 

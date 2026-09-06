@@ -11,11 +11,10 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M10 complete — the company can now be scored.** Twelve synthetic
-worlds with known contents, where the answer is *measured* by replication
-rather than written down by their author. Every agent's starting record is what
-it caught in them, and a revision of the company's critique procedure that
-finds less does not ship. · 2026-09-06
+Status: **M11 complete — the company changes its own shape and grades the
+change.** It measures itself, proposes a split against a prediction hashed
+before the Board sees it, hands the work over, and records the verdict either
+way. The first change it made failed, and the record says so. · 2026-09-06
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -31,6 +30,7 @@ aurelis agent hire         # staff the launch roster
 aurelis research review    # the demonstration
 aurelis memory import      # inherited trials, gap and all
 aurelis training truth     # what is really in each scenario, and what is not
+aurelis orgdev develop     # the company reorganises itself, and grades it
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -300,6 +300,77 @@ suite says so rather than tuning until it agreed. What is scored today is the
 not change when agents reason for themselves, the playbook is simply replaced
 by the agent.
 
+### Changing its own shape, and grading the change
+
+The company measures itself from its own record. The first thing that measures
+says is uncomfortable: seventeen agents stand in for seventy-six charters, so
+**nothing any of them produces can be attributed to any one charter**. That is
+not the same as those areas being idle, and the difference is the whole reason
+to split a role rather than to hire for one.
+
+So it proposes a split — and writes down, in advance, what it expects to
+happen:
+
+```
+ORG-0001  AG-0004 9 -> 7 charters
+  trigger    breadth = 9
+  predicted  attributable_charters up by at least 1  (locked 81d7ae814fe3 before MTG-0001)
+  handover   2 charter(s) AG-0004 -> AG-0018; 0 task(s) reassigned
+  new agent  AG-0018  training: not_scored
+  NO_CHANGE  attributable_charters stayed at 0
+```
+
+**That change failed.** It was sensible — news and sentiment read the same
+sources, so they belong on one desk — cleanly handed over, coverage conserved,
+Board-approved. And seven charters is as unattributable as nine. It took a
+second split, six more charters, before the metric moved:
+
+```
+ORG-0002  AG-0004 7 -> 1 charters
+  IMPROVED   attributable_charters moved +1 against a predicted +1
+```
+
+Under any looser scheme the first would have gone down as a success: something
+was split, the org chart looks more sensible, everyone agreed at the time. The
+only reason it did not is that the prediction was **hashed before the Board
+convened**, and a trigger refuses to change it afterwards
+([ADR-0012](docs/adr/0012-org-changes-are-preregistered.md)). It is the
+research preregistration discipline turned on the company itself.
+
+Coverage is conserved by construction. A split is a single `UPDATE` moving
+charter rows, never a delete and an insert, so no charter is held by nobody at
+any instant and none by two people. The database refuses every deletion that
+would orphan one — including the cascade from retiring an agent, which means
+**handover is the only way out of the company**:
+
+```
+sqlite> DELETE FROM agents WHERE ref = 'AG-0004';
+Aurelis: that is the last agent holding this charter. Coverage moves, it is
+never dropped -- hand it over first (ADR-0003).
+```
+
+### Does more agents mean better?
+
+`CLAUDE.md` §16 says not to assume it. M11 answers it with counts, by sitting
+panels of roles in front of M10's twelve worlds:
+
+```
+Does adding an adversarial researcher reduce false discoveries?
+    research only            caught 4/5, false alarms 1/26
+    research + adversarial   caught 7/8, false alarms 1/31   -> treatment_better
+
+Does a second critic with the same procedure add anything?
+    one critic               caught 7/8, false alarms 1/31
+    two critics              caught 7/8, false alarms 1/31   -> no_difference
+```
+
+The adversarial researcher helped — but not because it is adversarial. Its
+specialty covers three defects nobody else in the room was asked about. A
+second seat holding a specialty the room already has moves nothing at all, and
+three narrow specialists whose specialties union to a generalist's score
+exactly what the generalist scores. **More agents help only when they widen
+what the room is asked.** Headcount is not capability; coverage is.
+
 ### The window
 
 ```bash
@@ -567,8 +638,8 @@ automatically by the company, five milestones in.
 | **M7** ✅ | **Mission Control** | the live facility, every figure sourced |
 | **M8** ✅ | Strategy, portfolio, risk | authored components, gates, veto |
 | **M9** ✅ | Paper trading | approval chain, the backtest-live gap |
-| **M10** ✅ | **Training scenarios** | planted defects, onboarding, playbook regression |
-| **M11** | **Org development** | the company grows itself |
+| **M10** ✅ | Training scenarios | planted defects, onboarding, playbook regression |
+| **M11** ✅ | **Org development** | fission, preregistered changes, org experiments |
 | **M12** | Multi-desk | equities → options → futures → commodities → FX → memecoins |
 | **M13** | Scale | 100+ agents, seven desks, hardening |
 

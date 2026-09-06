@@ -139,8 +139,11 @@ def test_standup_is_the_cheapest_type() -> None:
 
 
 def test_an_unknown_meeting_type_is_refused() -> None:
+    """``board`` used to be the example here. It is a real type as of M11, so
+    the test now names something that genuinely is not one -- an assertion
+    about a closed registry has to be checked against something outside it."""
     with pytest.raises(KeyError, match="closed registry"):
-        protocol_for("board")  # type: ignore[arg-type]
+        protocol_for("all_hands")  # type: ignore[arg-type]
 
 
 # ------------------------------------------------------------------ convene
@@ -406,15 +409,17 @@ def test_an_agent_without_the_scope_cannot_speak_through_raw_sql(
 ) -> None:
     """The write-scope guard covers meetings too.
 
-    Shown the way M1 showed it: take the coverage away, and the authority
-    goes with it in the same transaction.
+    Shown the way M1 showed it: move the coverage away, and the authority goes
+    with it in the same transaction. A deletion would be refused now -- a
+    charter may not be orphaned (ADR-0003) -- and a transfer is the honest
+    shape of the event anyway.
     """
     with company.database.session() as session:
         registrar_only = company.roster.by_handle(session, "INFRA")
     with company.database.engine.begin() as conn:
         conn.execute(
-            sa.text("DELETE FROM agent_coverage WHERE agent_ref = :a"),
-            {"a": registrar_only.ref},
+            sa.text("UPDATE agent_coverage SET agent_ref = :b WHERE agent_ref = :a"),
+            {"a": registrar_only.ref, "b": "AG-0001"},
         )
 
     with pytest.raises(Exception, match="may not write meeting_turn"), \

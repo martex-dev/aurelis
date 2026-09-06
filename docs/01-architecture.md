@@ -491,6 +491,18 @@ Every proposal goes to a Board meeting, carries evidence, and is recorded as an
 `OrgChange`. The company's structure has a version history exactly like a
 strategy does.
 
+And it is **preregistered** exactly like an experiment (ADR-0012). The
+predicted metric, direction, magnitude and measurement plan are hashed before
+the Board convenes, and a database trigger refuses to change them afterwards.
+The baseline is read immediately before the structure moves; the same metric is
+read again after the declared window; and the verdict — `improved`, `partial`,
+`no_change`, `worse` or `unmeasurable` — is recorded whichever way it comes
+out.
+
+The first change the company made to itself was recorded as `no_change`, and it
+is the best evidence that the mechanism does something: the split was sensible,
+clean and approved, and it did not do what it was sold on.
+
 ---
 
 ## 10. Risk, portfolio and the trading boundary

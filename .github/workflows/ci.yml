@@ -89,4 +89,9 @@ jobs:
           # one started with.
           aurelis agent hire -w "$workspace"
           aurelis training roster -w "$workspace"
+          # The company reorganises itself twice, against predictions hashed
+          # before the Board saw them. The first one fails; the record says so.
+          aurelis orgdev develop -w "$workspace"
+          aurelis orgdev changes -w "$workspace"
+          aurelis orgdev metrics -w "$workspace"
           aurelis ledger verify -w "$workspace"

@@ -94,6 +94,10 @@ class RefKind(StrEnum):
     LESSON = "LSN"
     AUDIT = "AUD"
     ORG_CHANGE = "ORG"
+    ORG_EXPERIMENT = "OEX"
+    """An experiment on the company's own shape, run over the scenario suite.
+    Distinct from EXP-, which is an experiment about a market."""
+
     TRAINING_RUN = "TRN"
     """One agent's pass over the training-scenario suite. Its own prefix
     because a scenario score is cited alongside live work and must never be

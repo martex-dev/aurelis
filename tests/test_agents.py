@@ -182,11 +182,20 @@ def test_an_unknown_agent_cannot_write_at_all(staffed: Runtime) -> None:
 
 
 def test_losing_a_charter_loses_the_authority(staffed: Runtime) -> None:
-    """Fission moves coverage, and write scope moves with it atomically."""
+    """Fission moves coverage, and write scope moves with it atomically.
+
+    Written as a **transfer** rather than a deletion. Until M11 this dropped
+    the coverage rows outright, which the database now refuses: coverage is
+    conserved, and the only way an agent stops holding a charter is that
+    somebody else starts (ADR-0003). Moving it is the stronger demonstration
+    anyway -- the authority does not merely vanish, it arrives somewhere else
+    in the same transaction.
+    """
     analyst = _analyst(staffed)
     with staffed.database.engine.begin() as conn:
         conn.execute(
-            sa.text("DELETE FROM agent_coverage WHERE agent_ref = :a"), {"a": analyst.ref}
+            sa.text("UPDATE agent_coverage SET agent_ref = :b WHERE agent_ref = :a"),
+            {"a": analyst.ref, "b": "AG-0001"},
         )
 
     with pytest.raises(Exception, match="may not write market_observation"), \

@@ -340,20 +340,58 @@ same twelve answers.
 
 ---
 
-## M11 — Org development: the company grows itself
+## M11 — Org development: the company grows itself ✅
 
-- Org metrics: load, latency, backlog, coverage starvation, overlap,
-  calibration.
-- `OrgChange` proposals with trigger evidence, predicted effect and measurement
-  plan; Board meeting decides; effect measured afterwards.
-- Fission and fusion implemented; handover of tasks, channels and memory scope.
-- Org experiments run over the scenario suite: does adding an adversarial role
-  reduce false discoveries? do three analysts beat two?
+- `orgdev/metrics.py` — load, backlog age, throughput, breadth, calibration,
+  scenario record, coverage starvation. **A metric that cannot be taken is
+  absent, never zero**, and an unmeasurable reading never fires a trigger.
+- `orgdev/detection.py` — the declared trigger table from §6.2 of
+  `docs/02-organization.md`, as code. `BREADTH` fires first and hardest,
+  because seventeen agents standing in for seventy-six charters is the launch
+  roster's defining condition.
+- `orgdev/development.py` — propose, **lock**, decide, apply, measure. The
+  prediction is hashed before the Board convenes and frozen by a trigger
+  afterwards (ADR-0012).
+- `orgdev/handover.py` — fission and fusion. **Coverage moves by a single
+  UPDATE**; it is never deleted and recreated, so no charter is held by nobody
+  at any instant and none by two people.
+- `orgdev/experiments.py` — panels over M10's twelve worlds. `CLAUDE.md` §16
+  as arithmetic.
+- `MeetingType.BOARD`, the first meeting whose subject is the organisation.
 
-**Acceptance:** the company proposes, decides, applies and **measures** a
-structural change to itself, and the result is recorded whichever way it comes
-out. Total charter coverage is preserved across every fission and fusion, and
-a test proves no charter area is ever orphaned.
+**Acceptance — met:**
+
+| | |
+|---|---|
+| The company proposes, decides, applies and measures a change to itself | `aurelis orgdev develop` runs two, end to end: trigger scan → proposal → lock → Board → apply → handover → onboarding → measure |
+| The result is recorded whichever way it comes out | The first change is recorded `no_change`. It failed |
+| Coverage is preserved across every fission and fusion | A census test after each; and the database refuses to orphan a charter, including via the cascade from retiring an agent |
+| No charter area is ever orphaned | `test_the_database_refuses_to_orphan_a_charter`, `test_retiring_an_agent_cannot_take_its_coverage_with_it` |
+
+**The demonstration's first change failed, and that is the result.** Splitting
+news and sentiment off the Intelligence generalist was sensible, cleanly handed
+over and Board-approved — and the thing it was sold on, making that agent's
+outputs attributable per area, did not happen. Seven charters is as
+unattributable as nine. It took a second change, splitting six more off, before
+the metric moved. Under any looser scheme the first would have been written
+down as a success.
+
+**Two bugs the demonstration caught that reading did not.**
+`attributable_charters` was `None` for every generalist, which made it useless
+as a prediction target — a change could not move it from unmeasurable to
+unmeasurable, so the verdict was always `UNMEASURABLE`. A metric a change
+cannot move is not a metric; it is now a genuine count with a measured zero.
+And the baseline was read *after* the structure changed, which made a
+structural change invisible to itself: both sides of the comparison were
+post-change, and a split could never be seen to have split anything.
+
+**What the org experiments actually found.** Adding an adversarial researcher
+to a research panel took catches from 4 to 7 with no more false alarms — but
+not because it is adversarial: because its specialty covers three defects
+nobody else in the room was asked about. Adding a *second* critic with the same
+specialty moved nothing at all, and three narrow specialists whose specialties
+union to a generalist's scored exactly what the generalist scored. **More
+agents help only when they widen what the room is asked.**
 
 ---
 
@@ -394,7 +432,7 @@ dedicated specialists, multiple agents per charter where load justifies it.
 ```
 M0 ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M7 ─▶ M8 ─▶ M9
                     │            │                        │
-                    │            └──▶ M10 ✅ ▶ M11 ───────┤
+                    │            └──▶ M10 ✅ ▶ M11 ✅ ────┤
                     │                                     │
                     └─────────────────────────────────────┴──▶ M12 ─▶ M13
 ```
@@ -419,10 +457,18 @@ Three deliberate orderings:
 | M2 | 3 | CRYPTO |
 | M3 | 8 | CRYPTO |
 | M5 | 17 (launch roster) | CRYPTO |
-| M8 | ~22 | CRYPTO |
-| M11 | ~28 | CRYPTO + EQUITIES |
+| M8–M10 | **17, actual** | CRYPTO |
+| M11 | **19, actual** | CRYPTO |
 | M12 | 45 → 80 | 3 → 7 |
 | M13 | 100+ | 7 |
+
+The M8 and M11 rows read ~22 and ~28 when this was written. The actual numbers
+are lower and the difference is the point: **nothing hired anybody.** No
+measured trigger fired for a strategy, risk or trading specialist through M8
+and M9, so the launch generalists kept standing in — and M11 grew the company by
+exactly the two agents its own trigger scan justified. A roadmap that predicted
+headcount and a company that hires on evidence will disagree, and the company
+is the one that is right.
 
 The full 76-charter roster is covered from M5 onward — first by generalists,
 then increasingly by specialists as the company splits its own roles on
