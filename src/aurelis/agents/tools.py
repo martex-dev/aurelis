@@ -272,14 +272,13 @@ def _engine_backtest(arguments: dict[str, Any]) -> ToolResult:
     format.
     """
     from aurelis.engines.registry import engine_for
-    from aurelis.engines.spec import ExperimentSpec
-    from aurelis.research.lifecycle import _spec_from_payload
+    from aurelis.engines.spec import ExperimentSpec, spec_from_payload
 
     payload = arguments.get("spec")
     if not isinstance(payload, dict):
         raise ValueError("engine.backtest requires a 'spec' payload")
 
-    spec: ExperimentSpec = _spec_from_payload(payload)
+    spec: ExperimentSpec = spec_from_payload(payload)
     artifact = engine_for(spec).run(spec)
 
     flat: dict[str, Any] = {m.name: str(m.value) for m in artifact.metrics.metrics}

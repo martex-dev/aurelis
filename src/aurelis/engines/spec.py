@@ -35,6 +35,7 @@ __all__ = [
     "ExperimentSpec",
     "SignalSpec",
     "UniverseSpec",
+    "spec_from_payload",
 ]
 
 
@@ -157,3 +158,57 @@ def _plain(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
     return value
+
+
+def spec_from_payload(payload: dict[str, Any]) -> ExperimentSpec:
+    """Rebuild a spec from its canonical payload. The inverse of ``as_payload``.
+
+    Reconstructed from the stored dictionary rather than carried in memory, so
+    what runs is provably what was registered — a preregistration that ran a
+    spec held in a variable would be locking a hash and executing something
+    else.
+
+    It lives here rather than beside its first caller because there must be
+    exactly one of it. A second parser written elsewhere would be a second
+    definition of what a specification means, and the two would drift on the
+    first field either of them forgot.
+    """
+    universe = payload["universe"]
+    data = payload["data"]
+    signal = payload["signal"]
+    backtest = payload["backtest"]
+    costs = backtest["costs"]
+    return ExperimentSpec(
+        engine=str(payload["engine"]),
+        universe=UniverseSpec(
+            desk=str(universe["desk"]),
+            symbols=tuple(universe["symbols"]),
+            point_in_time=bool(universe["point_in_time"]),
+            selection=str(universe["selection"]),
+        ),
+        data=DataSpec(
+            source=str(data["source"]),
+            bars=int(data["bars"]),
+            interval=str(data["interval"]),
+            start=data.get("start"),
+            end=data.get("end"),
+        ),
+        signal=SignalSpec(
+            kind=str(signal["kind"]),
+            lookback=int(signal["lookback"]),
+            threshold=Decimal(str(signal["threshold"])),
+            parameters=dict(signal.get("parameters") or {}),
+        ),
+        backtest=BacktestSpec(
+            initial_cash=Decimal(str(backtest["initial_cash"])),
+            allow_short=bool(backtest["allow_short"]),
+            costs=CostModel(
+                fee_bps=Decimal(str(costs["fee_bps"])),
+                spread_bps=Decimal(str(costs["spread_bps"])),
+                slippage_bps=Decimal(str(costs["slippage_bps"])),
+            ),
+            warmup_bars=int(backtest["warmup_bars"]),
+        ),
+        seed=int(payload["seed"]),
+        metrics=tuple(payload["metrics"]),
+    )

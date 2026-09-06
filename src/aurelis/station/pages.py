@@ -228,6 +228,24 @@ def agent_page(session: Session, ref: str) -> str | None:
             ]
         )
         + "</div>"
+        "<h2>Training record</h2>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("scenario verdict", _pill(view.scenario_verdict)),
+                ("catch rate", figure_span(view.scenario_catch_rate)),
+                ("false alarms", figure_span(view.scenario_false_alarms)),
+                (
+                    "specialty",
+                    escape_text(", ".join(view.scenario_specialty)) or "none",
+                ),
+            ]
+        )
+        + "</div>"
+        "<p class='mono'>Institutional competence on planted effects, not "
+        "market truth. An agent calibrated on planted defects may still be "
+        "miscalibrated on a real market, and this number is never merged with "
+        "the live record above it.</p>"
         f"<h2>Charters held ({len(view.charters)})</h2><ul>{charters}</ul>"
         "<h2>Can see</h2>"
         f"<p class='mono'>{escape_text(', '.join(view.can_see)) or 'nothing'}</p>"

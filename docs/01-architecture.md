@@ -431,9 +431,23 @@ anyone's prose.
 
 ### 9.2 Training scenarios — how we know an agent or an org change is good
 
-The synthetic engine produces research scenarios where **the answer is known
-in advance**: a planted momentum premium of a stated size, a planted data leak,
-a planted regime dependency, or nothing at all.
+The synthetic engine produces research scenarios where **the answer is known**:
+a momentum premium, names that drift up and then delist, an effect confined to
+one regime, a run inside the priming window, an edge the width of the spread —
+and, in a third of the catalogue, nothing at all.
+
+Known, but not *declared*. A recipe is an instruction to a generator, not a
+claim about what came out of it, and a plant can fail to take. Each world is
+therefore drawn **twenty-four times** and the answer is whatever replication
+finds; an experiment gets one draw, exactly as a researcher gets one past, and
+the draw a critic is shown is deliberately not one of the twenty-four. Where
+the measurement disagrees with the author's intent, the disagreement is
+reported and kept rather than reconciled.
+
+Three verdicts, not two: `PRESENT`, `ABSENT`, and `UNDETERMINED` for a question
+replication could not settle. Undetermined items are excluded from scoring
+entirely — a question the suite cannot answer is not one an agent should be
+marked wrong on.
 
 Uses:
 
@@ -444,11 +458,20 @@ Uses:
   discoveries? Run the same scenario set with and without, and count. Does 3
   technical analysts beat 2? Same method.
 - **Regression.** When a playbook or capability changes, the scenario suite
-  re-runs. A change that lowers the catch rate is caught before it reaches real
-  research.
+  re-runs. A revision that catches fewer real defects fails CI and does not
+  ship. Comparison is on **counts, not rates**: a revision that narrowed its
+  checks would face fewer questions, keep a perfect catch rate, and find
+  strictly less.
 
 This is how "the company researches itself" becomes arithmetic instead of
 opinion. It needs no market data and runs offline, cheaply.
+
+Two caveats travel with every score. A scenario score is **institutional
+competence, not market truth** — an agent calibrated on planted effects may
+still be badly calibrated on a real market. And what is scored today is the
+**procedure a charter issues**, not an agent's own judgement; the harness does
+not change when agents reason for themselves, the playbook is simply replaced
+by the agent.
 
 ### 9.3 Organizational development
 

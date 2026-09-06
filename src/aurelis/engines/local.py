@@ -37,6 +37,7 @@ from aurelis import __version__
 from aurelis.core.canonical import sha256_of
 from aurelis.engines.protocol import (
     EngineCapabilities,
+    EngineUnavailable,
     Metric,
     MetricSet,
     RunArtifact,
@@ -44,7 +45,16 @@ from aurelis.engines.protocol import (
 )
 from aurelis.engines.spec import ExperimentSpec
 
-__all__ = ["METRICS", "SIGNALS", "LocalEngine", "describe_run"]
+__all__ = ["METRICS", "SIGNALS", "SYNTHETIC_DESK", "LocalEngine", "describe_run"]
+
+SYNTHETIC_DESK = "synthetic"
+"""The desk name a training scenario's world claims.
+
+Not a market. A scenario supplies its own world object, and there is
+deliberately no entry for this desk in ``DESK_SOURCES`` -- asking the registry
+for "the synthetic feed" gets a refusal, because a scenario world only exists
+for the length of one scored run.
+"""
 
 getcontext().prec = 28
 
@@ -81,28 +91,52 @@ METRICS: frozenset[str] = frozenset(
 
 
 class LocalEngine:
-    """Deterministic offline research engine."""
+    """Deterministic offline research engine.
+
+    ``source`` replaces the desk's standing feed. It is how a training
+    scenario runs its planted world through **exactly this arithmetic**: the
+    signal, the latency, the cost charging and the measurement are the same
+    code that runs a real experiment, so a score on a scenario is a statement
+    about the company's real machinery rather than about a parallel one built
+    to be scored.
+    """
 
     name = "local"
 
+    __slots__ = ("_source", "_desk")
+
+    def __init__(self, source: Any | None = None, *, desk: str = SYNTHETIC_DESK) -> None:
+        self._source = source
+        self._desk = desk if source is not None else "crypto"
+
     def capabilities(self) -> EngineCapabilities:
+        supplied = self._source is not None
         return EngineCapabilities(
             name=self.name,
             version=__version__,
             available=True,
             detail=(
-                "deterministic offline engine over fixture data; free, "
+                f"deterministic offline engine over a supplied {self._desk} world"
+                if supplied
+                else "deterministic offline engine over fixture data; free, "
                 "reproducible, and not a market simulation"
             ),
             signals=SIGNALS,
             metrics=METRICS,
-            desks=frozenset({"crypto"}),
+            desks=frozenset({self._desk}),
             deterministic=True,
         )
 
     # ------------------------------------------------------------------ run
 
     def run(self, spec: ExperimentSpec) -> RunArtifact:
+        if self._source is None and spec.universe.desk == SYNTHETIC_DESK:
+            raise EngineUnavailable(
+                "there is no standing synthetic feed. A training scenario "
+                "carries its own world and must be run through the training "
+                "suite, which supplies it; an engine that invented one would "
+                "be scoring the company against a world nobody planted."
+            )
         supported, reason = self.capabilities().supports(spec)
         if not supported:
             raise UnsupportedMetric(reason)
@@ -110,12 +144,13 @@ class LocalEngine:
         from aurelis.engines.universe import resolve_universe
         from aurelis.intel.sources import source_for
 
-        source = source_for(spec.universe.desk)
+        source = self._source or source_for(spec.universe.desk)
         universe = resolve_universe(
             spec.universe.desk,
             spec.universe.symbols,
             point_in_time=spec.universe.point_in_time,
             as_of=source.anchor(),
+            source=source,
         )
         if not universe.symbols:
             raise UnsupportedMetric(

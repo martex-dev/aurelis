@@ -380,7 +380,12 @@ Objection:
 ```
 
 Closed taxonomy, so objections can be scored against planted defects in
-training scenarios:
+training scenarios. Each market defect also declares **what kind of question
+its mechanical test asks** (ADR-0011): a *corrective* test produces the truer
+run and degradation is the defect, while a *stress* test produces a what-if and
+the defect is that the conclusion did not survive. Read as plain degradation,
+a stress objection is upheld against every specification that trades, whether
+or not it ever had an edge:
 
 *Research:* `LEAKAGE · CONTAMINATION · WEAK_BASELINE · CONFOUND ·
 MULTIPLE_TESTING · SEED_INSTABILITY · METRIC_INVALID · UNDERPOWERED ·

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import Any
 
 __all__ = ["ResolvedUniverse", "resolve_universe"]
 
@@ -59,6 +60,7 @@ def resolve_universe(
     *,
     point_in_time: bool,
     as_of: dt.datetime,
+    source: Any | None = None,
 ) -> ResolvedUniverse:
     """Which instruments this run may trade, and on what basis.
 
@@ -70,10 +72,16 @@ def resolve_universe(
     An explicit symbol list is honoured as given: a caller that named its
     instruments has already made the selection, and quietly widening it would
     be answering a different question than the one the spec asked.
+
+    ``source`` overrides the desk's standing feed. Training scenarios supply
+    their own world, and they must resolve their universe through the same
+    function a real desk does -- otherwise a planted survivorship defect would
+    be caught by different code than the one that catches a real one, and the
+    score would say nothing about the company's actual competence.
     """
     from aurelis.intel.sources import source_for
 
-    source = source_for(desk)
+    source = source or source_for(desk)
     listed = source.listed_as_of(as_of)
     surviving = source.surviving()
 

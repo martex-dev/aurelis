@@ -287,17 +287,56 @@ that raises on an unknown metric rather than guessing.
 
 ---
 
-## M10 — Training scenarios and agent onboarding
+## M10 — Training scenarios and agent onboarding ✅
 
-- `engines/synthetic/` — market scenarios with planted effects: real premia of
-  stated size, planted leaks, planted regime dependency, and scenarios
-  containing nothing.
-- Onboarding suite per charter; new agents are scored before they work.
-- Playbook regression: a revision that lowers the catch rate fails CI.
+- `engines/synthetic/` — twelve worlds built from recipes: a genuine momentum
+  premium, names that drift up and delist, an effect confined to one regime, a
+  run inside the priming window, an edge the width of the spread — and three
+  with nothing planted in them at all.
+- **Truth is measured, not authored.** A recipe is an instruction, not a claim.
+  Each world is drawn twenty-four times and the answer is whatever replication
+  finds. Where it disagrees with what the author intended, the disagreement is
+  reported and kept.
+- `training/` — playbooks (a charter's critique procedure, as versioned
+  thresholds over the closed defect taxonomy), the suite that runs one over
+  every scenario, the marking, the onboarding record and the regression gate.
+- The onboarding gate is a **trigger on `agents`** — the first `BEFORE UPDATE`
+  invariant in the system, because state lives in an update.
 
-**Acceptance:** a new agent's starting record is its scenario performance. An
-agent that cannot catch planted defects in its own specialty does not start
-work. Playbook changes are gated on the suite.
+**Acceptance — met:**
+
+| | |
+|---|---|
+| A new agent's starting record is its scenario performance | `staff()` routes through `Onboarding`; every hire gets a `TrainingRun` citing the catalogue digest, the playbook digest and a per-scenario mark |
+| An agent that cannot catch planted defects does not start work | A blunted procedure fails the standard and the database refuses the transition to `active`, against raw SQL |
+| Playbook changes are gated on the suite | `aurelis training regression` runs in CI on all four matrix jobs, and CI also asserts the gate rejects a deliberately weakened procedure |
+
+**Three things the suite found in its first run**, all of them in code that had
+shipped and been tested:
+
+1. **`COST_UNDERSTATED` was unfalsifiable.** It read as *present* in all three
+   worlds with nothing planted in them, because tripling the cost of a rule
+   that trades makes it worse whether or not it ever had an edge. Mechanical
+   tests are now **corrective** or **stress** (ADR-0011), and a stress
+   objection against a specification that never showed a result settles
+   nothing.
+2. **The `LOOKAHEAD` test was a provable no-op.** Its warm-up was one lookback,
+   and every registered signal already holds nothing during its own lookback —
+   so the varied run was byte-identical to the original for every specification
+   the objection had ever been raised against.
+3. **A scenario's digest did not include its world.** Two scenarios presenting
+   the same specification over different plants hashed identically, and the run
+   cache served one's artifacts for the other. Caught because every candidate
+   in a tuning sweep returned the same numbers.
+
+**What is honestly not there.** `CAPACITY_IGNORED` has no scorable scenario:
+the plant is in the catalogue, measurement says it did not take, and settings
+that did report it flipped their answer between 24 and 40 replications, which
+is not a verdict. The suite reports the hole. And what is scored today is the
+**procedure a charter issues**, not an agent's own judgement — agents do not
+yet reason their way through a critique. The harness does not change when they
+do; the playbook is replaced by the agent and the same twelve worlds mark the
+same twelve answers.
 
 ---
 
@@ -355,7 +394,7 @@ dedicated specialists, multiple agents per charter where load justifies it.
 ```
 M0 ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M7 ─▶ M8 ─▶ M9
                     │            │                        │
-                    │            └──▶ M10 ──▶ M11 ────────┤
+                    │            └──▶ M10 ✅ ▶ M11 ───────┤
                     │                                     │
                     └─────────────────────────────────────┴──▶ M12 ─▶ M13
 ```

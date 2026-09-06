@@ -35,7 +35,7 @@ from aurelis.core.errors import IntegrityViolation
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.engines.protocol import RunArtifact
 from aurelis.engines.registry import engine_for
-from aurelis.engines.spec import ExperimentSpec
+from aurelis.engines.spec import ExperimentSpec, spec_from_payload
 from aurelis.platform.artifacts.store import ArtifactStore
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
@@ -349,7 +349,7 @@ class Research:
         moment = at or self._clock.now()
         experiment = self.experiment(session, experiment_ref)
         registration = self.registration(session, experiment.registration_ref)
-        spec = _spec_from_payload(experiment.spec)
+        spec = spec_from_payload(experiment.spec)
 
         hypothesis = self.hypothesis(session, experiment.hypothesis_ref)
         if hypothesis.state == HypothesisState.DESIGNED:
@@ -678,58 +678,3 @@ class Research:
         )
 
 
-def _spec_from_payload(payload: dict[str, Any]) -> ExperimentSpec:
-    """Rebuild a spec from what was locked.
-
-    Reconstructed from the stored payload rather than carried in memory, so
-    what runs is provably what was registered.
-    """
-    from decimal import Decimal as D
-
-    from aurelis.engines.spec import (
-        BacktestSpec,
-        CostModel,
-        DataSpec,
-        SignalSpec,
-        UniverseSpec,
-    )
-
-    universe = payload["universe"]
-    data = payload["data"]
-    signal = payload["signal"]
-    backtest = payload["backtest"]
-    costs = backtest["costs"]
-    return ExperimentSpec(
-        engine=str(payload["engine"]),
-        universe=UniverseSpec(
-            desk=str(universe["desk"]),
-            symbols=tuple(universe["symbols"]),
-            point_in_time=bool(universe["point_in_time"]),
-            selection=str(universe["selection"]),
-        ),
-        data=DataSpec(
-            source=str(data["source"]),
-            bars=int(data["bars"]),
-            interval=str(data["interval"]),
-            start=data.get("start"),
-            end=data.get("end"),
-        ),
-        signal=SignalSpec(
-            kind=str(signal["kind"]),
-            lookback=int(signal["lookback"]),
-            threshold=D(str(signal["threshold"])),
-            parameters=dict(signal.get("parameters") or {}),
-        ),
-        backtest=BacktestSpec(
-            initial_cash=D(str(backtest["initial_cash"])),
-            allow_short=bool(backtest["allow_short"]),
-            costs=CostModel(
-                fee_bps=D(str(costs["fee_bps"])),
-                spread_bps=D(str(costs["spread_bps"])),
-                slippage_bps=D(str(costs["slippage_bps"])),
-            ),
-            warmup_bars=int(backtest["warmup_bars"]),
-        ),
-        seed=int(payload["seed"]),
-        metrics=tuple(payload["metrics"]),
-    )

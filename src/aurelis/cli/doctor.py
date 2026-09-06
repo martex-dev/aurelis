@@ -39,6 +39,7 @@ from aurelis.research.triggers import (
     verify_research_invariants,
 )
 from aurelis.runtime import Runtime
+from aurelis.training.triggers import TRAINING_TRIGGERS, verify_training_invariants
 
 __all__ = ["Check", "Status", "run_checks"]
 
@@ -253,6 +254,24 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 if absent_prereg
                 else " — a run cannot precede its registration, and a locked "
                 "registration cannot be edited"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_gate = verify_training_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "onboarding gate",
+            Status.OK if not absent_gate else Status.PROBLEM,
+            f"{len(TRAINING_TRIGGERS) - len(absent_gate)}/{len(TRAINING_TRIGGERS)} "
+            "installed"
+            + (
+                f" — MISSING: {', '.join(absent_gate)}. An agent that failed the "
+                "scenario suite could start work until repaired."
+                if absent_gate
+                else " — an agent whose latest training run failed cannot become "
+                "active"
             ),
         )
     )

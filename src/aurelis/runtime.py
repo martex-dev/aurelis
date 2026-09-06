@@ -53,6 +53,9 @@ from aurelis.trading.execution import Execution
 from aurelis.trading.posttrade import PostTrade
 from aurelis.trading.states import BrokerKind
 from aurelis.trading.triggers import install_trading_invariants
+from aurelis.training.onboarding import Onboarding
+from aurelis.training.suite import TrainingSuite
+from aurelis.training.triggers import install_training_invariants
 
 __all__ = ["Runtime", "COMPANY_SCOPE_ID"]
 
@@ -93,6 +96,8 @@ class Runtime:
     brokers: dict[BrokerKind, BrokerAdapter]
     graph: KnowledgeGraph
     lessons: Lessons
+    training: TrainingSuite
+    onboarding: Onboarding
     worker: AgentWorker
 
     @classmethod
@@ -157,6 +162,11 @@ class Runtime:
         )
         graph = KnowledgeGraph(the_clock)
         lessons = Lessons(ledger, the_clock)
+        # One suite, one bench, for the life of the process. Every engine run
+        # it makes is a pure function of (scenario, seed, spec), so onboarding
+        # a cohort of seventeen costs what onboarding one costs.
+        training = TrainingSuite()
+        onboarding = Onboarding(training, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
             queue=queue,
@@ -198,6 +208,8 @@ class Runtime:
             brokers=brokers,
             graph=graph,
             lessons=lessons,
+            training=training,
+            onboarding=onboarding,
             worker=worker,
         )
 
@@ -216,6 +228,7 @@ class Runtime:
                     *install_research_invariants(connection),
                     *install_strategy_invariants(connection),
                     *install_trading_invariants(connection),
+                    *install_training_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0
@@ -273,7 +286,9 @@ class Runtime:
                     desk=agent.desk.value if agent.desk else None,
                     at=self.clock.now(),
                 )
-            self.roster.onboard_all(session, at=self.clock.now())
+            self.roster.onboard_all(
+                session, at=self.clock.now(), onboarding=self.onboarding
+            )
         return len(hired)
 
     def close(self) -> None:

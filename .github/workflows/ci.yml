@@ -62,6 +62,21 @@ jobs:
       - name: Test
         run: pytest -q
 
+      # The playbook regression gate (ADR-0005). A revision of the company's
+      # critique procedure that catches fewer real defects on the scenario
+      # suite fails here and does not ship. Offline, deterministic and free --
+      # the worlds are generated, so this never waits on a market.
+      - name: Playbook regression
+        run: |
+          aurelis training regression
+          # And the gate must actually bite. A blunted survivorship check
+          # misses defects that are really there, so this must exit non-zero;
+          # a gate that passed everything would be worse than no gate.
+          if aurelis training regression --defect survivorship --degradation 5; then
+            echo "the regression gate accepted a procedure that finds less" >&2
+            exit 1
+          fi
+
       - name: End-to-end acceptance
         run: |
           workspace="${RUNNER_TEMP}/aurelis-ci"
@@ -69,4 +84,9 @@ jobs:
           aurelis db init -w "$workspace"
           aurelis doctor -w "$workspace"
           aurelis demo -w "$workspace"
+          # Staffing routes through onboarding: every hire is scored on the
+          # scenario suite before it may work, and the roster prints what each
+          # one started with.
+          aurelis agent hire -w "$workspace"
+          aurelis training roster -w "$workspace"
           aurelis ledger verify -w "$workspace"

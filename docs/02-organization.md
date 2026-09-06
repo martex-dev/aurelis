@@ -458,7 +458,13 @@ HIRED ──▶ ONBOARDING ──▶ ACTIVE ──▶ SENIOR ──▶ LEAD ─�
 
 - **Onboarding** runs the training scenario suite for the agent's charters. An
   agent that cannot catch planted defects in its own specialty does not start
-  work; the failure is recorded and the role's playbook is reviewed.
+  work — a trigger on `agents` refuses the move to `active`, so the ordinary
+  activation path cannot get around it; the failure is recorded and the role's
+  playbook is reviewed. A third verdict, `not_scored`, covers a charter the
+  suite has no fair question for, and it is **never** read as a pass: most of
+  the launch roster holds it, and inventing a specialty for every charter so
+  nobody had a blank record would put fiction in two thirds of the company's
+  permanent record.
 - **Promotion** follows measured quality: calibration, findings that survive
   replication, objections upheld, low audit findings. Promotion raises model
   tier, which is how cost follows demonstrated value.

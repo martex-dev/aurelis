@@ -62,6 +62,7 @@ from aurelis.research.tables import (
 )
 from aurelis.station.figures import Figure, Source
 from aurelis.strategy.tables import Strategy
+from aurelis.training.tables import TrainingRun
 
 __all__ = [
     "AgentView",
@@ -372,6 +373,14 @@ class AgentView:
     objections: Figure
     brier: Figure
     scored: Figure
+    scenario_verdict: str
+    """``passed`` | ``failed`` | ``not_scored`` | ``untested``. Shown beside
+    the live record and never merged with it: a score on planted effects is
+    institutional competence, not market truth (ADR-0005)."""
+
+    scenario_catch_rate: Figure
+    scenario_false_alarms: Figure
+    scenario_specialty: list[str]
     spend: Figure
     model_calls: Figure
     cache_rate: Figure
@@ -442,6 +451,33 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
         else Figure.absent("this agent has made no model calls")
     )
 
+    training = session.execute(
+        sa.select(TrainingRun)
+        .where(TrainingRun.agent_ref == ref)
+        .order_by(TrainingRun.measured_at.desc(), TrainingRun.ref.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if training is None:
+        scenario_verdict = "untested"
+        catch = Figure.absent("this agent has never run the training suite")
+        alarms = Figure.absent("this agent has never run the training suite")
+        specialty: list[str] = []
+    else:
+        scenario_verdict = training.verdict
+        specialty = list(training.specialty)
+        source = Source.table("training_runs", f"agent = {ref}, run = {training.ref}")
+        # NULL rather than zero when the specialty had no settled questions.
+        # A rate of nothing at all is not a rate of zero, and the type is the
+        # only thing keeping those apart on the page.
+        catch = (
+            Figure(Decimal(training.catch_rate), source)
+            if training.catch_rate is not None
+            else Figure.absent(
+                "no defect the suite can settle falls in this agent's specialty"
+            )
+        )
+        alarms = Figure(training.false_alarms, source)
+
     return AgentView(
         ref=row.ref,
         handle=row.handle,
@@ -466,6 +502,10 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
             len(scored_rows),
             Source.table("forecasts", f"agent = {ref}, brier is not null"),
         ),
+        scenario_verdict=scenario_verdict,
+        scenario_catch_rate=catch,
+        scenario_false_alarms=alarms,
+        scenario_specialty=specialty,
         spend=Figure(
             Decimal(str(spent or 0)),
             Source.table("cost_entries", f"actor = {ref}"),

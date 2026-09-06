@@ -83,6 +83,12 @@ class EventKind(StrEnum):
     COVERAGE_GRANTED = "agent.coverage_granted"
     COVERAGE_REVOKED = "agent.coverage_revoked"
 
+    # Training
+    SCENARIO_SUITE_RUN = "training.suite_run"
+    AGENT_SCORED = "training.agent_scored"
+    ONBOARDING_REFUSED = "training.onboarding_refused"
+    PLAYBOOK_REGRESSED = "training.playbook_regressed"
+
     # Missions
     MISSION_OPENED = "mission.opened"
     MISSION_STATE_CHANGED = "mission.state_changed"

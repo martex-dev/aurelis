@@ -29,6 +29,7 @@ from aurelis.research import tables as _research
 from aurelis.risk import tables as _risk
 from aurelis.strategy import tables as _strategy
 from aurelis.trading import tables as _trading
+from aurelis.training import tables as _training
 
 __all__ = ["Base", "TABLE_MODULES"]
 
@@ -47,6 +48,7 @@ TABLE_MODULES = (
     _risk,
     _trading,
     _alerts,
+    _training,
 )
 """Every module that defines tables, in dependency order.
 

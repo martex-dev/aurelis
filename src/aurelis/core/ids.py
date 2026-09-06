@@ -94,6 +94,10 @@ class RefKind(StrEnum):
     LESSON = "LSN"
     AUDIT = "AUD"
     ORG_CHANGE = "ORG"
+    TRAINING_RUN = "TRN"
+    """One agent's pass over the training-scenario suite. Its own prefix
+    because a scenario score is cited alongside live work and must never be
+    mistaken for it (ADR-0005)."""
 
     @property
     def width(self) -> int:

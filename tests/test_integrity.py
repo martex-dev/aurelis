@@ -172,8 +172,18 @@ def test_every_market_defect_has_a_mechanical_test() -> None:
 
 
 def test_each_builder_varies_exactly_one_thing() -> None:
-    """A test that changed two things at once would settle nothing."""
-    from aurelis.research.lifecycle import _spec_from_payload
+    """A test that changed two things at once would settle nothing.
+
+    LOOKAHEAD is the single exception, and it is checked harder rather than
+    excused. It moves the start *and* lengthens the window, because suppressing
+    the priming bars without replacing them would leave the varied run trading
+    a shorter history -- and any rule with a real edge does worse over less
+    time, so the defect would be indistinguishable from the handicap. The
+    assertion below is therefore that the number of **trading bars** is
+    identical on both sides, which is the property the second change exists to
+    preserve.
+    """
+    from aurelis.engines.spec import spec_from_payload
 
     spec = _spec(point_in_time=False)
     base = spec.as_payload()
@@ -181,11 +191,36 @@ def test_each_builder_varies_exactly_one_thing() -> None:
         test = build_test(
             defect_type, spec, metric="sharpe", observed=Decimal("0.1")
         )
-        varied = _spec_from_payload(test["arguments"]["spec"]).as_payload()
-        differing = [
-            key for key in base if base[key] != varied[key]
-        ]
-        assert len(differing) == 1, f"{defect_type} varied {differing}"
+        rebuilt = spec_from_payload(test["arguments"]["spec"])
+        varied = rebuilt.as_payload()
+        differing = [key for key in base if base[key] != varied[key]]
+        if defect_type is ObjectionType.LOOKAHEAD:
+            assert differing == ["data", "backtest"], differing
+            assert spec.data.bars - spec.signal.lookback == (
+                rebuilt.data.bars - rebuilt.backtest.warmup_bars
+            ), "the look-ahead test must not shorten the trading window"
+        else:
+            assert len(differing) == 1, f"{defect_type} varied {differing}"
+
+
+def test_the_lookahead_test_can_actually_fail() -> None:
+    """It could not, until M10 measured it reading exactly zero everywhere.
+
+    At a warm-up of one lookback the varied run was byte-identical to the
+    original -- every registered signal already holds nothing during its own
+    lookback, so suppressing those bars suppressed nothing. The objection
+    returned a clean bill of health on every specification it was ever raised
+    against.
+    """
+    from aurelis.engines.spec import spec_from_payload
+
+    spec = _spec(point_in_time=False)
+    test = build_test(
+        ObjectionType.LOOKAHEAD, spec, metric="sharpe", observed=Decimal("0.1")
+    )
+    varied = spec_from_payload(test["arguments"]["spec"])
+    assert varied.backtest.warmup_bars > spec.signal.lookback
+    assert varied.as_payload() != spec.as_payload()
 
 
 def test_the_direction_of_worse_depends_on_the_metric() -> None:

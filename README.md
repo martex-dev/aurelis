@@ -11,10 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M9 complete — paper trading, and the measurement reality votes on.**
-An order cannot exist without the approval chain behind it. The backtest-live
-gap is measured against the artifact that justified deployment, and every
-deployment forecasts its own gap. · 2026-09-06
+Status: **M10 complete — the company can now be scored.** Twelve synthetic
+worlds with known contents, where the answer is *measured* by replication
+rather than written down by their author. Every agent's starting record is what
+it caught in them, and a revision of the company's critique procedure that
+finds less does not ship. · 2026-09-06
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -29,6 +30,7 @@ aurelis db init            # schema, invariants, the org chart
 aurelis agent hire         # staff the launch roster
 aurelis research review    # the demonstration
 aurelis memory import      # inherited trials, gap and all
+aurelis training truth     # what is really in each scenario, and what is not
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -227,6 +229,76 @@ artifact digest** — not recomputed, because re-deriving it would compare paper
 against today's estimate rather than against the claim actually made. And the
 mean gap is tracked as a company competence: how wrong our backtests tend to be
 is a fact about us, not about any one strategy.
+
+### Being scored on worlds where the answer is known
+
+Research cannot tell you quickly whether an agent is any good. A strategy that
+failed may have had an edge that regime-shifted; one that worked may have been
+lucky; and the feedback loop is months long. So the company is also scored on
+twelve generated worlds — a genuine momentum premium, names that drift up and
+then delist, an effect confined to one regime, an edge the width of the spread,
+and **three with nothing in them at all**, because a system that always finds
+something has to be able to score badly.
+
+The catalogue does not contain the answer key. A recipe is an instruction to a
+generator, and a plant can fail to take:
+
+```
+SC-05  effect=absent       -0.0942 [-0.1118, -0.0767] over 24
+         survivorship      present      +0.4665 [+0.3460, +0.5869] over 24
+SC-10  effect=present      +3.2588 [+1.6304, +4.8871] over 24
+         !! planted capacity_ignored; measured absent
+```
+
+An experiment gets one draw of history, exactly as a researcher gets one past.
+The truth measurement gets **twenty-four**, which is the scale no experiment is
+allowed, and the critic is shown a seed that is deliberately not one of them.
+Where measurement disagrees with intent it is reported, never reconciled — a
+catalogue that edited its intent to match its measurements would have stopped
+being a check on anything.
+
+Onboarding is what comes out of it:
+
+```
+AG-0009  CRITIC  passed      caught 7/8, 1 false alarm in 31
+AG-0001  CEO     not_scored  no charter this agent holds has a scenario specialty
+AG-0013  TRADE   not_scored  only 2 settled questions in this specialty; 3 needed
+```
+
+`not_scored` is a third verdict and never reads as a pass. Most of the launch
+roster lands there, and saying so is the honest report — inventing a specialty
+for every charter so nobody has a blank record would put fiction in the
+permanent record of two thirds of the company. An agent that **fails** cannot
+become active: that is a trigger on the `agents` table, so the ordinary
+`set_state(ACTIVE)` path cannot get around it.
+
+And the company's critique procedure is versioned and gated. CI runs it, and
+CI also checks that the gate bites:
+
+```
+                         incumbent   candidate
+real defects caught          7           4
+critique.market_defects@1.1 refused — caught 7 -> 4
+```
+
+Counts, not rates: a revision that narrowed its checks would face fewer
+questions, keep a perfect catch *rate*, and find strictly less.
+
+**Three bugs the suite found in its first run**, all in code that had shipped
+and been tested. `COST_UNDERSTATED` read as *present* in all three empty
+worlds — tripling the cost of a rule that trades makes it worse whether or not
+it ever had an edge, so as written the objection could not fail
+([ADR-0011](docs/adr/0011-a-stress-test-is-not-a-correction.md)). The
+`LOOKAHEAD` test was a provable no-op: its warm-up was one lookback, and every
+signal already holds nothing during its own lookback. And a scenario's digest
+did not cover its world, so a run cache served one scenario's artifacts for
+another.
+
+What is honestly missing: `CAPACITY_IGNORED` has no scorable scenario, and the
+suite says so rather than tuning until it agreed. What is scored today is the
+**procedure a charter issues**, not an agent's own judgement — the harness does
+not change when agents reason for themselves, the playbook is simply replaced
+by the agent.
 
 ### The window
 
@@ -495,7 +567,7 @@ automatically by the company, five milestones in.
 | **M7** ✅ | **Mission Control** | the live facility, every figure sourced |
 | **M8** ✅ | Strategy, portfolio, risk | authored components, gates, veto |
 | **M9** ✅ | Paper trading | approval chain, the backtest-live gap |
-| **M10** | Training scenarios | onboarding and playbook regression |
+| **M10** ✅ | **Training scenarios** | planted defects, onboarding, playbook regression |
 | **M11** | **Org development** | the company grows itself |
 | **M12** | Multi-desk | equities → options → futures → commodities → FX → memecoins |
 | **M13** | Scale | 100+ agents, seven desks, hardening |

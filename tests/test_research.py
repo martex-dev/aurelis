@@ -102,9 +102,9 @@ def test_a_different_seed_or_spec_produces_a_different_artifact() -> None:
 def test_the_spec_digest_survives_the_database_round_trip() -> None:
     """A registration's hash must not change simply by being written down."""
     spec = _spec()
-    from aurelis.research.lifecycle import _spec_from_payload
+    from aurelis.engines.spec import spec_from_payload
 
-    assert _spec_from_payload(spec.as_payload()).digest() == spec.digest()
+    assert spec_from_payload(spec.as_payload()).digest() == spec.digest()
 
 
 def test_an_engine_refuses_a_signal_it_does_not_implement() -> None:

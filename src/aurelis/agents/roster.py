@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -210,14 +211,27 @@ class Roster:
             at=moment,
         )
 
-    def onboard_all(self, session: Session, *, at: dt.datetime | None = None) -> int:
-        """Move newly hired agents to ACTIVE.
+    def onboard_all(
+        self,
+        session: Session,
+        *,
+        at: dt.datetime | None = None,
+        onboarding: Any | None = None,
+    ) -> int:
+        """Score newly hired agents, then move the ones that may work to ACTIVE.
 
-        At M10 this is where the training-scenario suite runs and an agent that
-        cannot catch planted defects in its own specialty does not start work
-        (ADR-0005). Until that engine exists, onboarding is a state change and
-        is honestly labelled as one rather than pretending to have scored
-        anybody.
+        This is the M10 gate (ADR-0005). Each pending agent runs the
+        training-scenario suite for its specialty; the result becomes its
+        starting record; an agent whose record says ``failed`` stays where it
+        is. The refusal is not enforced here -- a trigger on ``agents`` refuses
+        the transition (:mod:`aurelis.training.triggers`), so a code path that
+        skipped this method could not sneak one through.
+
+        ``onboarding`` is optional so the roster keeps working without the
+        training layer. Passing ``None`` activates everybody **without a
+        record**, and the count returned is of agents moved, not of agents
+        certified -- the two were the same thing before M10 and are not any
+        more.
         """
         moment = at or self._clock.now()
         pending = (
@@ -225,9 +239,20 @@ class Roster:
             .scalars()
             .all()
         )
+        moved = 0
         for agent in pending:
-            self.set_state(session, agent.ref, AgentState.ACTIVE, at=moment)
-        return len(pending)
+            if onboarding is None:
+                self.set_state(session, agent.ref, AgentState.ACTIVE, at=moment)
+                moved += 1
+                continue
+            self.set_state(session, agent.ref, AgentState.ONBOARDING, at=moment)
+            outcome = onboarding.run(session, agent.ref, at=moment)
+            if outcome.may_work:
+                self.set_state(session, agent.ref, AgentState.ACTIVE, at=moment)
+                moved += 1
+            else:
+                self.set_state(session, agent.ref, AgentState.RETRAINING, at=moment)
+        return moved
 
     # -------------------------------------------------------------- reading
 
