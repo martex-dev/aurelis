@@ -259,7 +259,15 @@ lists them:
 - **The options desk cannot compute a greek.** A typed refusal — that desk is
   researchable as a price series and not as an options book.
 - **Postgres is written and unexercised.**
-- **Agents do not yet reason their way through a critique.** What the training
-  suite scores is the procedure a charter issues, not the agent's judgement.
 - **No automatic recovery of a dead worker.** Stranded tasks are returned
   manually, on purpose.
+- **Nothing behind either agent seat is a model.** `aurelis training seat` and
+  `aurelis strategy author` both run a deterministic stand-in, because every
+  model call in this repository goes to the mock provider. The machinery is
+  real; the reasoner is not, and both commands say so in their own output.
+- **The company does not revise a design that failed.** `mutate` exists and
+  produces a new version rather than editing one, but no loop drives it — a
+  revision loop is exactly where authoring turns into mining, and it should not
+  be added without deciding first what stops it.
+- **No authored strategy has beaten a baseline.** One has been authored and
+  measured. It lost to buying and holding.

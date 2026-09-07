@@ -145,6 +145,11 @@ class EventKind(StrEnum):
     """An agent wrote a piece of a strategy, with a cited origin. The event
     the company's claim to have *created* an edge rests on."""
 
+    STRATEGY_AUTHORED = "strategy.authored"
+    """An agent designed a whole strategy from the closed space and the company
+    measured it. Carries the size of the space it chose from, so a result can
+    never be read without the width of the search that produced it."""
+
     STRATEGY_OPENED = "strategy.opened"
     STRATEGY_VERSION_COMPOSED = "strategy.version_composed"
     STRATEGY_STATE_CHANGED = "strategy.state_changed"

@@ -230,7 +230,9 @@ class LocalEngine:
 
         if spec.signal.kind == "rotation":
             top_k = max(1, int(spec.signal.parameters.get("top_k", 1)))
-            return self._rotation(closes, symbols, length, lookback, top_k)
+            return self._rotation(
+                closes, symbols, length, lookback, top_k, spec.signal.threshold
+            )
 
         primary = symbols[0]
         weights: list[dict[str, Decimal]] = []
@@ -279,12 +281,23 @@ class LocalEngine:
         length: int,
         lookback: int,
         top_k: int,
+        threshold: Decimal = _ZERO,
     ) -> list[dict[str, Decimal]]:
         """Hold the top ``k`` names by trailing return, equally weighted.
 
         Cross-sectional, and therefore the signal on which the universe
         definition matters most: a hindsight universe can only rank names that
         survived, so it never picks the one that was about to die.
+
+        ``threshold`` is the floor a name must clear to be held at all, and it
+        defaults to zero, which is what this signal always did. It became a
+        parameter at M15, when the authorable design space was swept and every
+        rotation design returned the same number for all three thresholds --
+        the knob was offered to an agent, hashed into the specification, and
+        charged to the multiple-testing denominator while changing nothing.
+        A choice that cannot change the answer is decoration, and decoration in
+        a preregistration is worse than absent: it makes the search look wider
+        than it was.
         """
         weights: list[dict[str, Decimal]] = []
         for index in range(length):
@@ -299,7 +312,9 @@ class LocalEngine:
             # Symbol is the tiebreak so the ordering is total and the run stays
             # byte-reproducible.
             ranked.sort(key=lambda pair: (-pair[0], pair[1]))
-            chosen = [symbol for change, symbol in ranked[:top_k] if change > _ZERO]
+            chosen = [
+                symbol for change, symbol in ranked[:top_k] if change > threshold
+            ]
             if not chosen:
                 weights.append({})
                 continue

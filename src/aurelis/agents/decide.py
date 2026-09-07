@@ -241,7 +241,14 @@ def decide_as(
 
     # The same figure rule prose is held to. An agent that reasoned its way to
     # a conclusion using a number nobody gave it has not reasoned.
-    permitted = allowed_figures(material)
+    #
+    # The rendered question counts as material, because it *is* material the
+    # agent was shown. M14's options were prose and this made no difference;
+    # M15's carry numbers -- a lookback of 168 bars, a threshold of 0.02 -- and
+    # without this an agent could not justify its pick by referring to the pick.
+    # A guard that refuses an answer for citing the question is not checking
+    # sourcing, it is punishing specificity.
+    permitted = allowed_figures(material, {"options": question.render()})
     invented = unsourced_numerals(reasoning, permitted)
     if invented:
         from aurelis.agents.interpret import UnsourcedFigures

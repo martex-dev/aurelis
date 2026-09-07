@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M14 — past the roadmap.** M13 finished it; M14 puts an agent in the
-seat the critique playbook occupied and weighs it with the same instrument. It
-catches more and cries wolf more, and the company's own gate refuses it.
-Nothing here is live market data or live trading, and every page says so.
-· 2026-09-07
+Status: **M15 — an agent authors a strategy.** M14 seated an agent as a critic;
+M15 seats one as the designer, choosing a whole strategy from a closed space
+and preregistering the whole space it chose from. It did not beat holding the
+asset, and that is the headline. Nothing here is live market data or live
+trading, and every page says so. · 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -34,6 +34,8 @@ aurelis training truth     # what is really in each scenario, and what is not
 aurelis orgdev develop     # the company reorganises itself, and grades it
 aurelis desk compare       # the same question on all seven desks
 aurelis orgdev scale       # staff the desks, on measured evidence
+aurelis training seat      # an agent in the critic's seat, weighed by the gate
+aurelis strategy author    # an agent designs a strategy, and it loses
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -523,6 +525,45 @@ tampered blob is refused:
 1 artifact(s) whose bytes no longer hash to their name: ['1233d4535383']
 ```
 
+### An agent in the author's seat
+
+M8 built the surface an agent would author a strategy through and refused, on
+purpose, to provide any function that promotes a hypothesis into one — the
+company is meant to *create* an edge, not sift a corpus for one. What it did
+not have was an agent. M15 is the agent.
+
+```bash
+aurelis strategy author
+```
+
+```
+what it chose   momentum, one-week lookback, two-percent threshold, long only
+                1 of 72 reachable designs, picked before anything was run
+
+total return    0.026        always_long returned 0.243
+cost drag       0.092        it paid this and did not earn it back
+verdict         UNDERPOWERED settling the claim needs ~15 years of hourly bars
+declared cells  72           the space it searched, not the design it ran
+```
+
+**The authored design did not beat holding the asset.** A rule that cannot beat
+buying and holding has not found anything, and one that cannot beat doing
+nothing has found less. That is the result, reported rather than tuned away —
+and the system was built so that it could be.
+
+The interesting design decision is the denominator. Authoring from a menu is
+cheap, so a company that lets an agent author until something passes has built
+a parameter miner with a rationale field. `declared_cells` is therefore **72,
+not 1**: the agent was shown the alternatives, nothing in the record can
+establish which it implicitly weighed, and understating a false-discovery
+denominator manufactures confidence out of arithmetic. A second attempt costs
+the family a second 72.
+
+Costs, the universe and the warm-up are not on the menu. They are three of the
+defects M10 scores the company's own critic on catching, and an agent that
+could author them would be manufacturing exactly the result the other half of
+the company exists to refuse.
+
 ### An agent in the critic's seat
 
 M10 built the instrument for measuring judgement and used it on a *procedure* —
@@ -625,6 +666,7 @@ Look around:
 | `aurelis meeting calibration` | how good the company's forecasts have been |
 | `aurelis research show HYP-0001` | every metric, its interval, and who computed it |
 | `aurelis research graveyard` | everything killed, and why |
+| `aurelis strategy author` · `strategy components` | what the company tried to build, and how much of it is its own |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -833,7 +875,8 @@ automatically by the company, five milestones in.
 | **M11** ✅ | Org development | fission, preregistered changes, org experiments |
 | **M12** ✅ | Multi-desk | seven clocks, seven cost models, comparable research |
 | **M13** ✅ | Scale & hardening | coverage per desk, staffed on evidence, a queue that counts |
-| **M14** ✅ | **Agents that decide** | a closed answer set, figure-checked, scored by the same gate |
+| **M14** ✅ | Agents that decide | a closed answer set, figure-checked, scored by the same gate |
+| **M15** ✅ | **Agents that author** | 72 designs, the search declared, the result negative |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

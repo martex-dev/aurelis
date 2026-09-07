@@ -1,0 +1,482 @@
+"""Authoring a strategy, preregistered, measured, and charged for.
+
+This is the milestone's demonstration, and the sequence is deliberately in this
+order:
+
+.. code-block:: text
+
+    a task is opened and claimed          authoring is work
+    the agent is shown the desk           costs, calendar, budget, prior work
+    the agent picks a design              1 of 72, from closed slots
+    components and a version are written  the agent's words, a cited origin
+    the design is preregistered           declaring the WHOLE SPACE as cells
+    the experiment runs                   the engine produces every number
+    the verdict is derived                by rule, from criteria locked first
+    the baselines run                     context, not a registered claim
+
+The agent chooses **before** anything has been run on the data it will be
+scored on, so the preregistration is a genuine lock rather than a description
+of a decision already made.
+
+Why the whole space is declared
+-------------------------------
+
+A grid search that runs seventy-two backtests and reports the best one is a
+false discovery machine, and the company already knows it: ``declared_cells``
+exists so that a search pays for its own width, and
+:meth:`~aurelis.research.lifecycle.Research.trial_count` sums it per family.
+
+An agent choosing one design out of seventy-two looks different — only one
+backtest is run — and it is *not*. The agent was shown the alternatives, it
+reasoned over them, and nothing in the record can establish which ones it
+implicitly weighed. The company therefore charges itself for the space rather
+than for the pick. That is the conservative direction, and conservative is the
+only defensible direction for a false-discovery denominator: understating it
+manufactures confidence out of arithmetic.
+
+Provenance is the exception. Which failure a component answers changes what the
+company may claim about having created it and changes no number, so the origin
+question is not part of the space. Charging for a choice that cannot move a
+result would inflate the denominator as dishonestly as the inert knob would
+have deflated it.
+
+What this run actually found
+----------------------------
+
+On the crypto desk's fixture, over a quarter of hourly bars, the stand-in's
+cost-aware design earns a negative Sharpe and **does not beat holding the
+asset**. That is the honest result, it is reported as the headline, and the
+system was built so that it could be. The baselines are what make it legible:
+a rule that cannot beat buying and holding has not found anything, and one that
+cannot beat doing nothing has found less.
+
+**The reasoner is a deterministic stand-in, not a model** — see
+:mod:`aurelis.authoring.standin`. What is demonstrated is the machinery.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any
+
+from aurelis.authoring.author import (
+    AuthoredStrategy,
+    AuthoringRefused,
+    Citations,
+    StrategyAuthor,
+)
+from aurelis.authoring.design import BASELINES, baseline_spec, space_size
+from aurelis.authoring.tables import AuthoringAttempt
+from aurelis.core.enums import Actor, EventKind
+from aurelis.core.ids import RefKind, uuid7
+from aurelis.desks.power import bars_for_span, required_observations
+from aurelis.engines.local import LocalEngine
+from aurelis.org.desks import DESKS, Desk
+from aurelis.platform.db.refs import allocate_ref
+from aurelis.research.states import RegistrationKind, Verdict
+
+__all__ = [
+    "CAVEAT",
+    "CLAIM",
+    "SPAN_YEARS",
+    "AuthoringOutcome",
+    "Baseline",
+    "run_authoring",
+]
+
+SPAN_YEARS = Decimal("0.25")
+"""The research budget, in years rather than bars.
+
+Bars are not comparable across desks -- M12's lesson. A quarter of hourly
+crypto bars is 2190 observations; the same quarter on the equities calendar is
+far fewer, and both are a quarter.
+"""
+
+CLAIM = Decimal("0.5")
+"""The annualised Sharpe the authored strategy claims, before it is run.
+
+Modest on purpose. A claim large enough to be settled by a short window would
+be a claim nobody would make about a real strategy, and a claim small enough to
+be unfalsifiable would make UNDERPOWERED the only reachable verdict.
+"""
+
+CAVEAT = (
+    "The designer behind this seat is a deterministic stand-in, not a model, "
+    "and the data is a fixture rather than a market. What is demonstrated is "
+    "the machinery: a closed design space, an agent's own reasoning, a "
+    "preregistration that declares the whole space, and a verdict derived by "
+    "rule."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Baseline:
+    """A reference the authored design is read against.
+
+    Explicitly **not** a registered claim. The verdict is derived from criteria
+    locked before the run; this comparison is made afterwards and is labelled
+    as such everywhere it appears, because a post-hoc comparison presented as a
+    test is exactly the move preregistration exists to prevent.
+    """
+
+    kind: str
+    sharpe: Decimal
+    total_return: Decimal
+
+    def describe(self) -> str:
+        return f"{self.kind}: sharpe {self.sharpe}, total return {self.total_return}"
+
+
+@dataclass(frozen=True, slots=True)
+class AuthoringOutcome:
+    """What one authoring attempt established."""
+
+    authored: AuthoredStrategy
+    task_ref: str
+    hypothesis_ref: str
+    registration_ref: str
+    run_ref: str
+    verdict: Verdict
+    reason: str
+    metrics: dict[str, str]
+    baselines: tuple[Baseline, ...]
+    declared_cells: int
+    trials_in_family: int
+    attempt_ref: str
+    bars: int = 0
+    bars_required: int = 0
+    years_required: Decimal = Decimal(0)
+    """What settling the claim would actually have taken.
+
+    Carried on the outcome because UNDERPOWERED without it reads as a defect in
+    the design rather than what it is -- a statement about how much data an
+    annualised Sharpe claim needs, which on an hourly desk is decades. A report
+    that said only "underpowered" would invite somebody to go and tune the
+    strategy, which is the wrong response and an expensive one.
+    """
+
+    @property
+    def shortfall(self) -> int:
+        """How many bars short of settling the claim this run was."""
+        return max(0, self.bars_required - self.bars)
+
+    @property
+    def sharpe(self) -> Decimal:
+        return Decimal(self.metrics.get("sharpe", "0"))
+
+    @property
+    def total_return(self) -> Decimal:
+        return Decimal(self.metrics.get("total_return", "0"))
+
+    @property
+    def beat_baselines(self) -> bool:
+        """Whether the authored design earned more than every reference.
+
+        On total return rather than Sharpe, because that is the comparison a
+        reader means by "did it beat holding the asset" -- and because
+        ``never_trade`` has no Sharpe to compare against.
+        """
+        return all(self.total_return > base.total_return for base in self.baselines)
+
+    def describe(self) -> str:
+        verdict = self.verdict.value.upper()
+        beat = "beat" if self.beat_baselines else "did NOT beat"
+        return (
+            f"{self.authored.describe()} -> {verdict}; "
+            f"it {beat} the baselines; the search declared "
+            f"{self.declared_cells} cells"
+        )
+
+    def as_payload(self) -> dict[str, Any]:
+        return {
+            "attempt": self.attempt_ref,
+            "authored": self.authored.as_payload(),
+            "task": self.task_ref,
+            "hypothesis": self.hypothesis_ref,
+            "registration": self.registration_ref,
+            "run": self.run_ref,
+            "verdict": self.verdict.value,
+            "reason": self.reason,
+            "metrics": dict(self.metrics),
+            "baselines": [
+                {
+                    "kind": base.kind,
+                    "sharpe": str(base.sharpe),
+                    "total_return": str(base.total_return),
+                }
+                for base in self.baselines
+            ],
+            "beat_baselines": self.beat_baselines,
+            "declared_cells": self.declared_cells,
+            "trials_in_family": self.trials_in_family,
+            "bars": self.bars,
+            "bars_required": self.bars_required,
+            "years_required": str(self.years_required),
+            "caveat": CAVEAT,
+        }
+
+
+def run_authoring(
+    runtime: Any,
+    *,
+    desk: Desk | str = Desk.CRYPTO,
+    agent_handle: str = "STRAT",
+    span: Decimal = SPAN_YEARS,
+    at: dt.datetime | None = None,
+) -> AuthoringOutcome:
+    """Put an agent in the author's seat and take the result, whatever it is.
+
+    Raises :class:`~aurelis.authoring.author.AuthoringRefused` if the agent
+    fails to produce a whole design; nothing is written in that case, and the
+    caller is told which slot it failed on rather than handed a strategy the
+    software finished.
+    """
+    the_desk = desk if isinstance(desk, Desk) else Desk(desk)
+    moment = at or runtime.clock.now()
+    interval = "1h"
+    bars = bars_for_span(the_desk.value, years=span, interval=interval)
+    power = required_observations(
+        the_desk.value,
+        annualised_claim=CLAIM,
+        interval=interval,
+        bars_available=bars,
+    )
+    family = f"authored.{the_desk.value}"
+
+    # -------------------------------------------------------- the authoring
+    with runtime.database.session() as session:
+        agent_ref = runtime.roster.by_handle(session, agent_handle).ref
+        task = runtime.queue.enqueue(
+            session,
+            kind="strategy.author",
+            assignee=agent_ref,
+            payload={"desk": the_desk.value, "space": space_size()},
+            actor=Actor.SYSTEM,
+            at=moment,
+        )
+        claimed = runtime.queue.claim(session, worker=agent_ref, at=moment)
+        task_ref = claimed.ref if claimed is not None else task.ref
+
+        failure = runtime.research.graveyard(session, limit=1)
+        citations = Citations(
+            task_ref=task_ref,
+            failure_ref=failure[0].ref if failure else None,
+        )
+        author = StrategyAuthor(runtime.provider, runtime.synthesis, clock=runtime.clock)
+        try:
+            authored = author.author(
+                session,
+                desk=the_desk,
+                agent_ref=agent_ref,
+                bars=bars,
+                citations=citations,
+                interval=interval,
+                task_ref=task_ref,
+                at=moment,
+            )
+        except AuthoringRefused:
+            if claimed is not None:
+                runtime.queue.fail(session, claimed, error="authoring refused", at=moment)
+            raise
+        if claimed is not None:
+            runtime.queue.succeed(
+                session, claimed, result_digest=authored.spec.digest(), at=moment
+            )
+
+    # ---------------------------------------------------- the preregistration
+    with runtime.database.session() as session:
+        hypothesis = runtime.research.propose(
+            session,
+            claim=(
+                f"A strategy this company authored earns an annualised Sharpe "
+                f"of at least {CLAIM} on the {DESKS[the_desk].name} desk after "
+                "that desk's own costs"
+            ),
+            author=authored.agent_ref,
+            minimum_effect=power.per_bar_effect,
+            primary_metric="sharpe",
+            family=family,
+            rationale=(
+                f"Designed by {authored.agent_ref} as {authored.design.describe()}, "
+                f"one of {space_size()} reachable designs, before any result on "
+                f"this data existed. Version {authored.version_ref}."
+            ),
+            desk=the_desk.value,
+            at=moment,
+        )
+        runtime.research.screen(session, hypothesis.ref, at=moment)
+        registration = runtime.research.register(
+            session,
+            hypothesis_ref=hypothesis.ref,
+            spec=authored.spec,
+            pass_criteria=[
+                {
+                    "metric": "sharpe",
+                    "comparison": "gte",
+                    "value": str(power.per_bar_effect),
+                }
+            ],
+            registrar=_registrar(runtime, session),
+            # The whole space, not the pick. An agent that chose one of
+            # seventy-two after reasoning over all of them has searched
+            # seventy-two, and the record cannot say otherwise.
+            declared_cells=space_size(),
+            analysis_plan=(
+                "Per-bar Sharpe from the local engine with a block-bootstrap "
+                "interval; the lower bound must clear the per-bar equivalent "
+                f"of an annualised {CLAIM} on this desk's calendar. The "
+                "baselines are run afterwards as context and are not part of "
+                "this registration."
+            ),
+            kind=RegistrationKind.CONFIRMATORY,
+            at=moment,
+        )
+        experiment = runtime.research.design(
+            session,
+            registration_ref=registration.ref,
+            designer=authored.agent_ref,
+            at=moment,
+        )
+        run, artifact = runtime.research.execute(
+            session, experiment_ref=experiment.ref, at=moment
+        )
+        outcome = runtime.research.conclude(
+            session,
+            run_ref=run.ref,
+            artifact=artifact,
+            author=authored.agent_ref,
+            interpretation=(
+                "Authored by an agent from the closed design space and "
+                "measured against criteria locked before the run. "
+                f"{CAVEAT}"
+            ),
+            at=moment,
+        )
+        trials = runtime.research.trial_count(session, family)
+        registration_ref = registration.ref
+        hypothesis_ref = hypothesis.ref
+        run_ref = run.ref
+
+    # ------------------------------------------------------- the references
+    engine = LocalEngine()
+    baselines = tuple(
+        _measure(engine, kind, desk=the_desk, bars=bars, like=authored.spec)
+        for kind in BASELINES
+    )
+
+    result = AuthoringOutcome(
+        authored=authored,
+        task_ref=task_ref,
+        hypothesis_ref=hypothesis_ref,
+        registration_ref=registration_ref,
+        run_ref=run_ref,
+        verdict=outcome.verdict,
+        reason=outcome.report.reason,
+        metrics=dict(outcome.metrics),
+        baselines=baselines,
+        declared_cells=space_size(),
+        trials_in_family=trials,
+        attempt_ref="",
+        bars=bars,
+        bars_required=power.bars_required,
+        years_required=power.years_required,
+    )
+    return _record(runtime, result, at=moment)
+
+
+def _measure(
+    engine: LocalEngine, kind: str, *, desk: Desk, bars: int, like: Any
+) -> Baseline:
+    artifact = engine.run(baseline_spec(kind, desk=desk, bars=bars, like=like))
+    return Baseline(
+        kind=kind,
+        sharpe=artifact.metrics.get("sharpe").value,
+        total_return=artifact.metrics.get("total_return").value,
+    )
+
+
+def _record(
+    runtime: Any, outcome: AuthoringOutcome, *, at: dt.datetime
+) -> AuthoringOutcome:
+    """Write the attempt down, whatever it said."""
+    authored = outcome.authored
+    with runtime.database.session() as session:
+        ref = allocate_ref(session, RefKind.AUTHORING)
+        session.add(
+            AuthoringAttempt(
+                attempt_id=uuid7(),
+                ref=ref,
+                agent_ref=authored.agent_ref,
+                desk=authored.desk.value,
+                task_ref=outcome.task_ref,
+                design=authored.design.as_payload(),
+                design_digest=authored.design.digest(),
+                space=space_size(),
+                origin=authored.origin.value,
+                origin_ref=authored.origin_ref,
+                strategy_ref=authored.strategy_ref,
+                version_ref=authored.version_ref,
+                spec_digest=authored.spec.digest(),
+                hypothesis_ref=outcome.hypothesis_ref,
+                registration_ref=outcome.registration_ref,
+                run_ref=outcome.run_ref,
+                verdict=outcome.verdict.value,
+                declared_cells=outcome.declared_cells,
+                trials_in_family=outcome.trials_in_family,
+                metrics=dict(outcome.metrics),
+                baselines={
+                    base.kind: {
+                        "sharpe": str(base.sharpe),
+                        "total_return": str(base.total_return),
+                    }
+                    for base in outcome.baselines
+                },
+                beat_baselines=outcome.beat_baselines,
+                created_at=at,
+            )
+        )
+        session.flush()
+        runtime.ledger.append(
+            session,
+            kind=EventKind.STRATEGY_AUTHORED,
+            actor=authored.agent_ref,
+            subject=ref,
+            payload={
+                "desk": authored.desk.value,
+                "version": authored.version_ref,
+                "design": authored.design.as_payload(),
+                "space": space_size(),
+                "declared_cells": outcome.declared_cells,
+                "verdict": outcome.verdict.value,
+                "beat_baselines": outcome.beat_baselines,
+                "origin": authored.origin.value,
+                "origin_ref": authored.origin_ref,
+                "caveat": CAVEAT,
+            },
+            at=at,
+        )
+
+    return AuthoringOutcome(
+        authored=outcome.authored,
+        task_ref=outcome.task_ref,
+        hypothesis_ref=outcome.hypothesis_ref,
+        registration_ref=outcome.registration_ref,
+        run_ref=outcome.run_ref,
+        verdict=outcome.verdict,
+        reason=outcome.reason,
+        metrics=outcome.metrics,
+        baselines=outcome.baselines,
+        declared_cells=outcome.declared_cells,
+        trials_in_family=outcome.trials_in_family,
+        attempt_ref=ref,
+        bars=outcome.bars,
+        bars_required=outcome.bars_required,
+        years_required=outcome.years_required,
+    )
+
+
+def _registrar(runtime: Any, session: Any) -> str:
+    """Never the author. The lock is worth nothing held by the person it binds."""
+    return str(runtime.roster.by_handle(session, "GOV").ref)

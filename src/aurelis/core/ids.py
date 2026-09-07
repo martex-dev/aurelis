@@ -98,6 +98,12 @@ class RefKind(StrEnum):
     """An experiment on the company's own shape, run over the scenario suite.
     Distinct from EXP-, which is an experiment about a market."""
 
+    AUTHORING = "AUT"
+    """One agent's pass through the strategy design space. Its own prefix
+    because an attempt exists whether or not it produced anything the company
+    kept, and the attempts that produced nothing are the ones that make the
+    novelty claim checkable."""
+
     TRAINING_RUN = "TRN"
     """One agent's pass over the training-scenario suite. Its own prefix
     because a scenario score is cited alongside live work and must never be

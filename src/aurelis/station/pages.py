@@ -699,6 +699,47 @@ def graveyard_page(session: Session) -> str:
     )
 
 
+def workshop_page(session: Session) -> str:
+    view = proj.workshop_view(session)
+    table = _rows(
+        ["ref", "agent", "desk", "what it designed", "verdict", "beat the baselines", "searched"],
+        [
+            [
+                escape_text(row["ref"]),
+                f"<a href='/agent/{escape_text(row['agent'])}'>{escape_text(row['agent'])}</a>",
+                escape_text(row["desk"]),
+                escape_text(row["design"]),
+                _pill(row["verdict"]),
+                "yes" if row["beat"] else "<b>no</b>",
+                f"{row['cells']} of {row['space']}",
+            ]
+            for row in view.rows
+        ],
+    )
+    return (
+        "<h1>The Workshop</h1>"
+        "<p class='mono'>Where the company tries to <em>create</em> a strategy "
+        "rather than sift a corpus for one. Every attempt is here, including "
+        "the ones that went nowhere -- a workshop showing only its successes "
+        "would answer the one question it exists to answer with the one number "
+        "that cannot answer it.</p>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("attempts", figure_span(view.attempts)),
+                ("beat every baseline", figure_span(view.beat_a_baseline)),
+                ("designs declared", str(view.designs_searched)),
+            ]
+        )
+        + "</div>"
+        "<p class='mono'>An attempt declares the whole space it chose from, not "
+        "the one design it ran. Authoring from a menu is cheap, and a company "
+        "that authored until something passed would be mining parameters with a "
+        "rationale attached. The reasoner behind the seat is a deterministic "
+        "stand-in, not a model, and every desk runs on fixtures.</p>" + table
+    )
+
+
 def knowledge_page(session: Session) -> str:
     view = proj.knowledge_view(session)
     corpora = "".join(

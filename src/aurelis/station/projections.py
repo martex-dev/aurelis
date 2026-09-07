@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 
 from aurelis.agents.tables import Agent, AgentState, ToolCall
 from aurelis.alerts.tables import Alert
+from aurelis.authoring.tables import AuthoringAttempt
 from aurelis.meetings.tables import (
     Decision,
     Forecast,
@@ -1022,6 +1023,56 @@ def graveyard_view(session: Session) -> GraveyardView:
         inconclusive=_state_count(session, HypothesisState.INCONCLUSIVE),
         underpowered=_state_count(session, HypothesisState.UNDERPOWERED),
         shelved=_state_count(session, HypothesisState.SHELVED),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class WorkshopView:
+    """What the company tried to create, and whether any of it worked.
+
+    Every attempt, not the ones that went well. A workshop that showed only
+    successful attempts would answer "does the company invent things?" with the
+    one number that cannot answer it.
+    """
+
+    rows: list[dict[str, Any]]
+    attempts: Figure
+    beat_a_baseline: Figure
+    designs_searched: int
+    """Declared cells across every attempt. What a deflation would divide by."""
+
+
+def workshop_view(session: Session) -> WorkshopView:
+    rows = list(
+        session.execute(
+            sa.select(AuthoringAttempt).order_by(AuthoringAttempt.ref.desc())
+        ).scalars()
+    )
+    return WorkshopView(
+        rows=[
+            {
+                "ref": row.ref,
+                "agent": row.agent_ref,
+                "desk": row.desk,
+                "design": ", ".join(f"{k}={v}" for k, v in sorted(row.design.items())),
+                "verdict": row.verdict,
+                "beat": row.beat_baselines,
+                "space": row.space,
+                "cells": row.declared_cells,
+                "origin": f"{row.origin} citing {row.origin_ref}",
+                "version": row.version_ref,
+                "hypothesis": row.hypothesis_ref,
+            }
+            for row in rows
+        ],
+        attempts=_count(session, AuthoringAttempt),
+        beat_a_baseline=_count(
+            session,
+            AuthoringAttempt,
+            AuthoringAttempt.beat_baselines.is_(True),
+            detail="beat every baseline",
+        ),
+        designs_searched=sum(row.declared_cells for row in rows),
     )
 
 

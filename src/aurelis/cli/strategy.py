@@ -222,3 +222,102 @@ def strategy_markets(workspace: WorkspaceOption = None) -> None:
         )
     finally:
         runtime.close()
+
+
+@strategy_app.command("author")
+def strategy_author(
+    workspace: WorkspaceOption = None,
+    desk: Annotated[str, typer.Option(help="Which desk to author for.")] = "crypto",
+    agent: Annotated[str, typer.Option(help="Which agent takes the seat.")] = "STRAT",
+) -> None:
+    """Put an agent in the author's seat and measure what it designs.
+
+    The agent chooses a whole strategy from a closed space, in its own words,
+    before anything has been run on the data it will be scored against — and
+    the company preregisters the **whole space it chose from**, not the one
+    design it picked.
+
+    The reasoner behind the seat in this repository is a deterministic stand-in,
+    not a model, and every desk runs on fixtures rather than market data. What
+    this exercises is the machinery.
+    """
+    from aurelis.authoring.attempt import CAVEAT, run_authoring
+    from aurelis.authoring.design import space_size
+    from aurelis.authoring.standin import scripted_author
+    from aurelis.core.config import load_settings
+    from aurelis.platform.llm.providers import MockProvider
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_author))
+    try:
+        runtime.initialise()
+        runtime.staff()
+        outcome = run_authoring(runtime, desk=Desk(desk), agent_handle=agent)
+        with runtime.database.session() as session:
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    authored = outcome.authored
+    console.print()
+    console.print(
+        f"[bold]{authored.version_ref}[/bold]  authored by {authored.agent_ref} "
+        f"on the {authored.desk.value} desk"
+    )
+    console.print(f"[dim]{escape(authored.design.describe())}[/dim]")
+    console.print()
+
+    choices = Table(title=f"what the agent chose — 1 of {space_size()} reachable designs")
+    for column in ("slot", "chose", "in its own words"):
+        choices.add_column(column, overflow="fold")
+    for turn in authored.turns:
+        choices.add_row(
+            turn.slot,
+            ", ".join(turn.chosen) or "-",
+            escape(turn.reasoning[:110]),
+        )
+    console.print(choices)
+
+    measured = Table(title="what the measurement said")
+    measured.add_column("", style="bold", width=18)
+    measured.add_column("")
+    tone = "yellow" if outcome.verdict.value != "confirmed" else "green"
+    measured.add_row("verdict", f"[{tone}]{outcome.verdict.value.upper()}[/{tone}]")
+    measured.add_row("reason", escape(outcome.reason))
+    for name, value in outcome.metrics.items():
+        measured.add_row(name, value)
+    for base in outcome.baselines:
+        measured.add_row(f"baseline {base.kind}", f"total return {base.total_return}")
+    measured.add_row(
+        "beat the baselines",
+        "[green]yes[/green]" if outcome.beat_baselines else "[red]no[/red]",
+    )
+    measured.add_row("declared cells", f"{outcome.declared_cells} (the whole space)")
+    measured.add_row("trials in family", str(outcome.trials_in_family))
+    if outcome.shortfall:
+        measured.add_row(
+            "power",
+            f"{outcome.bars} bars run, {outcome.bars_required} needed "
+            f"({outcome.years_required} years) to settle the claim",
+        )
+    measured.add_row("origin", f"{authored.origin.value} citing {authored.origin_ref}")
+    if authored.novelty is not None:
+        measured.add_row("novelty", escape(authored.novelty.describe()))
+    measured.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(measured)
+
+    if not outcome.beat_baselines:
+        console.print()
+        console.print(
+            "[yellow]The authored design did not beat holding the asset.[/yellow] "
+            "A rule that cannot beat buying and holding has not found anything, "
+            "and one that cannot beat doing nothing has found less. That is the "
+            "result, and it is reported rather than tuned away."
+        )
+    console.print()
+    console.print(f"[dim]{escape(CAVEAT)}[/dim]")

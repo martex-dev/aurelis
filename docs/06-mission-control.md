@@ -273,6 +273,8 @@ The station must let you:
 - read any meeting, including the arguments and the dissent
 - trace any claim to the artifact that produced it
 - browse the graveyard and understand what failed and why
+- browse the workshop and see what the company tried to build, and whether any
+  of it worked
 - approve or reject an org change the company proposed for itself
 - see risk limits, and every veto
 - watch paper trading and the live-vs-backtest gap
@@ -281,7 +283,8 @@ The station must let you:
 
 If any of those requires a terminal, the station is not finished.
 
-**Where M7 leaves it, plainly.** Six of those ten are done and four are not.
+**Where M7 leaves it, plainly.** The list was ten items then, and the workshop
+row was added at M15; six of the ten were done and four were not.
 Done: seeing every agent with its permissions and cost; reading any meeting
 with its arguments and dissent; tracing any claim to the artifact that produced
 it; browsing the graveyard; verifying the ledger chain; and — as a bonus the
@@ -299,6 +302,12 @@ The distinction is worth keeping sharp rather than blurring: a station that
 quietly claimed to be operable while every state change still required the CLI
 would be the kind of half-truth this project spends most of its design budget
 avoiding.
+
+**Since M7.** Risk limits and paper trading arrived with the records M8 and M9
+own; the desks arrived at M12; the workshop arrived at M15 and answers "what
+did the company try to build, and did any of it work?" with every attempt
+rather than the good ones. Opening a mission and approving an org change are
+still writes, and the station still cannot write.
 
 And the questions it must answer at a glance, from `CLAUDE.md` §35: *What is
 happening? Why? Who is doing it? What has the company learned? What is it going

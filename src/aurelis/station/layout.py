@@ -248,6 +248,19 @@ def build_facility() -> Facility:
             _STRIP_H,
             "/graveyard",
         ),
+        # Next to the graveyard on purpose. What the company killed and what it
+        # tried to build are the two halves of the same question, and a floor
+        # plan that put them in different wings would let a reader see one
+        # without the other.
+        Strip(
+            "workshop",
+            "The Workshop",
+            _MARGIN,
+            strips_y + 2 * (_STRIP_H + _GAP_Y // 2),
+            full_w,
+            _STRIP_H,
+            "/workshop",
+        ),
     )
 
     height = strips[-1].y + strips[-1].h + _MARGIN

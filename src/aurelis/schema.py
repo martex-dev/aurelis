@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from aurelis.agents import tables as _agents
 from aurelis.alerts import tables as _alerts
+from aurelis.authoring import tables as _authoring
 from aurelis.comms import tables as _comms
 from aurelis.desks import tables as _desks
 from aurelis.intel import tables as _intel
@@ -53,6 +54,7 @@ TABLE_MODULES = (
     _alerts,
     _training,
     _orgdev,
+    _authoring,
 )
 """Every module that defines tables, in dependency order.
 

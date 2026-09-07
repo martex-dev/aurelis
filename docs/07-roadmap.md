@@ -549,6 +549,65 @@ rather than a broken regex.
 
 ---
 
+## M15 — An agent authors a strategy ✅
+
+The seat the project was started for. M14's agent judged a specification
+somebody else wrote; this one writes it.
+
+M8 built the surface — `author_component`, `compose`, a required rationale, a
+citable origin, and deliberately **no** function that promotes a hypothesis
+into a strategy. What it did not have was an agent: until now the pieces were
+written by hand in a test fixture, so "agents write pieces" was true of the
+software and not of the company.
+
+- `authoring/design.py` — five slots over **72 reachable designs**, enumerated
+  by walking the branch structure rather than multiplying slot widths.
+- `authoring/author.py` — the agent answers every field the synthesis surface
+  requires: the design, the rationale, the origin, the weaknesses.
+- `authoring/attempt.py` — the whole sequence, preregistered and measured.
+
+```
+design      momentum, one-week lookback, two-percent threshold, long only
+returned    2.6%          holding the asset returned 24.3%
+cost drag   9.2%          the design paid it and did not earn it back
+verdict     UNDERPOWERED  settling the claim needs ~15 years of hourly bars
+declared    72 cells      the space it chose from, not the design it picked
+```
+
+**The authored strategy did not beat holding the asset**, the company says so
+as the headline, and no part of the pipeline is arranged to avoid saying it.
+
+### Why the whole space is declared
+
+Authoring from a menu is cheap. A company that lets an agent author until
+something passes has built a parameter miner with a rationale field attached —
+and the rationale makes it worse, because it makes the mining legible as
+reasoning. So `declared_cells` is 72, not 1: the agent was shown the
+alternatives and nothing in the record can establish which it implicitly
+weighed, and a false-discovery denominator faced with an unmeasurable quantity
+has exactly one defensible direction. A second attempt costs the family a
+second 72.
+
+Costs, universe and warm-up are not slots. Those are three of the defects M10
+scores the company's own critic on catching, and an authoring surface that
+offered them would have the two halves of the company working against each
+other by design.
+
+### The slot that changed nothing
+
+Sweeping the candidate space before writing it down, every rotation design
+returned an **identical Sharpe for all three thresholds** — the cross-sectional
+signal never read the parameter. A knob hashed into a specification, charged to
+the denominator and justified in an agent's own words, that cannot change any
+number, is decoration; and decoration in a preregistration is worse than
+absence, because it makes the search look wider than it was. The engine gained
+the parameter (defaulting to the zero it always used), and the sweep is now a
+test that fails if any choice in any slot stops mattering.
+
+See [ADR-0016](adr/0016-authoring-is-a-search-and-the-search-is-declared.md).
+
+---
+
 ## Sequencing
 
 ```

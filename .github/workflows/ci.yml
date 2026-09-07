@@ -103,6 +103,10 @@ jobs:
           # An agent in the critic's seat, weighed by the same gate as the
           # procedure it would replace.
           aurelis training seat -w "$workspace"
+          # An agent in the author's seat: a whole strategy chosen from a
+          # closed space, the whole space preregistered, and the result
+          # reported whatever it is. On the fixture it loses to buy-and-hold.
+          aurelis strategy author -w "$workspace"
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"
