@@ -11,10 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M11 complete — the company changes its own shape and grades the
-change.** It measures itself, proposes a split against a prediction hashed
-before the Board sees it, hands the work over, and records the verdict either
-way. The first change it made failed, and the record says so. · 2026-09-06
+Status: **M12 complete — all seven desks open, and their research is
+comparable.** Each desk has its own clock, cost model, liquidity ceiling and
+risk limits, and every cross-desk figure is converted through the desk's own
+calendar with the factor shown. Nothing here is live market data, and every
+page says so. · 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -31,6 +32,7 @@ aurelis research review    # the demonstration
 aurelis memory import      # inherited trials, gap and all
 aurelis training truth     # what is really in each scenario, and what is not
 aurelis orgdev develop     # the company reorganises itself, and grades it
+aurelis desk compare       # the same question on all seven desks
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -371,6 +373,79 @@ three narrow specialists whose specialties union to a generalist's score
 exactly what the generalist scores. **More agents help only when they widen
 what the room is asked.** Headcount is not capability; coverage is.
 
+### Seven desks, and the number that makes them comparable
+
+A desk is not a label on an agent. It is a **clock**, a **cost model**, a
+**liquidity ceiling** and a set of **risk limits**, and those differ enough
+between asset classes that sharing them would be wrong everywhere:
+
+```
+desk          calendar  bars/yr  round trip  material size  gross  short
+Crypto        24/7         8760        40bps      $500,000     2x   yes
+Equities      XNYS         1638        16bps    $2,000,000     2x   yes
+Options       XNYS         1638       224bps      $250,000     1x   yes
+Futures       CME          5796         7bps   $10,000,000     3x   yes
+Commodities   CME          5796        21bps    $2,000,000     2x   yes
+FX            24/5         6240         4bps   $20,000,000     5x   yes
+Memecoins     24/7         8760       760bps        $5,000     1x    no
+```
+
+The clock is the one that had been quietly missing. The engine reported Sharpe
+as `per_bar`, which was honest and useless: the same 0.05 is an annualised 4.7
+on crypto and 2.0 on the NYSE, so an archive that ranked them together would be
+ranking by **sampling frequency**. Every cross-desk figure is now converted
+through its own desk's calendar, with the factor printed beside it, and a
+comparison that cannot be made is refused rather than fudged:
+
+```
+n_trades across desks: a trade count on an hourly desk and one on a daily desk
+are different questions, not the same question at two scales.
+
+mismatched windows: crypto was measured over 2,190 bars and equities over
+10,950. Annualisation makes the frequencies comparable; it does nothing about
+the windows.
+```
+
+### A research budget in bars is not a budget
+
+State a claim annualised — "a Sharpe of 1" means the same thing to everyone.
+Converting it down to each desk's per-bar minimum effect divides by
+`sqrt(periods per year)`, so a fast-sampling desk chases a smaller effect and
+needs more bars. The two cancel exactly:
+
+```
+desk          per-bar effect  bars needed  years
+crypto            0.01068435       33,655   3.84
+equities          0.02470831        6,295   3.84
+futures           0.01313517       22,268   3.84
+fx                0.01265924       23,974   3.84
+```
+
+**The same 3.84 years on every desk, and a factor of five in bars.** Handing
+every desk "1,200 bars" gives crypto seven weeks and equities nine months, and
+underpowers whichever desk samples fastest while looking scrupulously
+even-handed. Budgets are stated in years now.
+
+### What is not there
+
+**No desk has a live data feed.** Every one runs on fixtures — deterministic,
+offline, shaped like the desk but not a market. The readiness checklist records
+that as `PROVISIONAL` rather than letting it read as a pass, the caveat is
+carried on the opening record, and it is repeated on every desk page. A desk
+cannot quietly graduate from "open on fixtures" to "open".
+
+The options desk is open and the engine cannot compute a single greek. That is
+a typed refusal, not a zero: it can be researched as a price series and not as
+an options book.
+
+And building the fixtures caught two bugs that were entirely silent. **Tick
+size is a desk property.** At a cent tick an FX rate of 1.00 never moved and a
+memecoin priced at four thousandths of a cent quantized to zero, so two of the
+seven desks produced perfectly flat series — and the engine ran, the metrics
+computed, and the verdict rule said `UNDERPOWERED` without anything anywhere
+reporting that the input had been a constant. "Prices move" is a readiness
+check now, and a desk that fails it does not open.
+
 ### The window
 
 ```bash
@@ -639,8 +714,8 @@ automatically by the company, five milestones in.
 | **M8** ✅ | Strategy, portfolio, risk | authored components, gates, veto |
 | **M9** ✅ | Paper trading | approval chain, the backtest-live gap |
 | **M10** ✅ | Training scenarios | planted defects, onboarding, playbook regression |
-| **M11** ✅ | **Org development** | fission, preregistered changes, org experiments |
-| **M12** | Multi-desk | equities → options → futures → commodities → FX → memecoins |
+| **M11** ✅ | Org development | fission, preregistered changes, org experiments |
+| **M12** ✅ | **Multi-desk** | seven clocks, seven cost models, comparable research |
 | **M13** | Scale | 100+ agents, seven desks, hardening |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).

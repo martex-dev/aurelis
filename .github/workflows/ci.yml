@@ -94,4 +94,10 @@ jobs:
           aurelis orgdev develop -w "$workspace"
           aurelis orgdev changes -w "$workspace"
           aurelis orgdev metrics -w "$workspace"
+          # All seven desks: opened through the checklist, one complete mission
+          # each, and the results put side by side through their own calendars.
+          aurelis desk list
+          aurelis desk calendars
+          aurelis desk power
+          aurelis desk compare -w "$workspace" --span 0.05
           aurelis ledger verify -w "$workspace"

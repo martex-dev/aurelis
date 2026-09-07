@@ -114,13 +114,38 @@ def test_an_engine_refuses_a_signal_it_does_not_implement() -> None:
 
 
 def test_an_engine_refuses_a_desk_it_does_not_cover() -> None:
-    with pytest.raises(UnsupportedMetric, match="does not cover the options desk"):
-        engine_for(_spec(universe=UniverseSpec(desk="options", symbols=("SPX",))))
+    """The options desk used to be the example here.
+
+    M12 opened it, so the local engine now covers all seven registered desks
+    and the refusal has to be checked against something genuinely outside its
+    declared set. The synthetic desk is that: a training scenario carries its
+    own world, and an engine that invented one would be scoring the company
+    against a world nobody planted.
+    """
+    from aurelis.engines.protocol import EngineUnavailable
+
+    with pytest.raises(EngineUnavailable, match="no standing synthetic feed"):
+        LocalEngine().run(_spec(universe=UniverseSpec(desk="synthetic", symbols=())))
 
 
 def test_an_engine_refuses_a_metric_it_cannot_compute() -> None:
+    """Which is what the options desk actually still lacks.
+
+    The desk is open — it has a calendar, the widest cost model in the company
+    and a liquidity ceiling — and the local engine cannot compute a single
+    greek. That is a typed refusal rather than a zero, and it is the honest
+    state of that desk: it can be researched as a price series and not as an
+    options book.
+    """
     with pytest.raises(UnsupportedMetric, match="cannot compute"):
         engine_for(_spec(metrics=("sharpe", "greeks")))
+    with pytest.raises(UnsupportedMetric, match="cannot compute"):
+        engine_for(
+            _spec(
+                universe=UniverseSpec(desk="options", symbols=()),
+                metrics=("delta", "gamma", "vega"),
+            )
+        )
 
 
 def test_costs_are_charged_and_never_zero_by_default() -> None:

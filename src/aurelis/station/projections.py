@@ -926,11 +926,39 @@ class DeskView:
     hypotheses: Figure
     strategies: Figure
     notes: str
+    bars_per_year: Figure
+    """The desk's clock. Every annualised figure on the page divides by it,
+    and two desks' research cannot be read together without it."""
+
+    round_trip_bps: Figure
+    material_size_usd: Figure
+    opened: bool
+    data_is_live: bool
+    caveats: list[str]
+    """Why this desk is only provisionally open, verbatim. A desk running on
+    fixtures says so on its own page, not only in the record."""
 
 
 def desk_view(session: Session, desk: Desk) -> DeskView:
+    from aurelis.desks.calendars import calendar_for
+    from aurelis.desks.costs import costs_for
+    from aurelis.desks.tables import DeskOpening
+
     spec = DESKS[desk]
+    calendar = calendar_for(desk.value)
+    costs = costs_for(desk)
+    opening = session.execute(
+        sa.select(DeskOpening).where(DeskOpening.desk == desk.value)
+    ).scalar_one_or_none()
+    registry = Source.registry("desks", desk.value)
     return DeskView(
+        bars_per_year=Figure(calendar.periods_per_year("1h"), registry, unit="1h bars"),
+        round_trip_bps=Figure(costs.round_trip_bps, registry, unit="bps"),
+        material_size_usd=Figure(costs.liquidity.material_size_usd, registry, unit="USD"),
+        opened=opening is not None,
+        # False on every desk, and read from the row rather than assumed.
+        data_is_live=bool(opening.data_is_live) if opening else False,
+        caveats=list(opening.caveats) if opening else [],
         desk=desk,
         name=spec.name,
         status=spec.status,

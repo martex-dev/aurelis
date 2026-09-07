@@ -26,6 +26,7 @@ import aurelis.research.triage  # noqa: F401  -- registers question and triage
 from aurelis import __version__
 from aurelis.cli.company import agent_app, org_app
 from aurelis.cli.demo import run_demo
+from aurelis.cli.desk import desk_app
 from aurelis.cli.doctor import Status, run_checks
 from aurelis.cli.meeting import meeting_app
 from aurelis.cli.memory import memory_app
@@ -51,6 +52,7 @@ app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(org_app, name="org")
 app.add_typer(orgdev_app, name="orgdev")
+app.add_typer(desk_app, name="desk")
 app.add_typer(agent_app, name="agent")
 app.add_typer(mission_app, name="mission")
 app.add_typer(meeting_app, name="meeting")

@@ -105,25 +105,43 @@ class LocalEngine:
 
     __slots__ = ("_source", "_desk")
 
-    def __init__(self, source: Any | None = None, *, desk: str = SYNTHETIC_DESK) -> None:
+    def __init__(self, source: Any | None = None, *, desk: str | None = None) -> None:
         self._source = source
-        self._desk = desk if source is not None else "crypto"
+        if source is not None:
+            self._desk = desk or SYNTHETIC_DESK
+        else:
+            self._desk = desk or ""
 
     def capabilities(self) -> EngineCapabilities:
-        supplied = self._source is not None
+        from aurelis.desks.sources import DESK_FIXTURES
+
+        if self._source is not None:
+            return EngineCapabilities(
+                name=self.name,
+                version=__version__,
+                available=True,
+                detail=f"deterministic offline engine over a supplied {self._desk} world",
+                signals=SIGNALS,
+                metrics=METRICS,
+                desks=frozenset({self._desk}),
+                deterministic=True,
+            )
+        # Every desk that has a fixture universe, plus crypto's M1 source.
+        # Declared from what actually exists rather than hard-coded, so opening
+        # a desk is registering a universe rather than editing this line.
+        desks = frozenset({"crypto", *(d.value for d in DESK_FIXTURES)})
         return EngineCapabilities(
             name=self.name,
             version=__version__,
             available=True,
             detail=(
-                f"deterministic offline engine over a supplied {self._desk} world"
-                if supplied
-                else "deterministic offline engine over fixture data; free, "
-                "reproducible, and not a market simulation"
+                "deterministic offline engine over fixture data; free, "
+                "reproducible, and not a market simulation. Covers "
+                f"{len(desks)} desks."
             ),
             signals=SIGNALS,
             metrics=METRICS,
-            desks=frozenset({self._desk}),
+            desks=desks,
             deterministic=True,
         )
 
@@ -142,9 +160,8 @@ class LocalEngine:
             raise UnsupportedMetric(reason)
 
         from aurelis.engines.universe import resolve_universe
-        from aurelis.intel.sources import source_for
 
-        source = self._source or source_for(spec.universe.desk)
+        source = self._source or _source_for_desk(spec.universe.desk)
         universe = resolve_universe(
             spec.universe.desk,
             spec.universe.symbols,
@@ -187,6 +204,11 @@ class LocalEngine:
                 "source": source.name,
                 "is_live": False,
                 "round_trip_cost_bps": str(spec.backtest.costs.round_trip_bps),
+                # The desk's clock travels with the result. Without it a
+                # per-bar Sharpe cannot be annualised later, and a research
+                # archive that lost this would be comparing desks by sampling
+                # frequency without knowing it.
+                **_clock_diagnostics(spec),
             },
         )
 
@@ -551,3 +573,40 @@ def describe_run(artifact: RunArtifact) -> dict[str, Any]:
         "seed": artifact.seed,
         **{m.name: str(m.value) for m in artifact.metrics.metrics},
     }
+
+
+def _source_for_desk(desk: str) -> Any:
+    """The standing source for a desk.
+
+    Crypto reads the M1 fixture, which sits in front of the validated martex
+    lake. The six desks M12 opens read their own fixture universes, each on
+    its own calendar. Neither is live data and both say so in every artifact.
+    """
+    from aurelis.intel.sources import DESK_SOURCES
+
+    if desk in DESK_SOURCES:
+        return DESK_SOURCES[desk]
+    from aurelis.desks.sources import fixture_for
+
+    return fixture_for(desk)
+
+
+def _clock_diagnostics(spec: ExperimentSpec) -> dict[str, Any]:
+    """The desk's calendar, carried into the artifact.
+
+    A run that did not record its clock cannot be annualised afterwards, and an
+    un-annualised Sharpe compared across desks ranks them by how finely they
+    were sampled. Absent rather than guessed where the calendar has not
+    declared the interval -- a wrong conversion factor is worse than none.
+    """
+    from aurelis.desks.calendars import calendar_for
+
+    try:
+        calendar = calendar_for(spec.universe.desk)
+    except KeyError:
+        return {"calendar": None, "periods_per_year": None}
+    try:
+        periods = calendar.periods_per_year(spec.data.interval)
+    except KeyError:
+        return {"calendar": calendar.name, "periods_per_year": None}
+    return {"calendar": calendar.name, "periods_per_year": periods}

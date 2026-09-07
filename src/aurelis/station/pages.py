@@ -607,6 +607,9 @@ def desk_page(session: Session, desk: Desk) -> str:
                 ("status", _pill(view.status.value)),
                 ("opens at", escape_text(view.opens_at or "—")),
                 ("calendar", escape_text(view.calendar)),
+                ("bars a year", figure_span(view.bars_per_year)),
+                ("round trip", figure_span(view.round_trip_bps)),
+                ("material size", figure_span(view.material_size_usd)),
                 ("agents", figure_span(view.agents)),
                 ("hypotheses", figure_span(view.hypotheses)),
                 ("strategies", figure_span(view.strategies)),
@@ -615,6 +618,23 @@ def desk_page(session: Session, desk: Desk) -> str:
         + "</div>"
         f"<h2>Instruments</h2><p class='mono'>{escape_text(', '.join(view.instruments))}</p>"
         f"<h2>Engines</h2><p class='mono'>{escape_text(', '.join(view.engines))}</p>"
+        + (
+            "<h2>Data</h2>"
+            + (
+                "<p class='mono'>LIVE</p>"
+                if view.data_is_live
+                else "<p class='mono'>NOT LIVE — fixture data. Deterministic, "
+                "offline, and not a market. No research conclusion about a "
+                "real market may be drawn from anything on this page.</p>"
+            )
+            + (
+                "<ul>"
+                + "".join(f"<li>{escape_text(c)}</li>" for c in view.caveats)
+                + "</ul>"
+                if view.caveats
+                else ""
+            )
+        )
         + (f"<p>{escape_text(view.notes)}</p>" if view.notes else "")
     )
 

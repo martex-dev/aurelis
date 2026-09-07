@@ -17,6 +17,7 @@ from __future__ import annotations
 from aurelis.agents import tables as _agents
 from aurelis.alerts import tables as _alerts
 from aurelis.comms import tables as _comms
+from aurelis.desks import tables as _desks
 from aurelis.intel import tables as _intel
 from aurelis.meetings import tables as _meetings
 from aurelis.memory import tables as _memory
@@ -37,6 +38,7 @@ __all__ = ["Base", "TABLE_MODULES"]
 TABLE_MODULES = (
     _platform,
     _org,
+    _desks,
     _agents,
     _comms,
     _intel,

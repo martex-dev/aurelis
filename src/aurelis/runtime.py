@@ -24,6 +24,7 @@ from aurelis.comms.channels import Comms
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
+from aurelis.desks.opening import Desks
 from aurelis.meetings.chair import Chair
 from aurelis.meetings.forecasts import ForecastScorer
 from aurelis.memory.graph import KnowledgeGraph
@@ -102,6 +103,7 @@ class Runtime:
     lessons: Lessons
     training: TrainingSuite
     onboarding: Onboarding
+    desks: Desks
     handover: Handover
     orgdev: OrgDevelopment
     org_experiments: OrgExperiments
@@ -174,6 +176,7 @@ class Runtime:
         # a cohort of seventeen costs what onboarding one costs.
         training = TrainingSuite()
         onboarding = Onboarding(training, ledger, the_clock)
+        desks = Desks(ledger, the_clock)
         handover = Handover(comms, ledger, the_clock)
         orgdev = OrgDevelopment(handover, ledger, the_clock)
         org_experiments = OrgExperiments(training, ledger, the_clock)
@@ -220,6 +223,7 @@ class Runtime:
             lessons=lessons,
             training=training,
             onboarding=onboarding,
+            desks=desks,
             handover=handover,
             orgdev=orgdev,
             org_experiments=org_experiments,

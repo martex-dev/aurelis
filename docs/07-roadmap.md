@@ -395,24 +395,64 @@ agents help only when they widen what the room is asked.**
 
 ---
 
-## M12 — Multi-desk expansion
+## M12 — Multi-desk expansion ✅
 
-Desks open one at a time, each a repeatable sequence: register `DeskConfig`,
-build or adapt the engine, wire data sources, define the cost and liquidity
-model, set risk limits, staff it, run the scenario suite for the desk.
+All seven desks open, each through the same evaluated checklist:
+`desks/readiness.py` runs nine checks against the live system and **refuses**
+a desk that fails any of them.
 
-| Order | Desk | New engine work | Existing tools |
-|---|---|---|---|
-| 1 | CRYPTO | none — martex adapter | martex-quant |
-| 2 | EQUITIES | prices, fundamentals, factor model | `factor-exposure` |
-| 3 | OPTIONS | chains, IV surface, greeks | `vol-surface`, `implied-move` |
-| 4 | FUTURES | continuous contracts, roll calendar | `roll-yield` |
-| 5 | COMMODITIES | curves, seasonality, inventories | `roll-yield` |
-| 6 | FX | bars, rate differentials, carry | — |
-| 7 | MEMECOINS | launch cohorts, wallet persistence | martex-quant `meme/` |
+- `desks/calendars.py` — four trading clocks. 8760 hourly bars a year on 24/7,
+  **1638** on the NYSE, 5796 on CME, 6240 on 24/5. Declared per calendar, not
+  derived, and an undeclared interval raises rather than guessing.
+- `desks/costs.py` — a cost model per asset class, split into per-trade,
+  per-holding-period, per-contract and impact. 40bps a round trip on crypto,
+  760 on memecoins. Carry is charged on **time held**, so a slow strategy
+  cannot escape funding.
+- `desks/comparability.py` — annualisation through the desk's own calendar,
+  with the factor recorded, and refusals for what cannot be joined.
+- `desks/power.py` — how much data a claim needs, per desk.
+- `desks/limits.py` — leverage and concentration as policy; the position
+  ceiling read off the desk's own liquidity.
+- `desks/sources.py` — a fixture universe per desk, on that desk's calendar,
+  at that desk's tick, each with its own casualties.
 
-**Acceptance:** each desk runs a complete mission end to end and its research
-is comparable across desks in the ledger.
+**Acceptance — met:**
+
+| | |
+|---|---|
+| Each desk runs a complete mission end to end | `aurelis desk compare` drives propose → screen → preregister → design → run → conclude on all seven, each with its own calendar, costs, universe and casualties |
+| Research is comparable across desks | Every figure converted through its own desk's calendar with the factor printed beside it; the ranking changes once converted |
+
+**The comparability half did not work before, and the reason looked like a
+formatting detail.** The engine reported Sharpe as `per_bar`, which was honest
+and useless: the same 0.05 is an annualised 4.7 on crypto and 2.0 on the NYSE,
+so an archive ranking them together would rank by sampling frequency. The
+widest pair of desks differ by a factor of **2.31**.
+
+**The finding that came out of stating claims properly.** A claim is worth
+stating annualised. Converting it down to a desk's per-bar minimum effect
+divides by `sqrt(periods per year)`, so a fast-sampling desk chases a smaller
+effect and needs more bars — and the two cancel exactly. Settling an annualised
+Sharpe of 1 takes **the same 3.84 years on every desk**, and 33,655 hourly bars
+on crypto against 6,295 on equities. So **a research budget stated in bars is
+not a budget**: the same number gives crypto seven weeks and equities nine
+months, and underpowers whichever desk samples fastest while looking
+even-handed. Budgets are now stated in years.
+
+**Two silent bugs the fixtures caught.** Tick size is a desk property: at a
+cent tick an FX rate of 1.00 never moved and a memecoin priced at four
+thousandths of a cent quantized to zero, so two of seven desks produced
+perfectly flat series — and the engine ran, the metrics computed, and the
+verdict rule said `UNDERPOWERED` without anything reporting the input had been
+a constant. "Prices move" is now a readiness check that fails the desk.
+
+**What is honestly not there.** No desk has a live data feed; every one runs on
+fixtures, which the checklist records as `PROVISIONAL` rather than a pass, and
+which every desk page and every artifact repeats. The options desk is open and
+the local engine cannot compute a single greek — a typed refusal, so that desk
+is researchable as a price series and not as an options book. All seven
+verdicts came back `UNDERPOWERED`, correctly: a quarter of data against a claim
+needing 3.84 years.
 
 ---
 
@@ -434,7 +474,7 @@ M0 ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M7 ─▶ 
                     │            │                        │
                     │            └──▶ M10 ✅ ▶ M11 ✅ ────┤
                     │                                     │
-                    └─────────────────────────────────────┴──▶ M12 ─▶ M13
+                    └─────────────────────────────────────┴──▶ M12 ✅ M13
 ```
 
 Three deliberate orderings:
@@ -459,16 +499,20 @@ Three deliberate orderings:
 | M5 | 17 (launch roster) | CRYPTO |
 | M8–M10 | **17, actual** | CRYPTO |
 | M11 | **19, actual** | CRYPTO |
-| M12 | 45 → 80 | 3 → 7 |
+| M12 | **19, actual** | **all 7, actual** |
 | M13 | 100+ | 7 |
 
-The M8 and M11 rows read ~22 and ~28 when this was written. The actual numbers
-are lower and the difference is the point: **nothing hired anybody.** No
-measured trigger fired for a strategy, risk or trading specialist through M8
-and M9, so the launch generalists kept standing in — and M11 grew the company by
-exactly the two agents its own trigger scan justified. A roadmap that predicted
-headcount and a company that hires on evidence will disagree, and the company
-is the one that is right.
+The M8, M11 and M12 rows read ~22, ~28 and 45→80 when this was written. The
+actual numbers are far lower and the difference is the point: **nothing hired
+anybody.** No measured trigger fired for a strategy, risk or trading specialist
+through M8 and M9, so the launch generalists kept standing in; M11 grew the
+company by exactly the two agents its own trigger scan justified; and M12
+opened all seven desks without hiring for any of them, because a desk running
+on fixtures generates no load and the trigger table fires on load. A roadmap
+that predicted headcount and a company that hires on evidence will disagree,
+and the company is the one that is right. **Staffing the desks is real work
+that M12 did not do**, and it is on the M13 list alongside the desk-specific
+scenario suites.
 
 The full 76-charter roster is covered from M5 onward — first by generalists,
 then increasingly by specialists as the company splits its own roles on
