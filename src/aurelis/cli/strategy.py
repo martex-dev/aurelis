@@ -321,3 +321,111 @@ def strategy_author(
         )
     console.print()
     console.print(f"[dim]{escape(CAVEAT)}[/dim]")
+
+
+@strategy_app.command("campaign")
+def strategy_campaign(
+    workspace: WorkspaceOption = None,
+    desk: Annotated[str, typer.Option(help="Which desk to author for.")] = "crypto",
+    agent: Annotated[str, typer.Option(help="Which agent takes the seat.")] = "STRAT",
+    budget: Annotated[int, typer.Option(help="Attempts the campaign may make.")] = 5,
+) -> None:
+    """Author, revise inside a declared budget, then pay for the search.
+
+    The budget and the criterion are written and hashed **before** the first
+    design exists, and the database refuses to change them once an attempt has
+    run. That is what lets the agent see its own results at all: outside a
+    declared campaign, a design chosen after seeing an answer is a selection.
+
+    The headline is not the best number. It is the best number minus what a
+    search of this width returns from noise alone.
+    """
+    from aurelis.authoring.attempt import CAVEAT
+    from aurelis.authoring.campaign import run_campaign
+    from aurelis.authoring.standin import scripted_author
+    from aurelis.core.config import load_settings
+    from aurelis.platform.llm.providers import MockProvider
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_author))
+    try:
+        runtime.initialise()
+        runtime.staff()
+        outcome = run_campaign(
+            runtime, desk=Desk(desk), agent_handle=agent, budget=budget
+        )
+        with runtime.database.session() as session:
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    console.print()
+    console.print(
+        f"[bold]{outcome.campaign_ref}[/bold]  {outcome.agent_ref} on the "
+        f"{outcome.desk.value} desk — {outcome.budget} attempts, "
+        f"{outcome.width} designs declared before the first"
+    )
+    console.print()
+
+    walk = Table(title="the campaign, attempt by attempt")
+    for column in ("#", "attempt", "design", "sharpe", "total return", "cells"):
+        walk.add_column(column, overflow="fold")
+    best = outcome.best
+    for index, attempt in enumerate(outcome.attempts, 1):
+        marker = " *" if best is not None and attempt is best else ""
+        walk.add_row(
+            f"{index}{marker}",
+            attempt.attempt_ref,
+            escape(attempt.authored.design.describe()),
+            str(attempt.sharpe),
+            str(attempt.total_return),
+            str(attempt.declared_cells),
+        )
+    console.print(walk)
+    for refusal in outcome.refusals:
+        console.print(f"[yellow]refused[/yellow] {escape(refusal)}")
+
+    paid = Table(title="what is left after the search is paid for")
+    paid.add_column("", style="bold", width=22)
+    paid.add_column("")
+    check = outcome.selection
+    paid.add_row("best observed", str(check.observed))
+    paid.add_row("standard error", str(check.standard_error))
+    paid.add_row(
+        f"expected best of {check.n_trials}", str(check.expected_by_chance)
+    )
+    tone = "green" if check.survives else "red"
+    paid.add_row("surplus", f"[{tone}]{check.surplus}[/{tone}]")
+    paid.add_row(
+        "survives the search",
+        "[green]yes[/green]" if check.survives else "[red]no[/red]",
+    )
+    paid.add_row(
+        "beat the baselines",
+        "[green]yes[/green]" if outcome.beat_baselines else "[red]no[/red]",
+    )
+    paid.add_row("trials in family", f"{outcome.trials_in_family} (declared {outcome.width})")
+    paid.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(paid)
+
+    console.print()
+    if not check.survives:
+        console.print(
+            "[yellow]The campaign found nothing.[/yellow] Its best design is "
+            "below what searching this wide returns from noise alone — so the "
+            "number it found is what a search of this width produces when "
+            "there is no edge to find. Searching harder raises that bar faster "
+            "than it finds anything."
+        )
+    console.print(
+        "[dim]The correction treats the designs as independent and normal. "
+        "Designs over one price series are correlated, which makes the true "
+        "expected maximum smaller than this — so it is conservative, and may "
+        "call a real edge nothing.[/dim]"
+    )
+    console.print(f"[dim]{escape(CAVEAT)}[/dim]")

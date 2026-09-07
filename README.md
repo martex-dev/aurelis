@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M15 — an agent authors a strategy.** M14 seated an agent as a critic;
-M15 seats one as the designer, choosing a whole strategy from a closed space
-and preregistering the whole space it chose from. It did not beat holding the
-asset, and that is the headline. Nothing here is live market data or live
-trading, and every page says so. · 2026-09-07
+Status: **M16 — the search is declared, then subtracted.** M15 authored one
+strategy; M16 gives the agent a budget to revise inside, declared and frozen
+before the first design exists. The campaign found a design that beat holding
+the asset — and the correction for how wide it searched took it away. Nothing
+here is live market data or live trading, and every page says so. · 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -36,6 +36,7 @@ aurelis desk compare       # the same question on all seven desks
 aurelis orgdev scale       # staff the desks, on measured evidence
 aurelis training seat      # an agent in the critic's seat, weighed by the gate
 aurelis strategy author    # an agent designs a strategy, and it loses
+aurelis strategy campaign  # it revises inside a budget, and still loses
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -564,6 +565,38 @@ defects M10 scores the company's own critic on catching, and an agent that
 could author them would be manufacturing exactly the result the other half of
 the company exists to refuse.
 
+### And what the search costs
+
+M15 authored once and stopped, because a revision loop is where authoring turns
+into mining. M16 is the loop with the stopping rule attached.
+
+```bash
+aurelis strategy campaign
+```
+
+```
+attempt 1   one-week lookback      sharpe  0.0050   return  0.026
+attempt 2   three-day lookback     sharpe  0.0260   return  0.202   <- best
+attempt 3   one-day lookback       sharpe -0.0342   return -0.209
+attempt 4   six-hour lookback      sharpe -0.0674   return -0.226
+attempt 5   + half-percent floor   sharpe -0.1002   return -0.547
+
+best observed        0.0260   and it beat holding the asset
+expected best of 96  0.0538   from noise alone
+surplus             -0.0278   the campaign found nothing
+```
+
+The budget and the criterion are hashed before the first design exists, and a
+database trigger refuses to change them once an attempt has run. That is what
+buys the agent the right to see its own results at all: **learning from a result
+is allowed exactly to the extent that the learning was budgeted for.**
+
+Then the search is subtracted. Take the best of *n* designs in a space where
+nothing has an edge and you do not get zero — you get the largest of *n* draws
+from the estimator's noise. Sweeping all 72 designs says the same thing without
+an agent involved: the best measures 0.0274 against an expected best of 0.0516.
+**Searching harder raises the bar faster than it finds anything.**
+
 ### An agent in the critic's seat
 
 M10 built the instrument for measuring judgement and used it on a *procedure* —
@@ -666,7 +699,7 @@ Look around:
 | `aurelis meeting calibration` | how good the company's forecasts have been |
 | `aurelis research show HYP-0001` | every metric, its interval, and who computed it |
 | `aurelis research graveyard` | everything killed, and why |
-| `aurelis strategy author` · `strategy components` | what the company tried to build, and how much of it is its own |
+| `aurelis strategy author` · `strategy campaign` | what the company tried to build, and what survives the search |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -876,7 +909,8 @@ automatically by the company, five milestones in.
 | **M12** ✅ | Multi-desk | seven clocks, seven cost models, comparable research |
 | **M13** ✅ | Scale & hardening | coverage per desk, staffed on evidence, a queue that counts |
 | **M14** ✅ | Agents that decide | a closed answer set, figure-checked, scored by the same gate |
-| **M15** ✅ | **Agents that author** | 72 designs, the search declared, the result negative |
+| **M15** ✅ | Agents that author | 72 designs, the search declared, the result negative |
+| **M16** ✅ | **Budgets and corrections** | revise inside a frozen budget, then pay for the search |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

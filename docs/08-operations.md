@@ -265,9 +265,11 @@ lists them:
   `aurelis strategy author` both run a deterministic stand-in, because every
   model call in this repository goes to the mock provider. The machinery is
   real; the reasoner is not, and both commands say so in their own output.
-- **The company does not revise a design that failed.** `mutate` exists and
-  produces a new version rather than editing one, but no loop drives it — a
-  revision loop is exactly where authoring turns into mining, and it should not
-  be added without deciding first what stops it.
-- **No authored strategy has beaten a baseline.** One has been authored and
-  measured. It lost to buying and holding.
+- **No authored strategy has survived its own search.** One campaign has
+  reached a design that beat buying and holding; corrected for how wide the
+  search was, its surplus is negative. The company has created nothing it can
+  claim, and the record says so rather than reporting the maximum.
+- **Nothing reviews an authored strategy.** The M14 critic could sit over an
+  authored version and does not. The campaign picks its own next revision.
+- **A campaign is one desk over fixture data.** The correction is arithmetic
+  about a search, not evidence about a market.

@@ -145,6 +145,15 @@ class EventKind(StrEnum):
     """An agent wrote a piece of a strategy, with a cited origin. The event
     the company's claim to have *created* an edge rests on."""
 
+    CAMPAIGN_OPENED = "strategy.campaign_opened"
+    """A search budget was declared and hashed before any design existed. The
+    event the campaign correction is entitled to be computed against."""
+
+    CAMPAIGN_CLOSED = "strategy.campaign_closed"
+    """The search is over and paid for. Carries the surplus -- the best result
+    minus what a search that wide returns from noise -- so a reader cannot see
+    the headline number without the correction beside it."""
+
     STRATEGY_AUTHORED = "strategy.authored"
     """An agent designed a whole strategy from the closed space and the company
     measured it. Carries the size of the space it chose from, so a result can

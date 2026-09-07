@@ -608,6 +608,60 @@ See [ADR-0016](adr/0016-authoring-is-a-search-and-the-search-is-declared.md).
 
 ---
 
+## M16 — A search budget, declared and then subtracted ✅
+
+M15 authored once and stopped, and wrote down why: a revision loop is where
+authoring turns into mining, and it should not be added without deciding first
+what stops it. This is the loop with the rule attached.
+
+- `authoring/campaign.py` — a budget and a criterion, hashed and locked before
+  the first design exists.
+- `authoring/invariants.py` — a trigger that refuses to change either once an
+  attempt has run. A budget raised after seeing the results is not a budget.
+- `authoring/revision.py` — two closed questions: which one slot changes, and
+  what it becomes. Recorded through `mutate`, so the lineage is real.
+- `authoring/selection.py` — the best result minus what a search of that width
+  returns from noise alone.
+
+```
+attempt 1   one-week lookback      sharpe  0.0050   return  0.026
+attempt 2   three-day lookback     sharpe  0.0260   return  0.202   <- best
+attempt 3   one-day lookback       sharpe -0.0342   return -0.209
+attempt 4   six-hour lookback      sharpe -0.0674   return -0.226
+attempt 5   + half-percent floor   sharpe -0.1002   return -0.547
+
+best observed        0.0260   and it beat holding the asset
+expected best of 96  0.0538   from noise alone
+surplus             -0.0278   the campaign found nothing
+```
+
+**Revising moved the number.** The second attempt beat buy-and-hold on its own
+window, which M15's single attempt did not — and a report that stopped there
+would be a discovery. The correction says it is still below what a search of
+this width returns when there is nothing to find. Four of the five attempts are
+worse than the one before: the campaign is a walk, not a convergence, and one
+point on it happened to be high.
+
+### What the budget buys
+
+Inside a declared campaign, and only there, the agent may see its own result.
+Everywhere else an author is shown structure alone. That is not a relaxation of
+the preregistration rule: the rule has two halves, and the half that protects
+the number is not *when* the choice was made but *how wide* the search was.
+**Learning from a result is allowed exactly to the extent that the learning was
+budgeted for.**
+
+### The stronger version of the same finding
+
+Sweeping the whole authorable space says it without any agent involved: the best
+of all 72 designs measures 0.0274 against an expected best of 0.0516. Six trials
+is enough to eat it. The answer to "should we search harder?" is that searching
+harder raises the bar faster than it finds anything.
+
+See [ADR-0017](adr/0017-a-search-budget-is-declared-and-then-subtracted.md).
+
+---
+
 ## Sequencing
 
 ```

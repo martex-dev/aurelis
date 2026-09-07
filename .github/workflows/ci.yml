@@ -107,6 +107,10 @@ jobs:
           # closed space, the whole space preregistered, and the result
           # reported whatever it is. On the fixture it loses to buy-and-hold.
           aurelis strategy author -w "$workspace"
+          # And the loop with its stopping rule: a budget frozen before the
+          # first design exists, then the best result corrected for how wide
+          # the search was. It beats buy-and-hold and still does not survive.
+          aurelis strategy campaign -w "$workspace" --budget 3
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"

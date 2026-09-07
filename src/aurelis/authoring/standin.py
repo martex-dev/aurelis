@@ -67,6 +67,29 @@ _SLOTS: dict[str, tuple[str, ...]] = {
     "breadth": ("concentrated", "paired"),
 }
 
+_FASTER: dict[str, str] = {
+    "one_week": "three_days",
+    "three_days": "one_day",
+    "one_day": "six_hours",
+    "two_percent": "half_percent",
+    "half_percent": "any_move",
+    "long_only": "long_short",
+    "concentrated": "paired",
+}
+"""One step toward trading more, per choice.
+
+The revision policy, and it follows from the result rather than from a
+preference: the patient design lost to holding the asset, so the stand-in walks
+back the other way, one slot at a time. It is a coherent response to a
+measurement and it is **not known to be right** -- which is the point of
+measuring what it produces.
+"""
+
+_SLOT_ORDER = ("lookback", "threshold", "direction", "breadth")
+"""Which slot a revision moves first. Slowest-moving knob first, because a
+policy that changed the most sensitive thing first would confound "revising
+helped" with "that one knob is twitchy"."""
+
 _ORIGIN_ORDER = ("derived_from_failure", "adapted", "invented")
 _ORIGIN_BECAUSE: dict[str, str] = {
     "derived_from_failure": (
@@ -105,6 +128,22 @@ def _round_trip(prompt: str) -> Decimal | None:
         return None
 
 
+def _current(prompt: str, keys: tuple[str, ...]) -> str | None:
+    """Which key the prompt says is currently in place."""
+    match = re.search(r"It is currently ([a-z_]+)\.", prompt)
+    if match and match.group(1) in keys:
+        return match.group(1)
+    return None
+
+
+def _movable(prompt: str, slot: str) -> bool:
+    """Whether this slot still has somewhere to go under the policy."""
+    match = re.search(
+        rf"^\s+{re.escape(slot)}: currently ([a-z_]+)", prompt, re.MULTILINE
+    )
+    return match is not None and match.group(1) in _FASTER
+
+
 def scripted_author(request: LlmRequest) -> str:
     """Answer one authoring question from the figures in the prompt.
 
@@ -121,6 +160,36 @@ def scripted_author(request: LlmRequest) -> str:
         if charge is not None
         else "No charge was shown, so the design assumes trading is expensive."
     )
+
+    # A revision is asked in two turns: which slot, then what to change it to.
+    # The first is recognised by the slot names appearing as options with a
+    # "currently" gloss; the second by the previous design being in the prompt
+    # while only one slot's keys are offered.
+    if "Change exactly one thing" in prompt:
+        for slot in _SLOT_ORDER:
+            if _offered(prompt, (slot,)) and _movable(prompt, slot):
+                return (
+                    f"ANSWER: {slot}\n"
+                    f"BECAUSE: {because} The patient settings did not earn the "
+                    "charge back, so this one moves the other way."
+                )
+        # Everything is already at the fast end. Abstaining here is honest and
+        # the campaign records it as a refusal rather than inventing a change.
+        return (
+            "ANSWER: nothing\n"
+            "BECAUSE: every choice is already at the end this policy walks "
+            "toward, so there is nothing left for it to revise."
+        )
+
+    for keys in _SLOTS.values():
+        offered = tuple(key for key in keys if _offered(prompt, (key,)))
+        if len(offered) < len(keys) and len(offered) >= 1 and "currently" in prompt:
+            current = _current(prompt, keys)
+            step = _FASTER.get(current or "")
+            if step in offered:
+                return f"ANSWER: {step}\nBECAUSE: {because}"
+            if offered:
+                return f"ANSWER: {offered[-1]}\nBECAUSE: {because}"
 
     for origin in _ORIGIN_ORDER:
         if _offered(prompt, (origin,)):

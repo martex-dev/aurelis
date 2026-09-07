@@ -26,6 +26,10 @@ from aurelis import __version__
 from aurelis.agents.guards import expected_guard_names, verify_guards
 from aurelis.agents.tables import Agent
 from aurelis.agents.tools import registered_tools
+from aurelis.authoring.invariants import (
+    AUTHORING_TRIGGERS,
+    verify_authoring_invariants,
+)
 from aurelis.core.errors import AurelisError
 from aurelis.org import CHARTERS, DESKS
 from aurelis.org.desks import DeskStatus
@@ -290,6 +294,23 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 if absent_org
                 else " — a charter cannot be orphaned and a locked prediction "
                 "cannot be edited"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_search = verify_authoring_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "search budgets",
+            Status.OK if not absent_search else Status.PROBLEM,
+            f"{len(AUTHORING_TRIGGERS) - len(absent_search)}/"
+            f"{len(AUTHORING_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_search)}. A campaign could "
+                "raise its own budget after seeing the results, until repaired."
+                if absent_search
+                else " — a campaign budget cannot be raised once it has run"
             ),
         )
     )

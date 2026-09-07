@@ -20,6 +20,7 @@ from aurelis.agents.loop import AgentWorker
 from aurelis.agents.roster import Roster
 from aurelis.agents.tools import ToolBox
 from aurelis.alerts.service import Alerts
+from aurelis.authoring.invariants import install_authoring_invariants
 from aurelis.comms.channels import Comms
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
@@ -247,6 +248,7 @@ class Runtime:
                     *install_trading_invariants(connection),
                     *install_training_invariants(connection),
                     *install_org_invariants(connection),
+                    *install_authoring_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

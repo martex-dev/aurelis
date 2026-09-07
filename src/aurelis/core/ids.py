@@ -98,6 +98,11 @@ class RefKind(StrEnum):
     """An experiment on the company's own shape, run over the scenario suite.
     Distinct from EXP-, which is an experiment about a market."""
 
+    CAMPAIGN = "CPN"
+    """A declared search budget: how many designs the company let itself try
+    before it started trying them. Its own prefix because a campaign outlives
+    every attempt inside it and is the thing a correction is computed against."""
+
     AUTHORING = "AUT"
     """One agent's pass through the strategy design space. Its own prefix
     because an attempt exists whether or not it produced anything the company

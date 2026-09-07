@@ -29,7 +29,75 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from aurelis.platform.db.tables import Base
 
-__all__ = ["AuthoringAttempt"]
+__all__ = ["AuthoringAttempt", "Campaign"]
+
+
+class Campaign(Base):
+    """A budget for searching, fixed before the search starts.
+
+    The row exists so that "how many designs did the company let itself try?"
+    is answerable from the record rather than from whoever ran it. ``budget``,
+    ``declared_width`` and ``criterion`` are frozen by a database trigger once
+    the first attempt has run: a budget that could be raised after seeing the
+    results is not a budget, it is a description of what happened.
+
+    ``surplus`` is the column the whole milestone turns on. It is the best
+    Sharpe the campaign found **minus** what a search of this width returns
+    from noise alone, and a campaign whose surplus is negative found nothing --
+    expensively. Stored as text like every other exact decimal here, and every
+    CHECK on it casts before it compares, because SQLite compares a number to a
+    string by type class.
+    """
+
+    __tablename__ = "authoring_campaigns"
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    ref: Mapped[str] = mapped_column(sa.String(24), unique=True, index=True)
+
+    desk: Mapped[str] = mapped_column(sa.String(24), index=True)
+    agent_ref: Mapped[str] = mapped_column(sa.String(24), index=True)
+
+    budget: Mapped[int] = mapped_column()
+    """How many attempts the campaign may make. Declared, then frozen."""
+
+    declared_width: Mapped[int] = mapped_column()
+    """How many designs those attempts search between them: the whole space for
+    the first, and the one-slot neighbourhood for each revision."""
+
+    criterion: Mapped[str] = mapped_column(sa.Text())
+    """What would have counted as a result, written before there was one."""
+
+    plan_digest: Mapped[str] = mapped_column(sa.String(64))
+    locked_at: Mapped[dt.datetime] = mapped_column(sa.DateTime(timezone=True))
+
+    attempts_run: Mapped[int] = mapped_column(default=0)
+    refusals: Mapped[int] = mapped_column(default=0)
+    exhausted: Mapped[bool] = mapped_column(default=False)
+    """Whether the budget ran out. A campaign that stopped early stopped for a
+    reason the row can name; one that ran to the end says so."""
+
+    best_attempt_ref: Mapped[str | None] = mapped_column(sa.String(24), default=None)
+    best_sharpe: Mapped[str | None] = mapped_column(sa.String(32), default=None)
+    expected_by_chance: Mapped[str | None] = mapped_column(sa.String(32), default=None)
+    surplus: Mapped[str | None] = mapped_column(sa.String(32), default=None)
+    survives_selection: Mapped[bool | None] = mapped_column(default=None)
+
+    trials_in_family: Mapped[int] = mapped_column(default=0)
+    finished_at: Mapped[dt.datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), default=None
+    )
+
+    __table_args__ = (
+        sa.CheckConstraint("budget > 0", name="ck_campaign_budget_is_positive"),
+        sa.CheckConstraint(
+            "declared_width >= budget",
+            name="ck_campaign_width_covers_its_attempts",
+        ),
+        sa.CheckConstraint(
+            "attempts_run <= budget", name="ck_campaign_stays_inside_its_budget"
+        ),
+        sa.CheckConstraint("length(criterion) > 0", name="ck_campaign_states_a_criterion"),
+    )
 
 
 class AuthoringAttempt(Base):
@@ -43,6 +111,13 @@ class AuthoringAttempt(Base):
     agent_ref: Mapped[str] = mapped_column(sa.String(24), index=True)
     desk: Mapped[str] = mapped_column(sa.String(24), index=True)
     task_ref: Mapped[str | None] = mapped_column(sa.String(24), default=None)
+
+    campaign_ref: Mapped[str | None] = mapped_column(
+        sa.String(24), index=True, default=None
+    )
+    """The campaign this attempt belongs to, or null for a standalone one.
+    Nullable rather than defaulted to a synthetic campaign, because "searched
+    once" and "searched inside a declared budget" are different facts."""
 
     design: Mapped[dict[str, Any]] = mapped_column(sa.JSON, default=dict)
     design_digest: Mapped[str] = mapped_column(sa.String(64), index=True)
@@ -80,11 +155,21 @@ class AuthoringAttempt(Base):
     __table_args__ = (
         sa.CheckConstraint("space > 0", name="ck_authoring_space_is_positive"),
         sa.CheckConstraint(
-            "declared_cells >= space",
-            name="ck_authoring_declares_the_whole_space",
+            "declared_cells > 0", name="ck_authoring_declares_something"
         ),
-        # The whole point of the milestone, enforced rather than remembered:
-        # an attempt may not declare fewer cells than the space the agent
-        # chose from. Declaring one cell for a search over seventy-two is how
-        # a false discovery becomes arithmetically invisible.
+        sa.CheckConstraint(
+            "campaign_ref IS NOT NULL OR declared_cells >= space",
+            name="ck_standalone_attempt_declares_the_whole_space",
+        ),
+        # The point of M15, enforced rather than remembered: a standalone
+        # attempt may not declare fewer cells than the space the agent chose
+        # from. Declaring one cell for a search over seventy-two is how a false
+        # discovery becomes arithmetically invisible.
+        #
+        # The campaign clause is not an exemption. An attempt inside a campaign
+        # searched a slot rather than the space, and its budget declared the
+        # sum of those before the first design existed -- so the guarantee moves
+        # up a level to ck_campaign_width_covers_its_attempts rather than being
+        # dropped. Written flat, the constraint was simply wrong: it refused
+        # every revision the first time a campaign ran.
     )

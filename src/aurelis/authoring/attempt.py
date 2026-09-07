@@ -83,6 +83,8 @@ __all__ = [
     "SPAN_YEARS",
     "AuthoringOutcome",
     "Baseline",
+    "family_for",
+    "measure_attempt",
     "run_authoring",
 ]
 
@@ -148,6 +150,13 @@ class AuthoringOutcome:
     bars: int = 0
     bars_required: int = 0
     years_required: Decimal = Decimal(0)
+    campaign_ref: str | None = None
+    sharpe_low: Decimal | None = None
+    sharpe_high: Decimal | None = None
+    """The interval the run reported, carried so a campaign can recover the
+    estimator's standard error without re-running anything. A correction
+    computed from an assumed error would be a number with no measurement
+    behind it."""
     """What settling the claim would actually have taken.
 
     Carried on the outcome because UNDERPOWERED without it reads as a defect in
@@ -214,8 +223,20 @@ class AuthoringOutcome:
             "bars": self.bars,
             "bars_required": self.bars_required,
             "years_required": str(self.years_required),
+            "campaign": self.campaign_ref,
             "caveat": CAVEAT,
         }
+
+
+def family_for(desk: Desk | str) -> str:
+    """The registration family a desk's authored work is counted in.
+
+    One string, in one place. The multiple-testing denominator is a sum over a
+    family prefix, so a second spelling of the same family would silently halve
+    it -- which is the direction that manufactures confidence.
+    """
+    the_desk = desk if isinstance(desk, Desk) else Desk(desk)
+    return f"authored.{the_desk.value}"
 
 
 def run_authoring(
@@ -224,9 +245,16 @@ def run_authoring(
     desk: Desk | str = Desk.CRYPTO,
     agent_handle: str = "STRAT",
     span: Decimal = SPAN_YEARS,
+    declared_cells: int | None = None,
+    campaign_ref: str | None = None,
     at: dt.datetime | None = None,
 ) -> AuthoringOutcome:
     """Put an agent in the author's seat and take the result, whatever it is.
+
+    ``declared_cells`` defaults to the whole design space, which is what a
+    standalone attempt searched. A campaign passes its own accounting, because
+    a revision inside a declared budget searched one slot rather than all of
+    them (:mod:`aurelis.authoring.campaign`).
 
     Raises :class:`~aurelis.authoring.author.AuthoringRefused` if the agent
     fails to produce a whole design; nothing is written in that case, and the
@@ -243,7 +271,6 @@ def run_authoring(
         interval=interval,
         bars_available=bars,
     )
-    family = f"authored.{the_desk.value}"
 
     # -------------------------------------------------------- the authoring
     with runtime.database.session() as session:
@@ -285,7 +312,41 @@ def run_authoring(
                 session, claimed, result_digest=authored.spec.digest(), at=moment
             )
 
-    # ---------------------------------------------------- the preregistration
+    return measure_attempt(
+        runtime,
+        authored,
+        task_ref=task_ref,
+        bars=bars,
+        power=power,
+        declared_cells=space_size() if declared_cells is None else declared_cells,
+        campaign_ref=campaign_ref,
+        at=moment,
+    )
+
+
+def measure_attempt(
+    runtime: Any,
+    authored: AuthoredStrategy,
+    *,
+    task_ref: str,
+    bars: int,
+    power: Any,
+    declared_cells: int,
+    campaign_ref: str | None = None,
+    at: dt.datetime | None = None,
+) -> AuthoringOutcome:
+    """Preregister an authored design, run it, and record what came back.
+
+    Shared by a standalone attempt and by every attempt inside a campaign, so
+    there is exactly one path from "an agent designed this" to "the company
+    measured it". A second path would be a second definition of what counts as
+    a measured attempt, and the two would drift on the first field either of
+    them forgot.
+    """
+    moment = at or runtime.clock.now()
+    the_desk = authored.desk
+    family = family_for(the_desk)
+
     with runtime.database.session() as session:
         hypothesis = runtime.research.propose(
             session,
@@ -319,10 +380,11 @@ def run_authoring(
                 }
             ],
             registrar=_registrar(runtime, session),
-            # The whole space, not the pick. An agent that chose one of
-            # seventy-two after reasoning over all of them has searched
-            # seventy-two, and the record cannot say otherwise.
-            declared_cells=space_size(),
+            # The space, not the pick. An agent that chose one of seventy-two
+            # after reasoning over all of them has searched seventy-two, and
+            # the record cannot say otherwise. A revision inside a declared
+            # campaign searched one slot, and says that instead.
+            declared_cells=declared_cells,
             analysis_plan=(
                 "Per-bar Sharpe from the local engine with a block-bootstrap "
                 "interval; the lower bound must clear the per-bar equivalent "
@@ -359,6 +421,9 @@ def run_authoring(
         hypothesis_ref = hypothesis.ref
         run_ref = run.ref
 
+    sharpe_metric = artifact.metrics.get("sharpe")
+    sharpe_low, sharpe_high = sharpe_metric.low, sharpe_metric.high
+
     # ------------------------------------------------------- the references
     engine = LocalEngine()
     baselines = tuple(
@@ -376,12 +441,15 @@ def run_authoring(
         reason=outcome.report.reason,
         metrics=dict(outcome.metrics),
         baselines=baselines,
-        declared_cells=space_size(),
+        declared_cells=declared_cells,
         trials_in_family=trials,
         attempt_ref="",
         bars=bars,
         bars_required=power.bars_required,
         years_required=power.years_required,
+        campaign_ref=campaign_ref,
+        sharpe_low=sharpe_low,
+        sharpe_high=sharpe_high,
     )
     return _record(runtime, result, at=moment)
 
@@ -414,6 +482,7 @@ def _record(
                 design=authored.design.as_payload(),
                 design_digest=authored.design.digest(),
                 space=space_size(),
+                campaign_ref=outcome.campaign_ref,
                 origin=authored.origin.value,
                 origin_ref=authored.origin_ref,
                 strategy_ref=authored.strategy_ref,
@@ -449,6 +518,7 @@ def _record(
                 "design": authored.design.as_payload(),
                 "space": space_size(),
                 "declared_cells": outcome.declared_cells,
+                "campaign": outcome.campaign_ref,
                 "verdict": outcome.verdict.value,
                 "beat_baselines": outcome.beat_baselines,
                 "origin": authored.origin.value,
@@ -474,6 +544,9 @@ def _record(
         bars=outcome.bars,
         bars_required=outcome.bars_required,
         years_required=outcome.years_required,
+        campaign_ref=outcome.campaign_ref,
+        sharpe_low=outcome.sharpe_low,
+        sharpe_high=outcome.sharpe_high,
     )
 
 

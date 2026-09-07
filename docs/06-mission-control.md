@@ -273,8 +273,8 @@ The station must let you:
 - read any meeting, including the arguments and the dissent
 - trace any claim to the artifact that produced it
 - browse the graveyard and understand what failed and why
-- browse the workshop and see what the company tried to build, and whether any
-  of it worked
+- browse the workshop and see what the company tried to build, how wide it
+  searched, and whether any of it survived the search
 - approve or reject an org change the company proposed for itself
 - see risk limits, and every veto
 - watch paper trading and the live-vs-backtest gap

@@ -371,6 +371,34 @@ class StrategyAuthor:
         )
         return decision
 
+    def ask_one(
+        self,
+        session: Session,
+        *,
+        agent_ref: str,
+        slot: str,
+        question: Question,
+        material: dict[str, Any],
+        task_ref: str | None = None,
+    ) -> str:
+        """Ask one closed question and return the single key chosen.
+
+        Public because a revision is the same seat asking a different question,
+        and a campaign that reimplemented the ask would have its own parse, its
+        own figure check and its own idea of what a refusal is.
+        """
+        return self._one(
+            self._ask(
+                session,
+                agent_ref=agent_ref,
+                slot=slot,
+                question=question,
+                material=material,
+                task_ref=task_ref,
+            ),
+            slot,
+        )
+
     @staticmethod
     def _one(decision: Decision, slot: str) -> str:
         if decision.abstained:
@@ -494,6 +522,82 @@ class StrategyAuthor:
             origin_ref=origin_ref,
             weaknesses=weaknesses,
             at=moment,
+        )
+
+    def revise(
+        self,
+        session: Session,
+        *,
+        previous: AuthoredStrategy,
+        design: Design,
+        slot_name: str,
+        key: str,
+        reason: str,
+        at: dt.datetime | None = None,
+    ) -> AuthoredStrategy:
+        """Swap one component for another, producing a new version.
+
+        The replacement carries ``Origin.REFINED`` citing the component it
+        replaces, which is what that origin is for -- and it means the campaign
+        shows up in the novelty count as refinement rather than invention. A
+        revision recorded as newly invented would let the company inflate what
+        it created by changing one number five times.
+
+        Always a new version, never an edit. The lineage has to be able to say
+        how the company got here, and an edited version is a list of things
+        that are no longer true.
+        """
+        moment = at or self._clock.now()
+        slot = _slot(slot_name, previous.design.family)
+        parent = next(
+            component
+            for component in previous.components
+            if component.spec.get("slot") == slot_name
+        )
+        replacement = self._synthesis.author_component(
+            session,
+            kind=slot.kind,
+            name=f"{previous.desk.value}.{slot_name}.{key}",
+            spec=component_spec(slot, key),
+            rationale=(
+                f"Revised {slot_name} from {previous.design.get(slot_name)} to "
+                f"{key}: {reason.strip()}"
+            ),
+            origin=Origin.REFINED,
+            origin_ref=parent.ref,
+            author=previous.agent_ref,
+            desk=previous.desk,
+            assumes=_assumes(slot_name, key),
+            at=moment,
+        )
+        composition = self._synthesis.mutate(
+            session,
+            version_ref=previous.version_ref,
+            replace=parent,
+            with_component=replacement,
+            author=previous.agent_ref,
+            reason=reason.strip() or "revised inside a declared campaign budget",
+            at=moment,
+        )
+        components = self._synthesis.components_of(session, composition.version.ref)
+        return AuthoredStrategy(
+            agent_ref=previous.agent_ref,
+            desk=previous.desk,
+            strategy_ref=previous.strategy_ref,
+            version_ref=composition.version.ref,
+            design=design,
+            spec=render(
+                design,
+                desk=previous.desk,
+                bars=previous.spec.data.bars,
+                interval=previous.spec.data.interval,
+            ),
+            origin=Origin.REFINED,
+            origin_ref=parent.ref,
+            weaknesses=previous.weaknesses,
+            components=components,
+            turns=tuple(self.turns),
+            novelty=self._synthesis.novelty(session, composition.version.ref),
         )
 
     def _write(

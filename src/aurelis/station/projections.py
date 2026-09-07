@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from aurelis.agents.tables import Agent, AgentState, ToolCall
 from aurelis.alerts.tables import Alert
-from aurelis.authoring.tables import AuthoringAttempt
+from aurelis.authoring.tables import AuthoringAttempt, Campaign
 from aurelis.meetings.tables import (
     Decision,
     Forecast,
@@ -1036,8 +1036,13 @@ class WorkshopView:
     """
 
     rows: list[dict[str, Any]]
+    campaigns: list[dict[str, Any]]
     attempts: Figure
     beat_a_baseline: Figure
+    survived_selection: Figure
+    """Campaigns whose best result cleared what a search that wide returns from
+    noise. Zero is the honest reading of an empty workshop, not an absence."""
+
     designs_searched: int
     """Declared cells across every attempt. What a deflation would divide by."""
 
@@ -1065,12 +1070,36 @@ def workshop_view(session: Session) -> WorkshopView:
             }
             for row in rows
         ],
+        campaigns=[
+            {
+                "ref": row.ref,
+                "desk": row.desk,
+                "agent": row.agent_ref,
+                "budget": row.budget,
+                "attempts": row.attempts_run,
+                "width": row.declared_width,
+                "best": row.best_attempt_ref or "—",
+                "observed": row.best_sharpe or "—",
+                "expected": row.expected_by_chance or "—",
+                "surplus": row.surplus or "—",
+                "survives": row.survives_selection,
+            }
+            for row in session.execute(
+                sa.select(Campaign).order_by(Campaign.ref.desc())
+            ).scalars()
+        ],
         attempts=_count(session, AuthoringAttempt),
         beat_a_baseline=_count(
             session,
             AuthoringAttempt,
             AuthoringAttempt.beat_baselines.is_(True),
             detail="beat every baseline",
+        ),
+        survived_selection=_count(
+            session,
+            Campaign,
+            Campaign.survives_selection.is_(True),
+            detail="best result cleared the expected best of its own width",
         ),
         designs_searched=sum(row.declared_cells for row in rows),
     )

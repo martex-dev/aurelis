@@ -18,7 +18,9 @@ from aurelis.authoring.author import (
     Citations,
     StrategyAuthor,
 )
+from aurelis.authoring.campaign import CampaignOutcome, declared_width, run_campaign
 from aurelis.authoring.design import Design, Slot, enumerate_designs, space_size
+from aurelis.authoring.selection import SelectionCheck, check_selection
 from aurelis.authoring.standin import scripted_author
 
 __all__ = [
@@ -26,12 +28,17 @@ __all__ = [
     "AuthoringOutcome",
     "AuthoringRefused",
     "Baseline",
+    "CampaignOutcome",
     "Citations",
     "Design",
+    "SelectionCheck",
     "Slot",
     "StrategyAuthor",
+    "check_selection",
+    "declared_width",
     "enumerate_designs",
     "run_authoring",
+    "run_campaign",
     "scripted_author",
     "space_size",
 ]

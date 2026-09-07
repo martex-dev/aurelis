@@ -701,6 +701,44 @@ def graveyard_page(session: Session) -> str:
 
 def workshop_page(session: Session) -> str:
     view = proj.workshop_view(session)
+    campaigns = (
+        "<h2>Campaigns</h2>"
+        "<p class='mono'>A campaign declares how many designs it will let "
+        "itself try <em>before</em> it tries any, and the database refuses to "
+        "change that once it has started. The column that matters is the last "
+        "one: the best result minus what a search of that width returns from "
+        "noise alone. A campaign with a negative surplus found nothing, and "
+        "found it expensively.</p>"
+        + _rows(
+            [
+                "ref",
+                "desk",
+                "attempts",
+                "designs declared",
+                "best",
+                "observed",
+                "expected by chance",
+                "surplus",
+            ],
+            [
+                [
+                    escape_text(row["ref"]),
+                    escape_text(row["desk"]),
+                    f"{row['attempts']} of {row['budget']}",
+                    str(row["width"]),
+                    escape_text(row["best"]),
+                    escape_text(row["observed"]),
+                    escape_text(row["expected"]),
+                    escape_text(row["surplus"])
+                    if row["survives"]
+                    else f"<b>{escape_text(row['surplus'])}</b>",
+                ]
+                for row in view.campaigns
+            ],
+        )
+        if view.campaigns
+        else ""
+    )
     table = _rows(
         ["ref", "agent", "desk", "what it designed", "verdict", "beat the baselines", "searched"],
         [
@@ -728,10 +766,13 @@ def workshop_page(session: Session) -> str:
             [
                 ("attempts", figure_span(view.attempts)),
                 ("beat every baseline", figure_span(view.beat_a_baseline)),
+                ("survived the search", figure_span(view.survived_selection)),
                 ("designs declared", str(view.designs_searched)),
             ]
         )
         + "</div>"
+        + campaigns
+        + "<h2>Attempts</h2>"
         "<p class='mono'>An attempt declares the whole space it chose from, not "
         "the one design it ran. Authoring from a menu is cheap, and a company "
         "that authored until something passed would be mining parameters with a "
