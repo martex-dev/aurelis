@@ -773,6 +773,59 @@ See [ADR-0019](adr/0019-the-seats-meet-a-real-model.md).
 
 ---
 
+## M19 — The company pays for its own shape ✅
+
+M17 gave every charter's declared tier something downstream of it. That turned a
+field which had cost nothing into a bill: an agent routes at the **highest**
+tier of the charters it holds, so a generalist holding one expensive charter
+runs *all* its work on that model. **Twenty-five charters at the launch
+roster.**
+
+M11 already had the machinery — declared triggers, preregistered predictions,
+measured effects. What it lacked was a metric, and its own docstring says adding
+one is how the company becomes able to make a new kind of prediction about
+itself. This is the two halves joined.
+
+- `overtiered_charters` — exactly derivable from coverage and the charter
+  registry, so it is checkable rather than trusted. `NONE` is excluded: that
+  tier calls no model at all.
+- `TriggerKind.TIER_WASTE` — fires at three, proposes fission, and the subject
+  is scanned for rather than named.
+- `orgdev/retiering.py` — propose, lock, Board, apply, onboard, measure.
+
+```
+1. AUDIT   moved 5   company 25 -> 21
+2. RISK    moved 4             21 -> 17
+3. INTEL   moved 3             17 -> 14
+4. TRADE   moved 3             14 -> 11
+5. KNOW    moved 3             11 ->  8
+6. INFRA   moved 3              8 ->  5
+
+agents 17 -> 23,  the trigger no longer fires
+```
+
+**The company reorganised itself six times on its own evidence and stopped when
+its own rule said to.** It does not reach zero: five charters remain overtiered,
+held by agents below the threshold of three. That is the declared rule working,
+because two is a pair and a company that reorganised over a pair would never
+stop.
+
+### What it refuses to claim
+
+The first split predicted −5 and got −5 — and **the company improved by 4**. The
+new agent routes at `mid` and holds a `low` charter, so one of the five it
+received is still above its written tier. Both numbers are on the report,
+because one showing only the subject's would be claiming a fix it did not make.
+
+And no money saved is printed. Every call here reports zero marginal cost under
+a subscription, so no saving has been *observed*. The rate table is quoted —
+`high` input is 15 per Mtok against 3 at `mid` — as what the gap is worth on the
+metered path, labelled as such.
+
+See [ADR-0020](adr/0020-the-company-pays-for-its-own-shape.md).
+
+---
+
 ## Sequencing
 
 ```

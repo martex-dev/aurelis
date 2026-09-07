@@ -444,3 +444,81 @@ def org_scale(workspace: WorkspaceOption = None) -> None:
         "hiring for load that does not exist is the assumption this company "
         "measures rather than makes.[/dim]"
     )
+
+
+@orgdev_app.command("retier")
+def org_retier(
+    workspace: WorkspaceOption = None,
+    handle: Annotated[str, typer.Option(help="Handle for the new agent.")] = "",
+) -> None:
+    """Split the agent that runs the most work on a model it did not need.
+
+    An agent routes at the highest tier of the charters it holds, because it
+    must be capable of its most demanding role. So a generalist holding one
+    expensive charter runs *all* its work on that model — twenty-five charters
+    at the launch roster.
+
+    The company detects that itself, predicts the effect, hashes the prediction
+    before the Board sees it, applies the split through the same handover every
+    other change uses, and measures what actually happened.
+    """
+    from aurelis.orgdev.retiering import run_retiering
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        runtime.staff()
+        outcome = run_retiering(runtime, new_handle=handle or None)
+        with runtime.database.session() as session:
+            verification = runtime.ledger.verify(session)
+    finally:
+        runtime.close()
+
+    console.print()
+    console.print(
+        f"[bold]{outcome.change_ref}[/bold]  {outcome.subject_handle} "
+        f"({outcome.subject}) -> {outcome.new_agent}"
+    )
+    console.print()
+
+    moved = Table(title=f"charters moved off {outcome.subject_handle}")
+    moved.add_column("charter")
+    for charter_id in outcome.moved:
+        moved.add_row(charter_id)
+    console.print(moved)
+
+    table = Table(show_header=False, box=None)
+    table.add_column("", style="bold", width=22)
+    table.add_column("")
+    table.add_row("routed", f"{outcome.routed_before.value} -> {outcome.routed_after.value}")
+    table.add_row("subject overtiered", f"{outcome.subject_before} -> {outcome.subject_after}")
+    table.add_row("company overtiered", f"{outcome.company_before} -> {outcome.company_after}")
+    tone = "green" if outcome.verdict == "improved" else "yellow"
+    table.add_row("verdict", f"[{tone}]{outcome.verdict.upper()}[/{tone}]")
+    table.add_row("detail", escape(outcome.detail))
+    table.add_row("new agent onboarding", outcome.onboarding)
+    table.add_row("meeting", outcome.meeting_ref)
+    table.add_row(
+        "chain",
+        f"[green]{verification.describe()}[/green]"
+        if verification.ok
+        else f"[red]{verification.describe()}[/red]",
+    )
+    console.print(table)
+
+    console.print()
+    if outcome.company_improved < len(outcome.moved):
+        console.print(
+            f"[yellow]The company improved by {outcome.company_improved}, not "
+            f"{len(outcome.moved)}.[/yellow] The new agent routes at "
+            f"{outcome.routed_after.value} and holds a spread of its own, so "
+            "some of what moved is still above the tier it was written for. "
+            "One split does not reach zero."
+        )
+    console.print(f"[dim]{escape(outcome.rate_gap)}[/dim]")
+    console.print(
+        "[dim]The saving is structural. Every model call here reports zero "
+        "marginal cost under a subscription, so no money saved has been "
+        "observed — what is measured is how many charters run above the tier "
+        "they were written for.[/dim]"
+    )

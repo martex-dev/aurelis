@@ -30,10 +30,11 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from aurelis.agents.tables import Agent, AgentCoverage, AgentState, ToolCall
-from aurelis.core.enums import TaskStatus
+from aurelis.core.enums import ModelTier, TaskStatus
 from aurelis.meetings.tables import Forecast, MeetingObjection
+from aurelis.org.registry import charter, resolve_authority
 from aurelis.org.slots import Slot, census
-from aurelis.platform.db.tables import Task
+from aurelis.platform.db.tables import ModelCall, Task
 from aurelis.research.tables import Finding
 from aurelis.training.tables import TrainingRun
 
@@ -52,11 +53,28 @@ __all__ = [
 
 COMPANY = "AURELIS"
 
+_TIER_LADDER = (ModelTier.NONE, ModelTier.LOW, ModelTier.MID, ModelTier.HIGH)
+
+
+def _overtier_detail(ref: str, tier: ModelTier, count: int, held: int) -> str:
+    if not count:
+        return f"routes at {tier.value}; nothing it holds was written cheaper"
+    return (
+        f"routes at {tier.value} because that is the highest of the {held} "
+        f"charter(s) it holds, so {count} of them run on a more expensive "
+        "model than they were written for"
+    )
+
 METRICS: dict[str, str] = {
     "backlog_depth": "open tasks assigned to this agent",
     "backlog_age_hours": "age of the oldest open task assigned to this agent",
     "throughput": "tasks this agent has completed",
     "breadth": "charters this agent stands in for",
+    "overtiered_charters": (
+        "charters this agent holds that were written for a cheaper model than "
+        "it routes at"
+    ),
+    "model_tokens": "tokens this agent has consumed",
     "attributable_charters": "charters whose outputs could be told apart",
     "calibration": "mean Brier score over this agent's scored forecasts",
     "scenario_catch_rate": "catch rate on the training suite",
@@ -172,6 +190,29 @@ def agent_metrics(
         .where(Task.assignee == agent_ref, Task.status == TaskStatus.SUCCEEDED)
     ).scalar_one()
 
+    # What this agent routes at, and how much of what it holds is cheaper than
+    # that. M17 made the tier reach a real model; this is the number that says
+    # what the launch roster's generality costs in model capability.
+    tier = resolve_authority(tuple(slot.charter_id for slot in coverage)).tier
+    overtiered = sum(
+        1
+        for slot in coverage
+        if charter(slot.charter_id).tier is not ModelTier.NONE
+        and _TIER_LADDER.index(charter(slot.charter_id).tier) < _TIER_LADDER.index(tier)
+    )
+
+    tokens = int(
+        session.execute(
+            sa.select(sa.func.coalesce(sa.func.sum(ModelCall.tokens_in + ModelCall.tokens_out), 0))
+            .where(ModelCall.actor == agent_ref)
+        ).scalar_one()
+    )
+    model_calls = int(
+        session.execute(
+            sa.select(sa.func.count()).select_from(ModelCall).where(ModelCall.actor == agent_ref)
+        ).scalar_one()
+    )
+
     oldest: Decimal | None = None
     if open_tasks:
         moment = now or max(t.created_at for t in open_tasks)
@@ -268,6 +309,18 @@ def agent_metrics(
             f"training run {training.ref}"
             if training is not None and training.catch_rate is not None
             else "no settled question in this agent's specialty",
+        ),
+        _reading(
+            "overtiered_charters",
+            overtiered,
+            _overtier_detail(row.ref, tier, overtiered, len(coverage)),
+        ),
+        _reading(
+            "model_tokens",
+            tokens,
+            f"{tokens} token(s) over {model_calls} model call(s)"
+            if model_calls
+            else "this agent has made no model call",
         ),
         _reading("objections_raised", objections, f"{objections} authored"),
         _reading("findings", findings, f"{findings} authored"),

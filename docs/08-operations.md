@@ -281,6 +281,15 @@ lists them:
 - **No seat has been scored against measured truth with a real model in it.**
   Conformance says an answer is usable, not that it is right. The M10 scenario
   suite would settle that and has not been pointed at a model yet.
+- **Self-improvement is structural so far.** `aurelis orgdev retier` reduces how
+  many charters run above their written tier, and the company measures it. No
+  agent has been shown to *research better* after a reorganisation — scoring an
+  agent, splitting it and scoring it again would settle that, and has not been
+  done.
+- **No money saved has been observed.** Under a subscription every call reports
+  zero marginal cost. The tier saving is structural and the rate table says what
+  it is worth on the metered path; the company does not print a figure it never
+  measured.
 - **Token counts on the subscription path are estimates.** The SDK does not
   always report usage, so the provider counts characters. `Usage.estimated`
   carries it and `aurelis model check` prints it — a budget enforced there is

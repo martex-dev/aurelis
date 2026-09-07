@@ -96,6 +96,11 @@ class TriggerKind(StrEnum):
     SCENARIO_FAILURE = "scenario_failure"
     CALIBRATION_DECAY = "calibration_decay"
     DESK_OPENED = "desk_opened"
+    TIER_WASTE = "tier_waste"
+    """An agent holding charters written for a cheaper model than it routes
+    at. Only measurable since M17 gave the declared tier something downstream
+    of it; before that the number existed and cost nothing."""
+
     BREADTH = "breadth"
     """One agent standing in for so many charters that no measurement about
     any one of them is attributable. The launch roster's defining condition,

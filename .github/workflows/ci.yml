@@ -126,6 +126,10 @@ jobs:
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"
+          # The company splits the agent paying most for a model it did not
+          # need -- proposed on a reading, hashed before the Board, measured
+          # after. It improves by less than it moved, and says so.
+          aurelis orgdev retier -w "$workspace"
           aurelis ledger verify -w "$workspace"
           # Chain verification and artifact digests, then a full backup/restore
           # round trip -- a restore that only reports "a file opened" has

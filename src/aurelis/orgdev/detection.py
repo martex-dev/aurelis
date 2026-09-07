@@ -74,6 +74,17 @@ TRIGGERS: tuple[OrgTrigger, ...] = (
         ),
     ),
     OrgTrigger(
+        TriggerKind.TIER_WASTE,
+        "overtiered_charters",
+        "gte",
+        Decimal(3),
+        OrgChangeKind.FISSION,
+        asks=(
+            "Is this agent running work on a more expensive model than that "
+            "work was written for, because it also holds a dearer charter?"
+        ),
+    ),
+    OrgTrigger(
         TriggerKind.BACKLOG_DEPTH,
         "backlog_depth",
         "gte",
@@ -124,6 +135,15 @@ defining condition: seventeen agents stand in for seventy-six charters, and the
 honest consequence is not that the other charters are idle but that **nothing
 about them is attributable**. The company's own instrumentation is the first
 thing its instrumentation says to fix.
+
+``TIER_WASTE`` is the newest and could not have existed before M17. Every
+charter has declared a model tier since M1, and until routing was built the
+number cost nothing and meant nothing. Now an agent routes at the highest tier
+it holds, so a generalist holding one expensive charter runs *all* its work on
+that model -- twenty-five charters at launch, and the fifteen-to-one gap
+between the cheapest and dearest rate is what makes it worth a proposal rather
+than a note. The threshold is three because two is a pair and a company that
+reorganised over a pair would never stop reorganising.
 """
 
 
