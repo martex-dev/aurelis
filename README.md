@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M13 complete — the roadmap is finished.** Coverage is
-`(charter, desk)`, the seven desks are staffed through the company's own
-org-change lifecycle, the task queue no longer does work twice, and backups are
-verified rather than assumed. Nothing here is live market data or live trading,
-and every page says so. · 2026-09-07
+Status: **M14 — past the roadmap.** M13 finished it; M14 puts an agent in the
+seat the critique playbook occupied and weighs it with the same instrument. It
+catches more and cries wolf more, and the company's own gate refuses it.
+Nothing here is live market data or live trading, and every page says so.
+· 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -523,6 +523,45 @@ tampered blob is refused:
 1 artifact(s) whose bytes no longer hash to their name: ['1233d4535383']
 ```
 
+### An agent in the critic's seat
+
+M10 built the instrument for measuring judgement and used it on a *procedure* —
+numeric thresholds over the closed defect taxonomy. Its docstring named the
+gap: the harness would not change when agents reasoned for themselves, the
+playbook would simply be replaced by the agent.
+
+```bash
+aurelis training seat
+```
+
+```
+                caught   missed   false alarms   effect calls
+playbook          7/8         1         1/31          10/11
+agent AG-0009     8/8         0         8/31          10/11
+
+REFUSED  caught 7 -> 8, false alarms 1 -> 8 — it finds more and cries wolf
+more. Which is better is a policy question, and the gate refuses rather than
+deciding one.
+```
+
+The agent caught **everything the suite plants**, including the defect the
+shipped procedure misses. It also objected to eight specifications that did not
+have a defect. The regression gate compares on counts and refused it — on
+arithmetic, not on taste. **Finding more is not the same as being better.**
+
+The seat is shut on four sides. The answer set is closed, so a critic cannot
+invent a defect it could not be scored against. The justification is
+figure-checked, so an agent that reasons using a number nobody gave it is
+rejected. `nothing` is always available, because a surface with no abstention
+produces a critic that finds something every time. And a turn that cannot be
+read alleges nothing — a critique nobody could act on is not a critique.
+
+**What sits behind the seat here is not a model.** Every model call in this
+repository runs against the mock provider, so a deterministic stand-in supplies
+the answers; what is exercised is the machinery. Point the runtime at a real
+provider and the same code path asks a real model. Every report says so, and a
+test asserts the caveat is present.
+
 ### The window
 
 ```bash
@@ -793,7 +832,8 @@ automatically by the company, five milestones in.
 | **M10** ✅ | Training scenarios | planted defects, onboarding, playbook regression |
 | **M11** ✅ | Org development | fission, preregistered changes, org experiments |
 | **M12** ✅ | Multi-desk | seven clocks, seven cost models, comparable research |
-| **M13** ✅ | **Scale & hardening** | coverage per desk, staffed on evidence, a queue that counts |
+| **M13** ✅ | Scale & hardening | coverage per desk, staffed on evidence, a queue that counts |
+| **M14** ✅ | **Agents that decide** | a closed answer set, figure-checked, scored by the same gate |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

@@ -504,6 +504,51 @@ do not reason their way through a critique.
 
 ---
 
+## M14 — Agents that decide ✅
+
+Past the roadmap, toward the two objectives it was written to reach.
+
+M10 built the instrument for measuring judgement and scored a **procedure** —
+numeric thresholds over the closed defect taxonomy. Its own docstring named the
+gap: the harness would not change when agents reasoned for themselves, the
+playbook would simply be replaced by the agent. This is that replacement.
+
+- `agents/decide.py` — a `Question` with a closed option set, an answer that is
+  **parsed rather than interpreted**, `NOTHING` always available, and the same
+  figure check prose is held to.
+- `training/critic.py` — an `AgentCritic` interface-compatible with a
+  `Playbook`, run over the same bench, the same draw and the same marking.
+- `training/seating.py` — the two weighed against each other by the M10 gate.
+
+```
+playbook       caught 7/8, false alarms 1/31
+agent          caught 8/8, false alarms 8/31
+the gate       REFUSED
+```
+
+**The agent caught everything the suite plants**, including the defect the
+shipped procedure misses — and raised objections against eight specifications
+that did not have one. The gate compares on counts and refused it. Finding more
+is not the same as being better, and the company declined on arithmetic rather
+than on taste. Restricted to survivorship alone, where the same agent catches
+all three planted cases and raises nothing spurious, it ships.
+
+**What sits behind the seat here is not a model.** Every model call in this
+repository runs against the mock provider, so a deterministic stand-in supplies
+the answers; what is exercised is the machinery — the closed option set, the
+parse, the figure check, the refusal path, the scoring and the gate. Point the
+runtime at a real provider and the same code path asks a real model. Every
+report of a seating says so.
+
+Building the stand-in caught a bug of exactly the kind this layer exists to
+catch: its headline regex was anchored to the line after the section heading,
+`render_material` sorts a section's keys, and the caveat line sorts above the
+measurement. It matched nothing, **every stress defect was suppressed on every
+scenario**, and the result read like a considered difference of judgement
+rather than a broken regex.
+
+---
+
 ## Sequencing
 
 ```

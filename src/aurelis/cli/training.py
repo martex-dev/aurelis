@@ -320,3 +320,66 @@ def _rate(value: Decimal | None) -> str:
 
 
 __all__ = ["training_app", "specialty_of"]
+
+
+@training_app.command("seat")
+def training_seat(
+    workspace: WorkspaceOption = None,
+    agent: Annotated[str, typer.Option(help="Which agent takes the seat.")] = "CRITIC",
+) -> None:
+    """Put an agent in the critic's seat and weigh it against the procedure.
+
+    The reasoner behind the seat in this repository is a deterministic
+    stand-in, not a model. What this exercises is the harness: a closed answer
+    set, a figure check on the justification, a refusal path, and scoring on
+    the same twelve worlds as the playbook it would replace.
+    """
+    from aurelis.core.config import load_settings
+    from aurelis.platform.llm.providers import MockProvider
+    from aurelis.training.seating import run_seating
+    from aurelis.training.standin import scripted_critic
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_critic))
+    try:
+        runtime.initialise()
+        runtime.staff()
+        outcome = run_seating(runtime, agent_handle=agent)
+    finally:
+        runtime.close()
+
+    table = Table(title="the procedure, and an agent in its seat")
+    for column in ("", "caught", "missed", "false alarms", "effect calls"):
+        table.add_column(column)
+    for label, result in (
+        ("playbook", outcome.procedure),
+        (f"agent {outcome.agent_ref}", outcome.agent),
+    ):
+        score = result.score
+        table.add_row(
+            label,
+            f"{score.caught}/{score.planted}",
+            str(score.missed),
+            f"{score.false_alarms}/{score.false_alarms + score.true_silences}",
+            f"{score.effect_correct}/{score.effect_correct + score.effect_wrong}",
+        )
+    console.print(table)
+
+    tone = "green" if outcome.ships else "yellow"
+    verdict = "SHIPS" if outcome.ships else "REFUSED"
+    console.print()
+    console.print(f"[{tone}]{verdict}[/{tone}]  {escape(outcome.detail)}")
+    if outcome.refusals:
+        console.print(
+            f"[red]{outcome.refusals} turn(s) could not be read[/red] — an "
+            "answer outside the taxonomy, or a figure the agent was not shown"
+        )
+        for error in outcome.errors[:3]:
+            console.print(f"  [dim]{escape(error[:160])}[/dim]")
+    console.print()
+    console.print(
+        "[dim]The reasoner behind the seat here is a deterministic stand-in, "
+        "not a model. What is demonstrated is the harness: a closed answer "
+        "set, a figure-checked justification, a refusal path, and scoring on "
+        "the same worlds as the procedure it would replace.[/dim]"
+    )

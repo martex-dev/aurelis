@@ -91,6 +91,31 @@ class TrainingSuite:
             score=tally(marks),
         )
 
+    def run_agent(self, critic: Any) -> SuiteResult:
+        """The same suite, with an agent in the seat a playbook occupies.
+
+        Deliberately the same evidence, the same bench and the same marking:
+        an agent shown different material, or graded by a different rule, would
+        not be comparable with the procedure it is being weighed against, and
+        the comparison is the whole reason for running it.
+        """
+        critiques: list[Critique] = []
+        marks: list[Mark] = []
+        for scen in self.scenarios:
+            truth = self.bench.truth(scen, replications=self.replications)
+            critique = critic.critique(scen, self.bench)
+            critiques.append(critique)
+            marks.append(mark(critique, truth))
+        return SuiteResult(
+            playbook=critic.describe(),
+            playbook_digest="",
+            catalogue_digest=catalogue_digest(),
+            replications=self.replications,
+            marks=tuple(marks),
+            critiques=tuple(critiques),
+            score=tally(marks),
+        )
+
     def unscorable(self) -> frozenset[ObjectionType]:
         """Taxonomy entries no scenario can currently grade.
 

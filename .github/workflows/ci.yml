@@ -100,6 +100,9 @@ jobs:
           aurelis desk calendars
           aurelis desk power
           aurelis desk compare -w "$workspace" --span 0.05
+          # An agent in the critic's seat, weighed by the same gate as the
+          # procedure it would replace.
+          aurelis training seat -w "$workspace"
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"
