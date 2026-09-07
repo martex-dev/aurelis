@@ -150,8 +150,11 @@ LAUNCH_ROSTER: tuple[LaunchAgent, ...] = (
             "risk.stress_testing",
         ),
         Seniority.DIRECTOR,
+        desk=Desk.CRYPTO,
         note="Holds the veto. Deliberately separate from PM: the agent that "
-        "wants the exposure must not be the agent that approves it.",
+        "wants the exposure must not be the agent that approves it. Carries "
+        "the crypto desk because risk.manager is desk-specific -- a risk "
+        "manager manages the risk of a market, and at launch there is one.",
     ),
     LaunchAgent(
         "PM",

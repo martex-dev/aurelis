@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M12 complete — all seven desks open, and their research is
-comparable.** Each desk has its own clock, cost model, liquidity ceiling and
-risk limits, and every cross-desk figure is converted through the desk's own
-calendar with the factor shown. Nothing here is live market data, and every
-page says so. · 2026-09-07
+Status: **M13 complete — the roadmap is finished.** Coverage is
+`(charter, desk)`, the seven desks are staffed through the company's own
+org-change lifecycle, the task queue no longer does work twice, and backups are
+verified rather than assumed. Nothing here is live market data or live trading,
+and every page says so. · 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -33,8 +33,11 @@ aurelis memory import      # inherited trials, gap and all
 aurelis training truth     # what is really in each scenario, and what is not
 aurelis orgdev develop     # the company reorganises itself, and grades it
 aurelis desk compare       # the same question on all seven desks
+aurelis orgdev scale       # staff the desks, on measured evidence
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
+
+Operating it: [`docs/08-operations.md`](docs/08-operations.md).
 
 ### The demonstration
 
@@ -446,6 +449,80 @@ computed, and the verdict rule said `UNDERPOWERED` without anything anywhere
 reporting that the input had been a constant. "Prices move" is a readiness
 check now, and a desk that fails it does not open.
 
+### Growing to seven desks, on evidence
+
+A charter is not one job. Thirteen of the seventy-six are meaningfully
+different per market — a Technical Analyst on Options and one on FX share a
+remit and differ in everything else — so with seven desks open the company owes
+**154 jobs, not 76**. ADR-0004 promised that second dimension in M1;
+`Charter.desk_specific` existed and nothing read it until M13, which is why
+opening six desks in M12 gave the existing analyst six more markets rather than
+giving six desks an analyst.
+
+Made countable, "this desk is unstaffed" becomes a measured trigger, and the
+desks are staffed the way everything else here is decided:
+
+```
+before: 76/154 slots held; 78 unstaffed
+  crypto         13/13
+  equities        0/13
+  options         0/13     ...
+
+desk          change     hired   unstaffed   effect
+commodities   ORG-0001       5   13 -> 0     improved
+equities      ORG-0002       5   13 -> 0     improved
+...
+17 -> 47 agents over 6 desks; 78 -> 0 unstaffed slots of 154
+```
+
+**Forty-seven, not eighty.** Each desk got one generalist per department with
+desk-specific charters, exactly as the launch roster staffed crypto. A desk
+running on fixtures generates no load, and hiring a specialist per charter to
+reach a headline number is the assumption `CLAUDE.md` §16 exists to forbid.
+
+So the roadmap's "100+ agents" is proved as what it actually is — a claim about
+the software, not about headcount. A test hires into all 154 slots, splitting
+the launch generalists down through the company's own fission mechanism, and
+checks that coverage stays intact, authority still resolves and the write-scope
+guards still refuse.
+
+### The queue was doing work twice
+
+`claim` selected a task and then wrote `CLAIMED` onto it, documented as safe
+because of Postgres' `SKIP LOCKED` and SQLite's single-writer model. The second
+half was false — SQLAlchemy opens a DEFERRED transaction on SQLite, so the
+SELECT took no lock at all:
+
+```
+tasks=40 workers=8
+claims=53 distinct=40
+DOUBLE-CLAIMED: TSK-0006, TSK-0007, TSK-0011, TSK-0019, TSK-0031, ...
+errors: 0
+```
+
+Thirteen tasks done twice, each drawing its own budget, and **no error
+anywhere**. The write is a compare-and-set now — conditional on the row still
+being queued, with the affected-row count deciding — which is correct on every
+dialect and does not depend on an isolation level. Eight threads against forty
+tasks is a test, not a docstring.
+
+### Backups that are checked
+
+```bash
+aurelis db backup /backups/today
+aurelis db restore /backups/today -w /new/workspace
+```
+
+Never a file copy: a copy of `aurelis.db` taken mid-transaction opens without
+complaint and is missing the last write. And a restore that produces a database
+which opens is not a restore, so restore re-verifies the hash chain, rehashes
+every artifact against its name, and compares both against a manifest. A
+tampered blob is refused:
+
+```
+1 artifact(s) whose bytes no longer hash to their name: ['1233d4535383']
+```
+
 ### The window
 
 ```bash
@@ -715,8 +792,8 @@ automatically by the company, five milestones in.
 | **M9** ✅ | Paper trading | approval chain, the backtest-live gap |
 | **M10** ✅ | Training scenarios | planted defects, onboarding, playbook regression |
 | **M11** ✅ | Org development | fission, preregistered changes, org experiments |
-| **M12** ✅ | **Multi-desk** | seven clocks, seven cost models, comparable research |
-| **M13** | Scale | 100+ agents, seven desks, hardening |
+| **M12** ✅ | Multi-desk | seven clocks, seven cost models, comparable research |
+| **M13** ✅ | **Scale & hardening** | coverage per desk, staffed on evidence, a queue that counts |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

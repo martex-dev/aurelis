@@ -45,8 +45,8 @@ ORG_TRIGGERS: tuple[str, ...] = (
 )
 
 _ORPHAN = (
-    "Aurelis: that is the last agent holding this charter. Coverage moves, it "
-    "is never dropped -- hand it over first (ADR-0003)."
+    "Aurelis: that is the last agent holding this charter on this desk. "
+    "Coverage moves, it is never dropped -- hand it over first (ADR-0003)."
 )
 _RETIRE = (
     "Aurelis: this agent still holds charters. Retiring it would orphan them; "
@@ -64,8 +64,16 @@ _UNDECIDED = (
 
 _STILL_HELD = (
     "SELECT 1 FROM agent_coverage c "
-    "WHERE c.charter_id = OLD.charter_id AND c.agent_ref <> OLD.agent_ref"
+    "WHERE c.charter_id = OLD.charter_id AND c.desk = OLD.desk "
+    "AND c.agent_ref <> OLD.agent_ref"
 )
+"""What counts as somebody else still holding this job.
+
+The desk is part of it. Keyed on the charter alone, handing the Options
+Technical Analyst charter over would have looked satisfied by the FX analyst
+still holding theirs -- and the Options desk would have been left with nobody
+while the guard reported coverage intact.
+"""
 
 _PREDICTION_CHANGED = (
     "NEW.predicted_metric <> OLD.predicted_metric "
@@ -108,8 +116,7 @@ def _sqlite_statements() -> Iterator[str]:
 def _postgres_statements() -> Iterator[str]:
     yield (
         "CREATE OR REPLACE FUNCTION aurelis_coverage_conserved() RETURNS trigger AS $$ "
-        "BEGIN IF NOT EXISTS (SELECT 1 FROM agent_coverage c "
-        "WHERE c.charter_id = OLD.charter_id AND c.agent_ref <> OLD.agent_ref) "
+        f"BEGIN IF NOT EXISTS ({_STILL_HELD}) "
         f"THEN RAISE EXCEPTION '{_ORPHAN}'; END IF; RETURN OLD; END; $$ LANGUAGE plpgsql"
     )
     yield "DROP TRIGGER IF EXISTS aurelis_coverage_may_not_be_orphaned ON agent_coverage"

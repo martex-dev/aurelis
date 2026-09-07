@@ -35,6 +35,7 @@ from aurelis.org.departments import Department
 from aurelis.org.desks import Desk
 from aurelis.org.registry import ResolvedAuthority, resolve_authority
 from aurelis.org.roster import LAUNCH_ROSTER
+from aurelis.org.slots import Slot, slots_for_charters
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
 
@@ -100,12 +101,13 @@ class Roster:
                 "what colleagues say out loud and must be unambiguous"
             )
 
-        held = self._held_charters(session)
-        overlap = sorted(set(coverage) & set(held))
+        wanted = slots_for_charters(coverage, desk)
+        held = self._held_slots(session)
+        overlap = sorted(s for s in wanted if s in held)
         if overlap:
-            owners = ", ".join(f"{c} (held by {held[c]})" for c in overlap)
+            owners = ", ".join(f"{s.describe()} (held by {held[s]})" for s in overlap)
             raise IntegrityViolation(
-                f"cannot hire {handle}: {owners}. A charter has one owner; "
+                f"cannot hire {handle}: {owners}. A slot has one owner; "
                 "transferring it is a fission, not a second hire."
             )
 
@@ -129,11 +131,12 @@ class Roster:
         )
         session.flush()
 
-        for charter_id in coverage:
+        for slot in wanted:
             session.add(
                 AgentCoverage(
                     agent_ref=ref,
-                    charter_id=charter_id,
+                    charter_id=slot.charter_id,
+                    desk=slot.desk,
                     granted_at=moment,
                     granted_by=hired_by,
                 )
@@ -283,16 +286,23 @@ class Roster:
         return [self._staffed(session, row) for row in rows]
 
     def coverage_of(self, session: Session, ref: str) -> tuple[str, ...]:
-        rows = (
-            session.execute(
-                sa.select(AgentCoverage.charter_id)
-                .where(AgentCoverage.agent_ref == ref)
-                .order_by(AgentCoverage.charter_id)
-            )
-            .scalars()
-            .all()
-        )
-        return tuple(rows)
+        """The charter ids this agent holds, deduplicated.
+
+        Authority is per charter, not per slot -- a Technical Analyst has the
+        same read views and write scopes on every desk -- so the permission
+        layer wants charter ids and gets them. :meth:`slots_of` is for callers
+        that need to know which markets.
+        """
+        return tuple(sorted({slot.charter_id for slot in self.slots_of(session, ref)}))
+
+    def slots_of(self, session: Session, ref: str) -> tuple[Slot, ...]:
+        """Every ``(charter, desk)`` this agent holds."""
+        rows = session.execute(
+            sa.select(AgentCoverage.charter_id, AgentCoverage.desk)
+            .where(AgentCoverage.agent_ref == ref)
+            .order_by(AgentCoverage.charter_id, AgentCoverage.desk)
+        ).all()
+        return tuple(Slot(str(c), str(d)) for c, d in rows)
 
     # -------------------------------------------------------------- helpers
 
@@ -315,10 +325,20 @@ class Roster:
         )
 
     @staticmethod
-    def _held_charters(session: Session) -> dict[str, str]:
+    def _held_slots(session: Session) -> dict[Slot, str]:
+        """Every slot currently spoken for, and by whom.
+
+        Keyed on ``(charter, desk)`` rather than on the charter alone: a
+        Technical Analyst on Options and one on FX are two jobs, and keying on
+        the charter would have made the second hire look like a clash.
+        """
         return {
-            charter_id: agent_ref
-            for charter_id, agent_ref in session.execute(
-                sa.select(AgentCoverage.charter_id, AgentCoverage.agent_ref)
+            Slot(str(charter_id), str(desk)): str(agent_ref)
+            for charter_id, desk, agent_ref in session.execute(
+                sa.select(
+                    AgentCoverage.charter_id,
+                    AgentCoverage.desk,
+                    AgentCoverage.agent_ref,
+                )
             )
         }

@@ -96,11 +96,21 @@ class Agent(Base):
 
 
 class AgentCoverage(Base):
-    """Which charters an agent currently holds.
+    """Which **slots** an agent currently holds: a charter, on a desk.
 
     The row that carries authority. A launch generalist holds nine of these; a
-    Stage-4 specialist holds one. Nothing else about the agent changes when it
+    Stage-5 specialist holds one. Nothing else about the agent changes when it
     splits.
+
+    ``desk`` is part of the key, and it is what ADR-0004 promised and M13
+    delivered. Thirteen of the seventy-six charters are meaningfully different
+    per market -- a Technical Analyst on Options and one on FX share a remit
+    and differ in everything else -- so those are held *per desk*, and the rest
+    are held once for the company with ``desk = ""``.
+
+    Empty string rather than NULL: this is a composite primary key, and NULL
+    does not compare equal to itself, so a nullable column here would let the
+    same company-wide charter be inserted any number of times.
     """
 
     __tablename__ = "agent_coverage"
@@ -111,6 +121,11 @@ class AgentCoverage(Base):
     charter_id: Mapped[str] = mapped_column(
         sa.ForeignKey("org_charters.charter_id"), primary_key=True, index=True
     )
+    desk: Mapped[str] = mapped_column(
+        sa.String(24), primary_key=True, default="", index=True
+    )
+    """The market this charter is held for, or ``""`` for company-wide."""
+
     granted_at: Mapped[dt.datetime] = mapped_column()
     granted_by: Mapped[str] = mapped_column(sa.String(64), default="operator")
 

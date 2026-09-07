@@ -456,14 +456,51 @@ needing 3.84 years.
 
 ---
 
-## M13 — Scale and hardening
+## M13 — Scale and hardening ✅
 
-Multi-worker execution, Postgres when concurrency demands it, failure recovery,
-backup and restore, chain verification in CI, performance, deployment,
-operator documentation.
+- `org/slots.py` — **coverage is `(charter, desk)`**. ADR-0004 promised the
+  second dimension and nothing implemented it: `Charter.desk_specific` existed
+  and nothing read it. Thirteen charters are desk-specific, so seven open desks
+  means **154 slots**, not 76.
+- `orgdev/staffing.py`, `orgdev/scaling.py` — the desks staffed through the M11
+  lifecycle. A measured trigger, a proposal carrying the measurement, a
+  prediction hashed before the Board, a decision, an effect measured.
+- `platform/backup.py` — consistent snapshots through SQLite's backup API, and
+  a restore that **re-verifies** the chain and rehashes every artifact.
+- The task claim is a **compare-and-set** (ADR-0014).
+- `docs/08-operations.md` — how to run it, what to check, what breaks, and what
+  it cannot do.
 
-Target shape: 80–100+ agents across seven desks, most charters held by
-dedicated specialists, multiple agents per charter where load justifies it.
+**Acceptance — met:**
+
+| | |
+|---|---|
+| Multi-worker execution | Eight threads, forty tasks, one claim each — asserted with real threads |
+| Backup and restore | Round trip verified against a manifest; a tampered artifact is refused |
+| Chain verification in CI | `aurelis ledger verify` and `aurelis db verify` both run |
+| Operator documentation | `docs/08-operations.md`, and every command it names is exercised in CI |
+| Target shape: 100+ agents across seven desks | Proved at **154** — one agent per slot — with coverage intact, authority resolving and the write-scope guards still refusing |
+
+**The queue was doing work twice, silently.** `claim` selected a task and then
+wrote `CLAIMED` onto it, documented as safe because of Postgres' `SKIP LOCKED`
+and SQLite's single-writer model. The second half was false: SQLAlchemy opens a
+DEFERRED transaction on SQLite, so the SELECT took no lock. Eight workers
+against forty tasks produced **fifty-three claims and no error** — thirteen
+tasks done twice, each drawing its own budget. The write is now conditional on
+the row still being queued and the affected-row count decides, which is correct
+on every dialect and does not depend on an isolation level.
+
+**The company grew to 47, not 80.** Each desk got one generalist per department
+with desk-specific charters, exactly as the launch roster staffed crypto. A
+desk on fixture data generates no load, and hiring a specialist per charter to
+reach a headline number is the assumption §16 exists to forbid. So "100+" is
+proved as what it actually is — a claim about the software rather than about
+headcount — by a test that hires into all 154 slots and checks nothing breaks.
+
+**What M13 did not do**, stated in full in `docs/08-operations.md` §9: no live
+data feed on any desk, no desk-specific training scenarios, Postgres written
+and unexercised, no automatic recovery of a dead worker, and agents that still
+do not reason their way through a critique.
 
 ---
 
@@ -474,7 +511,7 @@ M0 ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M7 ─▶ 
                     │            │                        │
                     │            └──▶ M10 ✅ ▶ M11 ✅ ────┤
                     │                                     │
-                    └─────────────────────────────────────┴──▶ M12 ✅ M13
+                    └─────────────────────────────────────┴──▶ M12 ✅ M13 ✅
 ```
 
 Three deliberate orderings:
@@ -500,7 +537,7 @@ Three deliberate orderings:
 | M8–M10 | **17, actual** | CRYPTO |
 | M11 | **19, actual** | CRYPTO |
 | M12 | **19, actual** | **all 7, actual** |
-| M13 | 100+ | 7 |
+| M13 | **47, actual** (154 proved) | **all 7, actual** |
 
 The M8, M11 and M12 rows read ~22, ~28 and 45→80 when this was written. The
 actual numbers are far lower and the difference is the point: **nothing hired
@@ -510,9 +547,16 @@ company by exactly the two agents its own trigger scan justified; and M12
 opened all seven desks without hiring for any of them, because a desk running
 on fixtures generates no load and the trigger table fires on load. A roadmap
 that predicted headcount and a company that hires on evidence will disagree,
-and the company is the one that is right. **Staffing the desks is real work
-that M12 did not do**, and it is on the M13 list alongside the desk-specific
-scenario suites.
+and the company is the one that is right.
+
+M13 staffed the desks — through the same org-change lifecycle, on the measured
+condition that seventy-eight jobs existed and nobody held them — and reached
+47. Not 80: a desk running on fixtures generates no load, and each desk got one
+generalist per department exactly as the launch roster staffed crypto. The
+"100+" row is now proved rather than reached: a test hires into all **154**
+slots and checks that coverage stays intact, authority still resolves and the
+write-scope guards still refuse. The number in that column was always a claim
+about the software.
 
 The full 76-charter roster is covered from M5 onward — first by generalists,
 then increasingly by specialists as the company splits its own roles on

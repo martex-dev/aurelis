@@ -100,4 +100,14 @@ jobs:
           aurelis desk calendars
           aurelis desk power
           aurelis desk compare -w "$workspace" --span 0.05
+          # The company staffs its seven desks on measured evidence, through
+          # the same org-change lifecycle it uses for everything else.
+          aurelis orgdev scale -w "$workspace"
           aurelis ledger verify -w "$workspace"
+          # Chain verification and artifact digests, then a full backup/restore
+          # round trip -- a restore that only reports "a file opened" has
+          # checked nothing.
+          aurelis db verify -w "$workspace"
+          aurelis db backup "${RUNNER_TEMP}/aurelis-backup" -w "$workspace"
+          aurelis db restore "${RUNNER_TEMP}/aurelis-backup"             -w "${RUNNER_TEMP}/aurelis-restored"
+          aurelis ledger verify -w "${RUNNER_TEMP}/aurelis-restored"

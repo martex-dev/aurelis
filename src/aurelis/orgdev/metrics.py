@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from aurelis.agents.tables import Agent, AgentCoverage, AgentState, ToolCall
 from aurelis.core.enums import TaskStatus
 from aurelis.meetings.tables import Forecast, MeetingObjection
-from aurelis.org.charters import CHARTERS
+from aurelis.org.slots import Slot, census
 from aurelis.platform.db.tables import Task
 from aurelis.research.tables import Finding
 from aurelis.training.tables import TrainingRun
@@ -45,6 +45,7 @@ __all__ = [
     "agent_metrics",
     "charter_starvation",
     "company_metrics",
+    "desk_metric",
     "overlap",
     "read_metric",
 ]
@@ -63,6 +64,7 @@ METRICS: dict[str, str] = {
     "findings": "findings this agent has authored",
     "tool_calls": "capability invocations",
     "refusal_rate": "share of tool calls the permission system refused",
+    "unstaffed_slots": "jobs on a desk that nobody holds",
     "starved_charters": "charter areas with no attributable output",
     "agents_active": "agents in a working state",
     "charters_per_agent": "mean breadth across active agents",
@@ -144,12 +146,16 @@ def agent_metrics(
     if row is None:
         raise KeyError(f"no agent {agent_ref!r}")
 
+    # Slots, not charter ids. A generalist holding the Technical Analyst
+    # charter on three desks is doing three jobs, and counting the charter once
+    # would report it as doing one.
     coverage = tuple(
-        session.execute(
-            sa.select(AgentCoverage.charter_id)
+        Slot(str(charter_id), str(desk))
+        for charter_id, desk in session.execute(
+            sa.select(AgentCoverage.charter_id, AgentCoverage.desk)
             .where(AgentCoverage.agent_ref == agent_ref)
-            .order_by(AgentCoverage.charter_id)
-        ).scalars()
+            .order_by(AgentCoverage.charter_id, AgentCoverage.desk)
+        ).all()
     )
 
     open_tasks = list(
@@ -224,7 +230,7 @@ def agent_metrics(
             "oldest open task" if oldest is not None else "no open tasks to age",
         ),
         _reading("throughput", done, f"{done} completed"),
-        _reading("breadth", len(coverage), f"stands in for {len(coverage)} charters"),
+        _reading("breadth", len(coverage), f"stands in for {len(coverage)} slots"),
         # The honest one, and a genuine count rather than a flag. An agent
         # holding one charter has outputs attributable to it; an agent holding
         # nine has **zero** attributable charters -- a measured zero, not a
@@ -238,11 +244,11 @@ def agent_metrics(
         _reading(
             "attributable_charters",
             None if not coverage else (1 if len(coverage) == 1 else 0),
-            "holds no charters"
+            "holds no slots"
             if not coverage
-            else "one charter, so its outputs are attributable"
+            else "one slot, so its outputs are attributable"
             if len(coverage) == 1
-            else f"stands in for {len(coverage)} charters, so none of its "
+            else f"stands in for {len(coverage)} slots, so none of its "
             "outputs can be attributed to any one of them",
         ),
         _reading(
@@ -285,28 +291,24 @@ def charter_starvation(session: Session) -> dict[str, str]:
     reported as unattributable, which is a different problem with a different
     fix.
     """
-    holders: dict[str, str] = {
-        str(charter_id): str(agent_ref)
-        for charter_id, agent_ref in session.execute(
-            sa.select(AgentCoverage.charter_id, AgentCoverage.agent_ref)
-        ).all()
-    }
+    taken = census(session)
     breadth: dict[str, int] = {}
-    for agent_ref in holders.values():
-        breadth[agent_ref] = breadth.get(agent_ref, 0) + 1
+    for who in taken.held.values():
+        for agent_ref in who:
+            breadth[agent_ref] = breadth.get(agent_ref, 0) + 1
 
     report: dict[str, str] = {}
-    for charter_id in CHARTERS:
-        holder = holders.get(charter_id)
-        if holder is None:
-            report[charter_id] = "ORPHANED — nobody holds this charter"
-        elif breadth.get(holder, 0) > 1:
-            report[charter_id] = (
-                f"unattributable — {holder} stands in for "
-                f"{breadth[holder]} charters"
+    for slot in sorted(taken.required):
+        holders = taken.held.get(slot)
+        if not holders:
+            report[slot.describe()] = "ORPHANED — nobody holds this slot"
+        elif breadth.get(holders[0], 0) > 1:
+            report[slot.describe()] = (
+                f"unattributable — {holders[0]} stands in for "
+                f"{breadth[holders[0]]} slots"
             )
         else:
-            report[charter_id] = f"attributable to {holder}"
+            report[slot.describe()] = f"attributable to {holders[0]}"
     return report
 
 
@@ -391,4 +393,24 @@ def read_metric(
             if reading.metric == metric:
                 return reading
         raise KeyError(f"{metric!r} is an agent metric, not a company one")
+    if metric == "unstaffed_slots":
+        # A desk metric. The subject is a desk name, not an agent -- opening a
+        # desk creates jobs, and "how many of them has nobody taken" is a
+        # question about the market rather than about a person.
+        return desk_metric(session, subject)
     return agent_metrics(session, subject, now=now).get(metric)
+
+
+def desk_metric(session: Session, desk: str) -> Reading:
+    """How many of this desk's jobs nobody holds."""
+    open_slots = [s for s in census(session).unstaffed if s.desk == desk]
+    return _reading(
+        "unstaffed_slots",
+        len(open_slots),
+        f"{len(open_slots)} slot(s) on {desk} held by nobody"
+        + (
+            f": {', '.join(s.charter_id for s in sorted(open_slots))}"
+            if open_slots
+            else ""
+        ),
+    )

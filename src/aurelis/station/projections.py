@@ -1150,6 +1150,7 @@ def _coverage(session: Session, ref: str) -> tuple[str, ...]:
     return tuple(
         session.execute(
             sa.select(AgentCoverage.charter_id)
+            .distinct()
             .where(AgentCoverage.agent_ref == ref)
             .order_by(AgentCoverage.charter_id)
         ).scalars()

@@ -313,6 +313,7 @@ class Onboarding:
         return tuple(
             session.execute(
                 sa.select(AgentCoverage.charter_id)
+                .distinct()
                 .where(AgentCoverage.agent_ref == agent_ref)
                 .order_by(AgentCoverage.charter_id)
             ).scalars()

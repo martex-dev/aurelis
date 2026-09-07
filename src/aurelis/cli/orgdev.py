@@ -393,3 +393,54 @@ def org_develop(workspace: WorkspaceOption = None) -> None:
 
 
 __all__ = ["orgdev_app"]
+
+
+@orgdev_app.command("scale")
+def org_scale(workspace: WorkspaceOption = None) -> None:
+    """Staff every open desk that nobody covers, through the org-change lifecycle."""
+    from aurelis.org.slots import census
+    from aurelis.orgdev.scaling import run_scaling
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        runtime.staff()
+        with runtime.database.session() as session:
+            runtime.desks.open_all(session)
+            before = census(session)
+        console.print(f"before: {escape(before.describe())}")
+        for desk, (held, needed) in before.by_desk().items():
+            label = desk or "company-wide"
+            tone = "green" if held == needed else "yellow"
+            console.print(f"  {label:<14} [{tone}]{held}/{needed}[/{tone}]")
+        outcome = run_scaling(runtime)
+    finally:
+        runtime.close()
+
+    console.print()
+    table = Table(title="desks staffed")
+    for column in ("desk", "change", "hired", "unstaffed", "effect"):
+        table.add_column(column)
+    for hiring in outcome.hirings:
+        tone = _TONE.get(hiring.effect.verdict.value, "dim")
+        table.add_row(
+            hiring.desk,
+            hiring.change_ref,
+            str(len(hiring.hired)),
+            f"{hiring.slots_before} -> {hiring.slots_after}",
+            f"[{tone}]{hiring.effect.verdict.value}[/{tone}]",
+        )
+    console.print(table)
+    console.print()
+    console.print(escape(outcome.describe()))
+    console.print(
+        f"coverage intact: [{'green' if outcome.coverage_intact else 'red'}]"
+        f"{outcome.coverage_intact}[/]"
+    )
+    console.print(
+        "[dim]Each desk got one generalist per department with desk-specific "
+        "charters, the way the launch roster staffed crypto. Not one "
+        "specialist per charter: a desk on fixture data generates no load, and "
+        "hiring for load that does not exist is the assumption this company "
+        "measures rather than makes.[/dim]"
+    )

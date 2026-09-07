@@ -438,3 +438,62 @@ def tick(
 
 if __name__ == "__main__":  # pragma: no cover
     app()
+
+
+@db_app.command("backup")
+def db_backup(
+    destination: Annotated[Path, typer.Argument(help="Where to write the backup.")],
+    workspace: WorkspaceOption = None,
+) -> None:
+    """Take a consistent snapshot of the workspace.
+
+    Through SQLite's own backup API, never a file copy: a copy taken
+    mid-transaction opens without complaint and is missing the last write.
+    """
+    from aurelis.platform.backup import back_up
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    report = back_up(settings, destination)
+    console.print(f"[green]backed up[/green] {escape(report.describe())}")
+    console.print(f"  {escape(str(report.path))}")
+
+
+@db_app.command("restore")
+def db_restore(
+    source: Annotated[Path, typer.Argument(help="A backup directory.")],
+    workspace: WorkspaceOption = None,
+) -> None:
+    """Restore a workspace, and verify it really is the same one.
+
+    Exits non-zero if the chain does not verify or an artifact's bytes no
+    longer hash to its name. A restore that produces a database which opens is
+    not a restore.
+    """
+    from aurelis.platform.backup import restore as do_restore
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    report = do_restore(source, settings)
+    if report.ok:
+        console.print(f"[green]{escape(report.describe())}[/green]")
+        return
+    console.print(f"[red]{escape(report.describe())}[/red]")
+    raise typer.Exit(1)
+
+
+@db_app.command("verify")
+def db_verify(workspace: WorkspaceOption = None) -> None:
+    """Check a live workspace: the hash chain, and every artifact's digest."""
+    from aurelis.platform.backup import verify_workspace
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    report = verify_workspace(settings)
+    tone = "green" if report.ok else "red"
+    console.print(
+        f"[{tone}]{report.events} events, {report.artifacts} artifacts; "
+        f"chain {'verifies' if report.chain_ok else 'BROKEN'}, "
+        f"digests {'match' if report.artifacts_ok else 'DO NOT MATCH'}[/{tone}]"
+    )
+    for problem in report.problems:
+        console.print(f"  [red]{escape(problem)}[/red]")
+    if not report.ok:
+        raise typer.Exit(1)

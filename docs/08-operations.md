@@ -1,0 +1,265 @@
+# 08 — Operations
+
+Date: 2026-09-07
+Status: current as of M13.
+
+How to run Aurelis, what to check, what to do when something is wrong, and —
+just as important — what this system is **not** yet safe to do.
+
+---
+
+## 0. The short version
+
+```bash
+pip install -e ".[dev]"
+aurelis db init                 # schema, invariants, the org chart
+aurelis doctor                  # is this workspace healthy?
+aurelis agent hire              # staff the launch roster
+aurelis desk open all           # open the seven desks
+aurelis orgdev scale            # staff them, through the org-change lifecycle
+aurelis station serve           # Mission Control on http://127.0.0.1:8787/
+```
+
+Everything runs offline against the mock provider by default. No credentials,
+no network, no cost.
+
+---
+
+## 1. Before you start: what this cannot do
+
+Read this section before anything else.
+
+**There is no live trading.** Not disabled — absent. No `LiveBroker`, no
+`BrokerKind.LIVE`, no registry entry, and `resolve("live")` refuses with an
+explanation rather than a `KeyError` (ADR-0006). A test parses every module's
+imports to prove nothing can reach a live adapter.
+
+**There is no live market data.** All seven desks run on fixtures:
+deterministic, offline, shaped like the desk but not a market. Every artifact
+records `is_live: false`; every desk's readiness check records its data as
+`PROVISIONAL` rather than a pass. `aurelis desk feeds` prints the state of every
+one.
+
+**Nothing here is proven profitable**, and the system is built so it can say so.
+Of the seven desks' first research missions, all seven returned `UNDERPOWERED`.
+That is the honest answer to the question that was asked with the data
+available.
+
+---
+
+## 2. Daily checks
+
+### `aurelis doctor`
+
+The single command to run first. It checks dependencies, the workspace, the
+schema, every invariant trigger, the org registry and the engines. Exit codes:
+`0` healthy, `1` a problem you must repair, `2` misuse.
+
+The trigger counts are the ones to watch. If any line reads `MISSING`, a
+guarantee this system rests on is not in force:
+
+| Check | What is not true if it is missing |
+|---|---|
+| append-only triggers | The ledger can be edited without detection |
+| write-scope guards | An agent can write outside its charter's authority |
+| preregistration | A run can precede its registration |
+| onboarding gate | An agent that failed the scenario suite can start work |
+| coverage conservation | A charter can be orphaned; a locked prediction can be re-aimed |
+
+Repair is `aurelis db init`, which is idempotent and safe against a live
+workspace.
+
+### `aurelis ledger verify`
+
+Re-reads and re-hashes the whole chain. Run it in CI and after any restore.
+
+> Tamper-**evident**, not tamper-proof. Edits are detectable, not impossible.
+> Anyone with write access to the file can change it; they cannot change it
+> without the chain saying so.
+
+### `aurelis db verify`
+
+The chain *plus* every artifact digest re-checked against its bytes. The
+artifact store is content-addressed, so a file's name is the hash of its
+contents and corruption is caught exactly rather than approximately.
+
+---
+
+## 3. Backup and restore
+
+```bash
+aurelis db backup /backups/aurelis-2026-09-07
+aurelis db restore /backups/aurelis-2026-09-07 -w /new/workspace
+```
+
+**Do not copy `aurelis.db` with `cp`.** A copy taken mid-transaction opens
+without complaint and is missing the last write — the kind of corruption only
+discovered when the backup is needed. `aurelis db backup` uses SQLite's own
+backup API, which takes a consistent snapshot under a read lock.
+
+A backup is a directory containing the database, the object store, and
+`aurelis-backup.json` — a manifest recording the event count and the chain
+head. **Restore refuses without it**, because a restore that only reports "a
+file opened" has checked nothing. On restore the chain is re-verified, every
+artifact is rehashed, and the counts are compared against the manifest. Any
+mismatch exits non-zero.
+
+Back up **both** the database and the object store. Artifacts are cited by
+digest from database rows; a database without its blobs restores to a record
+full of dangling citations, and `db verify` will say so.
+
+---
+
+## 4. Running work
+
+### Multi-worker execution
+
+Workers claim tasks from the durable queue. The claim is a **compare-and-set**:
+a conditional update that only succeeds if the row is still queued.
+
+This was broken until M13 and broken *silently*. The claim used to select a
+candidate and then write `CLAIMED` onto it, on the theory that Postgres'
+`SKIP LOCKED` and SQLite's single-writer model each made that safe. The second
+half was false — SQLAlchemy opens a DEFERRED transaction on SQLite, so the
+SELECT took no lock. Eight workers against forty tasks produced **fifty-three
+claims and no error**: thirteen tasks done twice, each with its own budget draw.
+
+If you are running multiple workers, the guarantee you have is that a task is
+claimed once. What you do **not** have is automatic recovery of a worker that
+dies mid-task — see below.
+
+### A worker that dies
+
+A task claimed by a process that never returns stays `CLAIMED` forever.
+`aurelis tick` reclaims them as part of its cycle — it calls
+`TaskQueue.cancel_stranded`, which returns tasks held past their lease to the
+queue and reports how many:
+
+```bash
+aurelis tick --rounds 1           # scheduler pass; reclaims stranded tasks
+```
+
+Reclaiming is tied to a scheduler pass rather than run on a timer, on purpose: a
+task returned to the queue while its original worker is merely slow gets done
+twice, which is precisely what the compare-and-set above exists to prevent.
+
+### Budgets
+
+Every task carries an allowance and every model call draws against a scope
+envelope. A task refused for budget is a **terminal status**, not an error —
+running out of money is a legitimate outcome and the record says so.
+`aurelis doctor` reports the company envelope and what has been drawn against
+it.
+
+---
+
+## 5. Growing the company
+
+The company hires on measured evidence, not on a plan.
+
+```bash
+aurelis orgdev metrics            # what it can measure about itself
+aurelis orgdev scan               # which declared triggers fire
+aurelis orgdev develop            # propose, decide, apply, measure
+aurelis orgdev scale              # staff open desks that nobody covers
+aurelis orgdev changes            # every change, and what it actually did
+```
+
+Coverage is `(charter, desk)`. Thirteen of the seventy-six charters are
+desk-specific, so seven open desks means **154 jobs**, not 76. `aurelis orgdev
+metrics` prints the census; a slot held by nobody is a trigger, and a slot held
+by two people is a bug.
+
+**Every structural change is preregistered** (ADR-0012). The predicted metric,
+direction, magnitude and measurement plan are hashed before the Board sees them
+and frozen by a trigger afterwards. Some changes are recorded as failures. That
+is the intended output — the first change the company ever made to itself is
+recorded as `no_change`.
+
+---
+
+## 6. Deployment
+
+### SQLite (default)
+
+One file plus an object store. Correct for a single operator and one worker
+process. WAL is enabled, so readers do not block the writer.
+
+### Postgres
+
+Set `AURELIS_DATABASE_URL` to a Postgres URL. Every invariant in this system
+has a Postgres implementation written alongside its SQLite one, and the claim
+`SKIP LOCKED` makes about concurrency is genuinely true there.
+
+> **Honest status: the Postgres paths are written and are not exercised by
+> this repository's CI.** They are read-reviewed, not run. Before trusting a
+> Postgres deployment, run the full test suite against it with
+> `AURELIS_DATABASE_URL` set, and expect to fix things — the `Money` columns
+> are TEXT, several CHECK constraints cast, and the JSON columns are
+> `sa.JSON` rather than `JSONB`.
+
+Move to Postgres when you want more than one worker process, not before.
+
+### The station
+
+```bash
+aurelis station serve --host 127.0.0.1 --port 8787
+```
+
+Loopback by default and read-only by construction: it serves projections and
+implements `do_GET` and nothing else (ADR-0009). It has **no authentication**.
+Do not bind it to a public interface.
+
+---
+
+## 7. When something is wrong
+
+| Symptom | Where to look |
+|---|---|
+| `doctor` reports a missing trigger | `aurelis db init` — idempotent |
+| `ledger verify` reports a break | The chain names the sequence number. Restore from backup; do not "repair" the ledger |
+| `db verify` reports a digest mismatch | An artifact's bytes changed. Restore that blob from backup |
+| An agent cannot write something | It is working as designed. `aurelis agent show <ref>` prints the resolved authority and where it came from |
+| An agent will not become active | Its training run failed. `aurelis training record <ref>` says which questions it got wrong |
+| A desk will not open | `aurelis desk show <desk>` prints all nine checks and which one failed |
+| A task is stuck `CLAIMED` | The worker died. `aurelis tick` reclaims tasks held past their lease |
+| The queue looks empty but work is pending | Unmet dependencies make a task invisible rather than claimable |
+
+**Do not repair the ledger.** It is the record the whole system's credibility
+rests on. A broken chain means either corruption (restore) or tampering
+(investigate); editing it to verify again destroys the only evidence of which.
+
+---
+
+## 8. Cost
+
+Everything in this repository runs against the mock provider: no credentials,
+no network, zero cost. Switching to a real provider is a configuration change,
+and the guards that keep it affordable are already in force — model routing by
+charter tier, response caching, per-task allowances, per-scope envelopes, and
+experiment deduplication by spec digest.
+
+`aurelis doctor` reports the company budget and what has been drawn against it;
+the Mission Control station shows spend per agent and per department.
+
+---
+
+## 9. What is on the other side of M13
+
+Stated plainly, because a system that hides its gaps is worse than one that
+lists them:
+
+- **No live data feed on any desk.** The declared sources are named in the desk
+  registry; none is wired.
+- **No desk-specific training scenarios.** The M10 catalogue is twelve
+  crypto-shaped worlds, so an agent on the FX desk is scored on another desk's
+  questions.
+- **`CAPACITY_IGNORED` has no scorable scenario.** The plant is in the
+  catalogue and measurement says it did not take.
+- **The options desk cannot compute a greek.** A typed refusal — that desk is
+  researchable as a price series and not as an options book.
+- **Postgres is written and unexercised.**
+- **Agents do not yet reason their way through a critique.** What the training
+  suite scores is the procedure a charter issues, not the agent's judgement.
+- **No automatic recovery of a dead worker.** Stranded tasks are returned
+  manually, on purpose.

@@ -608,10 +608,19 @@ def test_every_panel_names_charters_that_exist() -> None:
 def test_starvation_distinguishes_orphaned_from_unattributable(
     staffed: Runtime,
 ) -> None:
-    """Two different problems with two different fixes."""
+    """Two different problems with two different fixes.
+
+    Keyed on **slots** since M13, not on charters: a Technical Analyst is a
+    different job on every desk, so the report has one row per job the company
+    owes rather than one per charter in the registry.
+    """
+    from aurelis.org.slots import census
+
     with staffed.database.session() as session:
         report = charter_starvation(session)
-    assert set(report) == set(CHARTERS)
+        required = census(session).required
+    assert set(report) == {slot.describe() for slot in required}
+    assert len(report) > len(CHARTERS) - len(CHARTERS)  # non-empty
     assert not [c for c, why in report.items() if why.startswith("ORPHANED")]
     unattributable = [c for c, why in report.items() if why.startswith("unattrib")]
     attributable = [c for c, why in report.items() if why.startswith("attributable")]

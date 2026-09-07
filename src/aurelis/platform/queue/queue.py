@@ -34,6 +34,14 @@ from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.db.tables import Task, TaskDependency
 from aurelis.platform.ledger.ledger import Ledger
 
+_CLAIM_ATTEMPTS = 16
+"""How many candidates a single claim will contend for before giving up.
+
+Bounded rather than unbounded: a worker that lost sixteen races in a row is on
+a queue with far more contention than workers, and spinning would be worse than
+returning empty-handed and being called again.
+"""
+
 __all__ = ["TaskQueue"]
 
 
@@ -174,11 +182,45 @@ class TaskQueue:
 
         A task addressed to a specific agent is only claimable by that agent;
         an unaddressed one is claimable by any worker whose kind filter
-        matches. On Postgres the row is locked with ``SKIP LOCKED`` so
-        multiple workers never claim the same task; SQLite's single-writer
-        model gives the same guarantee without it.
+        matches.
+
+        **The claim is a compare-and-set, and it has to be.** This method used
+        to select a candidate and then write ``CLAIMED`` onto it, with a
+        docstring asserting that Postgres' ``SKIP LOCKED`` and SQLite's
+        single-writer model each made that safe. The second half was false.
+        SQLAlchemy opens a DEFERRED transaction on SQLite, so the SELECT takes
+        no lock at all: two workers read the same queued row, both wrote their
+        own name onto it, and the later commit silently won. Eight workers
+        against forty tasks produced fifty-three claims and **no error** --
+        thirteen tasks done twice, each with its own budget draw.
+
+        So the write is conditional on the row still being queued, and the
+        affected-row count decides. A worker that loses the race sees zero rows
+        updated and moves to the next candidate. That is correct on every
+        dialect and does not depend on an isolation level, which is the only
+        kind of concurrency guarantee worth documenting.
         """
         moment = at or self._clock.now()
+        for _ in range(_CLAIM_ATTEMPTS):
+            task = self._claim_once(
+                session, worker=worker, kinds=kinds, assignee=assignee, at=moment
+            )
+            if task is not None:
+                return task
+            if self._next_candidate(
+                session, kinds=kinds, assignee=assignee
+            ) is None:
+                return None
+        return None
+
+    def _next_candidate(
+        self,
+        session: Session,
+        *,
+        kinds: tuple[str, ...],
+        assignee: str | None,
+    ) -> Task | None:
+        """The task a claim would try next, without taking it."""
         query = (
             sa.select(Task)
             .where(Task.status == TaskStatus.QUEUED)
@@ -209,23 +251,52 @@ class TaskQueue:
         )
 
         if session.bind is not None and session.bind.dialect.name == "postgresql":
+            # Not the guarantee -- the compare-and-set below is -- but it stops
+            # workers queueing up behind each other for a row one of them is
+            # about to take.
             query = query.with_for_update(skip_locked=True)
 
-        task = session.execute(query).scalar_one_or_none()
-        if task is None:
+        return session.execute(query).scalar_one_or_none()
+
+    def _claim_once(
+        self,
+        session: Session,
+        *,
+        worker: str,
+        kinds: tuple[str, ...],
+        assignee: str | None,
+        at: dt.datetime,
+    ) -> Task | None:
+        """One compare-and-set attempt. ``None`` means somebody else got it."""
+        candidate = self._next_candidate(session, kinds=kinds, assignee=assignee)
+        if candidate is None:
             return None
 
-        task.status = TaskStatus.CLAIMED
-        task.claimed_by = worker
-        task.claimed_at = moment
+        ref = candidate.ref
+        # The whole guarantee is in this WHERE clause. Two workers may both
+        # have selected this row; only one of them finds it still queued.
+        result = session.execute(
+            sa.update(Task)
+            .where(Task.ref == ref, Task.status == TaskStatus.QUEUED)
+            .values(status=TaskStatus.CLAIMED, claimed_by=worker, claimed_at=at)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:  # type: ignore[attr-defined]
+            session.rollback()
+            return None
+
         session.flush()
+        task = session.execute(
+            sa.select(Task).where(Task.ref == ref)
+        ).scalar_one()
+        session.refresh(task)
         self._ledger.append(
             session,
             kind=EventKind.TASK_CLAIMED,
             actor=worker,
             subject=task.ref,
             payload={"task_kind": task.kind},
-            at=moment,
+            at=at,
         )
         return task
 

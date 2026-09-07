@@ -31,7 +31,8 @@ from aurelis.core.errors import IntegrityViolation
 from aurelis.platform.db.tables import Artifact
 from aurelis.platform.ledger.ledger import Ledger
 
-__all__ = ["ArtifactStore", "StoredArtifact"]
+__all__ = [
+    "blob_path","ArtifactStore", "StoredArtifact"]
 
 _FANOUT = 2
 
@@ -48,6 +49,16 @@ class StoredArtifact:
     @property
     def short(self) -> str:
         return self.digest[:12]
+
+
+def blob_path(root: Path, digest: str) -> Path:
+    """Where a digest lives under ``root``.
+
+    A module function so that anything needing to find a blob -- backup
+    verification, an operator with a shell -- reads the layout from here
+    instead of reimplementing the sharding rule and drifting from it.
+    """
+    return root / digest[:_FANOUT] / digest[_FANOUT : _FANOUT * 2] / digest
 
 
 class ArtifactStore:
@@ -67,7 +78,7 @@ class ArtifactStore:
     def path_for(self, digest: str) -> Path:
         if len(digest) != 64 or not all(c in "0123456789abcdef" for c in digest):
             raise ValueError(f"not a sha256 digest: {digest!r}")
-        return self.root / digest[:_FANOUT] / digest[_FANOUT : _FANOUT * 2] / digest
+        return blob_path(self.root, digest)
 
     # --------------------------------------------------------------- writing
 
