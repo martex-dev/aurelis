@@ -79,6 +79,7 @@ from aurelis.research.states import RegistrationKind, Verdict
 
 __all__ = [
     "CAVEAT",
+    "caveat_for",
     "CLAIM",
     "SPAN_YEARS",
     "AuthoringOutcome",
@@ -104,13 +105,40 @@ be a claim nobody would make about a real strategy, and a claim small enough to
 be unfalsifiable would make UNDERPOWERED the only reachable verdict.
 """
 
-CAVEAT = (
-    "The designer behind this seat is a deterministic stand-in, not a model, "
-    "and the data is a fixture rather than a market. What is demonstrated is "
-    "the machinery: a closed design space, an agent's own reasoning, a "
-    "preregistration that declares the whole space, and a verdict derived by "
-    "rule."
+_FIXTURE = (
+    "The data is a fixture rather than a market, so no conclusion about any "
+    "real market follows from these numbers."
 )
+
+CAVEAT = (
+    "The designer behind this seat is a deterministic stand-in, not a model. "
+    + _FIXTURE
+)
+"""The offline caveat. True when the mock answers, false the moment one does not.
+
+Kept as the default because every test, every CI run and every offline
+demonstration is answered by the stand-in. It is no longer printed
+unconditionally: a real model authored a strategy through this exact path and
+the report still said a stand-in had done it. A caveat that keeps being printed
+after it stops being true is worse than none, because it is the sentence a
+reader trusts to tell them what they are looking at.
+"""
+
+
+def caveat_for(provider_name: str) -> str:
+    """What is actually sitting in the seat, for this run.
+
+    Takes the provider name rather than the provider, so a report can be
+    rendered from a stored payload without reconstructing the runtime.
+    """
+    from aurelis.platform.llm.seating import stands_in
+
+    if stands_in(provider_name):
+        return CAVEAT
+    return (
+        f"A real model answered through {provider_name}; the reasoning in this "
+        "report is the model's own. " + _FIXTURE
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +179,10 @@ class AuthoringOutcome:
     bars_required: int = 0
     years_required: Decimal = Decimal(0)
     campaign_ref: str | None = None
+    caveat: str = CAVEAT
+    """What sat in the seat for *this* run, resolved when the attempt was made.
+    Carried on the outcome rather than looked up at render time, so a report of
+    an old attempt says what was true when it happened."""
     sharpe_low: Decimal | None = None
     sharpe_high: Decimal | None = None
     """The interval the run reported, carried so a campaign can recover the
@@ -224,7 +256,7 @@ class AuthoringOutcome:
             "bars_required": self.bars_required,
             "years_required": str(self.years_required),
             "campaign": self.campaign_ref,
-            "caveat": CAVEAT,
+            "caveat": self.caveat,
         }
 
 
@@ -421,7 +453,7 @@ def measure_attempt(
             interpretation=(
                 "Authored by an agent from the closed design space and "
                 "measured against criteria locked before the run. "
-                f"{CAVEAT}"
+                f"{caveat_for(runtime.provider.name)}"
             ),
             at=moment,
         )
@@ -457,6 +489,7 @@ def measure_attempt(
         bars_required=power.bars_required,
         years_required=power.years_required,
         campaign_ref=campaign_ref,
+        caveat=caveat_for(runtime.provider.name),
         sharpe_low=sharpe_low,
         sharpe_high=sharpe_high,
     )
@@ -532,7 +565,7 @@ def _record(
                 "beat_baselines": outcome.beat_baselines,
                 "origin": authored.origin.value,
                 "origin_ref": authored.origin_ref,
-                "caveat": CAVEAT,
+                "caveat": outcome.caveat,
             },
             at=at,
         )
@@ -554,6 +587,7 @@ def _record(
         bars_required=outcome.bars_required,
         years_required=outcome.years_required,
         campaign_ref=outcome.campaign_ref,
+        caveat=outcome.caveat,
         sharpe_low=outcome.sharpe_low,
         sharpe_high=outcome.sharpe_high,
     )

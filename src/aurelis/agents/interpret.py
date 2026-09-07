@@ -117,6 +117,31 @@ class Interpretation:
         return Spend(self.response.usd, self.response.usage.total)
 
 
+FIGURE_RULE = (
+    "Every number you write must appear above EXACTLY as written. Do not "
+    "convert units, compute ratios or percentages, translate bars into months, "
+    "or restate a figure in other terms. If a point needs a number you cannot "
+    "copy, make the point without the number."
+)
+"""What the figure guard actually enforces, said in words a model can follow.
+
+The guard has been here since M6 and the instruction beside it said "citing
+only figures shown above". A real model reads that as *reason only from these*
+and then writes 0.40% for the 40 bps it was shown, or 0.25 for 2190 out of
+8760 -- derivations, not confabulations, and refused all the same.
+
+Measured on the authoring seat before this constant existed: **zero usable
+answers in five**, two of them lost to exactly that. A guard that rejects
+behaviour the instructions invited is not enforcing sourcing, it is punishing a
+reasonable reading. Widening the guard to accept derived arithmetic was the
+other option and it was rejected: "derivable from" has no floor, and the guard
+would have stopped meaning anything.
+
+It carries no digits of its own, so appending it to a prompt cannot widen the
+set of figures an answer may cite.
+"""
+
+
 def render_material(material: dict[str, Any]) -> str:
     """Render the material an agent is being shown, deterministically."""
     lines: list[str] = []
@@ -164,7 +189,9 @@ def interpret_as(
                 provider=provider.name, model=chosen, tier=tier, max_tokens=max_tokens
             ),
             system=system,
-            messages=(Message("user", render_material(material)),),
+            messages=(
+                Message("user", f"{render_material(material)}\n\n{FIGURE_RULE}"),
+            ),
             actor=agent_ref,
             task_ref=task_ref,
         ),

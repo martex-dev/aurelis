@@ -11,11 +11,12 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M17 — the charter decides which model answers.** The tier every
-charter declares now reaches a real model instead of a hard-coded `"mock-1"`.
-The subscription path has been exercised end to end and stops, honestly, at
-*not logged in*. Nothing here is live market data or live trading, and every
-page says so. · 2026-09-07
+Status: **M18 — a real model has taken the seats.** Signed in on a
+subscription, a real model authored a strategy end to end and picked the
+highest-Sharpe design of all 72 — after producing zero usable answers in its
+first five, for reasons that were the prompt's fault rather than its own.
+Nothing here is live market data or live trading, and every page says so.
+· 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -701,6 +702,7 @@ Look around:
 | `aurelis research graveyard` | everything killed, and why |
 | `aurelis strategy author` · `strategy campaign` | what the company tried to build, and what survives the search |
 | `aurelis model routes` · `model tiers` | which model each role reaches, and what generalists cost |
+| `aurelis model check` · `model rehearse` | one real call; and whether a seat's answers are usable at all |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -912,7 +914,8 @@ automatically by the company, five milestones in.
 | **M14** ✅ | Agents that decide | a closed answer set, figure-checked, scored by the same gate |
 | **M15** ✅ | Agents that author | 72 designs, the search declared, the result negative |
 | **M16** ✅ | Budgets and corrections | revise inside a frozen budget, then pay for the search |
-| **M17** ✅ | **Model routing** | the charter's tier picks the model, and NONE is refused |
+| **M17** ✅ | Model routing | the charter's tier picks the model, and NONE is refused |
+| **M18** ✅ | **A real model in the seat** | 0/5 usable, then 5/5, with no guard widened |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

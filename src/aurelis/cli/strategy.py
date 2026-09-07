@@ -241,14 +241,16 @@ def strategy_author(
     not a model, and every desk runs on fixtures rather than market data. What
     this exercises is the machinery.
     """
-    from aurelis.authoring.attempt import CAVEAT, run_authoring
+    from aurelis.authoring.attempt import run_authoring
     from aurelis.authoring.design import space_size
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
-    from aurelis.platform.llm.providers import MockProvider
+    from aurelis.platform.llm.seating import seat_provider
 
     settings = load_settings(home=workspace) if workspace else load_settings()
-    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_author))
+    runtime = Runtime.build(
+        settings, provider=seat_provider(settings, scripted_author)
+    )
     try:
         runtime.initialise()
         runtime.staff()
@@ -320,7 +322,7 @@ def strategy_author(
             "result, and it is reported rather than tuned away."
         )
     console.print()
-    console.print(f"[dim]{escape(CAVEAT)}[/dim]")
+    console.print(f"[dim]{escape(outcome.caveat)}[/dim]")
 
 
 @strategy_app.command("campaign")
@@ -340,14 +342,15 @@ def strategy_campaign(
     The headline is not the best number. It is the best number minus what a
     search of this width returns from noise alone.
     """
-    from aurelis.authoring.attempt import CAVEAT
     from aurelis.authoring.campaign import run_campaign
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
-    from aurelis.platform.llm.providers import MockProvider
+    from aurelis.platform.llm.seating import seat_provider
 
     settings = load_settings(home=workspace) if workspace else load_settings()
-    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_author))
+    runtime = Runtime.build(
+        settings, provider=seat_provider(settings, scripted_author)
+    )
     try:
         runtime.initialise()
         runtime.staff()
@@ -428,4 +431,4 @@ def strategy_campaign(
         "expected maximum smaller than this — so it is conservative, and may "
         "call a real edge nothing.[/dim]"
     )
-    console.print(f"[dim]{escape(CAVEAT)}[/dim]")
+    console.print(f"[dim]{escape(outcome.caveat)}[/dim]")

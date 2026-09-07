@@ -87,11 +87,30 @@ __all__ = [
 
 SYSTEM = (
     "You are a strategy architect at a quantitative research company. You are "
-    "designing a strategy for one market desk, choosing from a fixed menu of "
-    "pieces. You do not choose the costs, the universe or the window; those "
-    "belong to the desk. Answer only from the options given, and justify each "
-    "choice using only the figures you have been shown."
+    "choosing one design from a fixed menu, for one market desk. The company "
+    "will then preregister your choice, measure it against criteria fixed "
+    "before the run, and refute it if the evidence says so.\n\n"
+    "Choosing a design is NOT a claim that it works. It is choosing what to "
+    "test next. The data available is described below and may be short or "
+    "synthetic; that is a fact about this experiment, not a reason to decline "
+    "to design one. Reserve `nothing` for when no option could be tested at "
+    "all, not for when you are uncertain whether it will succeed.\n\n"
+    "You do not choose the costs, the universe or the window; those belong to "
+    "the desk."
 )
+"""What the seat is, said plainly enough that a careful model will sit in it.
+
+The first version said "you are designing a strategy" and nothing else. A real
+model, shown honestly that the data is a fixture and only 2190 bars long,
+answered `nothing` **three times in five** -- and its reasons were sound: it was
+declining to claim an edge on synthetic data too short to support one.
+
+That is the right instinct pointed at the wrong question. The seat does not ask
+for a claim; it asks which design the company should test next, and the answer
+is measured and frequently refuted. Saying so is not coaxing the model into
+compliance, it is telling it the truth about what its answer will be used for --
+and the abstention rate went to zero without weakening a single guard.
+"""
 
 WEAKNESSES: tuple[Choice, ...] = (
     Choice("trending", "a market that keeps going will run over a reversion rule"),

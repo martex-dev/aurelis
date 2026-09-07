@@ -61,6 +61,7 @@ from aurelis.authoring.attempt import (
     CLAIM,
     SPAN_YEARS,
     AuthoringOutcome,
+    caveat_for,
     family_for,
     measure_attempt,
     run_authoring,
@@ -137,6 +138,7 @@ class CampaignOutcome:
     refusals: tuple[str, ...]
     selection: SelectionCheck
     trials_in_family: int
+    caveat: str = CAVEAT
 
     @property
     def best(self) -> AuthoringOutcome | None:
@@ -183,7 +185,7 @@ class CampaignOutcome:
             "selection": self.selection.as_payload(),
             "trials_in_family": self.trials_in_family,
             "beat_baselines": self.beat_baselines,
-            "caveat": CAVEAT,
+            "caveat": self.caveat,
         }
 
 
@@ -280,6 +282,12 @@ def run_campaign(
                     bars=bars,
                     power=power,
                     interval=interval,
+                    history={
+                        outcome.authored.design.describe(): (
+                            f"sharpe {outcome.sharpe}"
+                        )
+                        for outcome in attempts
+                    },
                     at=moment,
                 )
             )
@@ -313,6 +321,7 @@ def run_campaign(
         refusals=tuple(refusals),
         selection=selection,
         trials_in_family=trials,
+        caveat=caveat_for(runtime.provider.name),
     )
     _close(runtime, outcome, at=moment)
     return outcome
@@ -328,9 +337,15 @@ def _revise(
     bars: int,
     power: Any,
     interval: str,
+    history: dict[str, str],
     at: dt.datetime,
 ) -> AuthoringOutcome:
-    """Ask the agent to change one thing, and measure what it changed it to."""
+    """Ask the agent to change one thing, and measure what it changed it to.
+
+    Refuses a design the campaign has already measured. Re-testing a known
+    number costs a declared cell and returns nothing, and a budget spent that
+    way is a budget the correction still charges for.
+    """
     authored = previous.authored
     base = _structural(
         authored, bars=bars, interval=interval, task_ref=previous.task_ref
@@ -342,6 +357,7 @@ def _revise(
         baselines={base.kind: str(base.total_return) for base in previous.baselines},
         attempt=attempt,
         budget=budget,
+        already_tried=history,
     )
 
     with runtime.database.session() as session:
@@ -369,6 +385,15 @@ def _revise(
             task_ref=previous.task_ref,
         )
         design = revised(authored.design, slot.name, what)
+        if design.describe() in history:
+            raise AuthoringRefused(
+                "which_slot",
+                ValueError(
+                    f"the agent revised back onto {design.describe()}, which "
+                    "this campaign has already measured. Re-testing a known "
+                    "number costs a declared cell and returns nothing"
+                ),
+            )
         revision = author.revise(
             session,
             previous=authored,
@@ -471,7 +496,7 @@ def _close(runtime: Any, outcome: CampaignOutcome, *, at: dt.datetime) -> None:
                 "surplus": str(outcome.selection.surplus),
                 "survives_selection": outcome.selection.survives,
                 "beat_baselines": outcome.beat_baselines,
-                "caveat": CAVEAT,
+                "caveat": outcome.caveat,
             },
             at=at,
         )

@@ -335,12 +335,14 @@ def training_seat(
     the same twelve worlds as the playbook it would replace.
     """
     from aurelis.core.config import load_settings
-    from aurelis.platform.llm.providers import MockProvider
+    from aurelis.platform.llm.seating import seat_provider
     from aurelis.training.seating import run_seating
     from aurelis.training.standin import scripted_critic
 
     settings = load_settings(home=workspace) if workspace else load_settings()
-    runtime = Runtime.build(settings, provider=MockProvider(responder=scripted_critic))
+    runtime = Runtime.build(
+        settings, provider=seat_provider(settings, scripted_critic)
+    )
     try:
         runtime.initialise()
         runtime.staff()

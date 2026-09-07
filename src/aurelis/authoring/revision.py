@@ -141,6 +141,7 @@ def revision_material(
     baselines: dict[str, str],
     attempt: int,
     budget: int,
+    already_tried: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """The structural material, plus what the previous attempt measured.
 
@@ -148,11 +149,19 @@ def revision_material(
     knowing how many attempts remain would be optimising a sequence it cannot
     see the end of, which is a different task from the one the campaign
     declared.
+
+    ``already_tried`` is the campaign's whole history, not just the last step,
+    and it was added because a real model needed it. Shown only the previous
+    attempt and told it had done worse, the model reverted -- correctly, and
+    straight onto a design the campaign had already measured, spending a
+    declared cell to re-learn a number it had been told. An agent cannot avoid
+    repeating itself if it is not shown what it has done.
     """
     added = {
         "your_previous_design": design.as_payload(),
         "what_it_measured": dict(metrics),
         "what_doing_nothing_measured": dict(baselines),
+        "designs_already_measured": dict(already_tried or {}),
         # Not "budget". The structural material already has a section by that
         # name -- the research budget, in bars -- and this one silently
         # replaced it, so a revising agent could not see how much data it had.

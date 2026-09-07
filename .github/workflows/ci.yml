@@ -117,6 +117,12 @@ jobs:
           aurelis model routes
           aurelis model tiers
           aurelis model check -w "$workspace"
+          # Conformance: can a seat's answers actually be used? Offline this
+          # runs the stand-in, which is exactly the baseline a real model gets
+          # compared against -- and the first real model scored 0/5 where the
+          # stand-in scores 5/5.
+          aurelis model rehearse -w "$workspace" --seat author --samples 3
+          aurelis model rehearse -w "$workspace" --seat critic --samples 3
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"

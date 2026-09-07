@@ -711,6 +711,68 @@ See [ADR-0018](adr/0018-the-charter-decides-which-model-answers.md).
 
 ---
 
+## M18 — The seats meet a real model ✅
+
+M17 routed the charter's tier to a real model. The subscription was signed in,
+and for the first time something other than a scripted stand-in sat in one of
+this company's seats.
+
+**The first five samples produced zero usable answers.**
+
+```
+0: ABSTAINED   "fixture data rather than live market data ... too short"
+1: UNSOURCED   cited 91    (three months, derived from 2190 hourly bars)
+2: ABSTAINED   "neither the sample nor the live data to support a claim"
+3: ABSTAINED   "2190 bars ... about 3 months ... there is neither the ..."
+4: UNSOURCED   cited 0.25  (2190 out of 8760, derived)
+```
+
+Neither failure was the model behaving badly. **It abstained because our own
+honesty told it to** — the material truthfully says the data is a fixture and
+only 2190 bars, and a careful model declines to claim an edge on that. **It
+derived because the instruction invited it** — "cite only figures shown above"
+reads as *reason only from these*, so it wrote `0.40%` for the 40 bps it was
+shown.
+
+Both were fixed by saying what was meant, and **no guard was widened**:
+
+- `FIGURE_RULE` states the rule exactly — numbers must appear as written, no
+  conversions, no ratios — and is appended wherever the guard applies.
+- The authoring prompt now says what the seat is: choosing a design is *not* a
+  claim that it works; the data may be short or synthetic and that is a fact
+  about the experiment, not a reason to decline.
+- `platform/llm/rehearsal.py` makes conformance a number rather than an
+  impression: `aurelis model rehearse --seat author|critic`.
+
+Both seats afterwards: **5/5 usable**.
+
+### What a real model then did
+
+Reasoning only from the cost and the bar count, with no access to any result, it
+picked momentum / three-day lookback / half-percent threshold / long-only — the
+**highest-Sharpe design of all 72** — and beat buy-and-hold, 0.233 against
+0.152.
+
+That was one sample. A later campaign from the same model took the rotation
+branch and all four attempts were negative. The correction is unmoved either
+way: 0.0274 against an expected best of 0.0516 for a search that wide.
+
+### Three things that only broke once a model was real
+
+- Every report kept printing "the designer behind this seat is a deterministic
+  stand-in" **while a real model answered**. The caveat is now resolved from
+  the provider and carried on the outcome.
+- A revision **reverted onto a design already measured** — correctly, having
+  been told its change did worse, but spending a declared cell to re-learn a
+  known number. Revisions now see the campaign's whole history, and an exact
+  repeat is refused.
+- Running out of subscription allowance arrived as a traceback. It now reads as
+  a sentence that says when the limit resets.
+
+See [ADR-0019](adr/0019-the-seats-meet-a-real-model.md).
+
+---
+
 ## Sequencing
 
 ```

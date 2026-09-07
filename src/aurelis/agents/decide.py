@@ -52,6 +52,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from aurelis.agents.interpret import (
+    FIGURE_RULE,
     allowed_figures,
     render_material,
     unsourced_numerals,
@@ -137,7 +138,8 @@ class Question:
             f"{how}, or `{NOTHING}`. Reply in exactly this form and nothing "
             "else:\n"
             "ANSWER: <option keys>\n"
-            "BECAUSE: <one or two sentences, citing only figures shown above>"
+            "BECAUSE: <one or two sentences>\n\n"
+            f"{FIGURE_RULE}"
         )
 
 

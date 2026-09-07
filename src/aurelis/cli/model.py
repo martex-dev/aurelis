@@ -244,3 +244,143 @@ def model_check(
             "this is a wiring problem rather than an availability one."
         )
         raise typer.Exit(code=1)
+
+
+@model_app.command("rehearse")
+def model_rehearse(
+    workspace: WorkspaceOption = None,
+    seat: Annotated[str, typer.Option(help="Which seat: author or critic.")] = "author",
+    samples: Annotated[int, typer.Option(help="How many answers to sample.")] = 5,
+    tier: Annotated[str, typer.Option(help="Tier to route at.")] = "high",
+    yes: Annotated[
+        bool, typer.Option("--yes", help="Make the calls without confirming.")
+    ] = False,
+) -> None:
+    """Ask a seat's question several times and classify every answer.
+
+    A guard that silently rejects most of what a model says is worse than no
+    guard: the seat looks occupied and produces nothing, and the only symptom
+    is a command that fails. This turns that into a number.
+
+    The first time a real model sat in the authoring seat it produced zero
+    usable answers in five — three abstentions and two justifications citing
+    figures it had derived rather than been shown. Both were fixed by saying
+    what was meant, and this is how that was checked.
+    """
+    from aurelis.authoring.author import SYSTEM as AUTHOR_SYSTEM
+    from aurelis.authoring.author import Citations, material_for
+    from aurelis.authoring.design import question_for, slots_for
+    from aurelis.authoring.standin import scripted_author
+    from aurelis.core.config import load_settings
+    from aurelis.meetings.types import ObjectionType
+    from aurelis.platform.llm.rehearsal import rehearse
+    from aurelis.platform.llm.seating import seat_provider
+    from aurelis.training.critic import CRITIC_SYSTEM, critique_question
+    from aurelis.training.standin import scripted_critic
+
+    settings = load_settings(home=workspace) if workspace else load_settings()
+    responder = scripted_author if seat == "author" else scripted_critic
+    # Offline, rehearse the stand-in rather than the bare mock. A mock that
+    # echoes its input scores zero for three, which is true and useless: it
+    # measures the echo, not the seat. The stand-in is the baseline a real
+    # model is compared against, and it is what CI should be reporting.
+    provider = seat_provider(settings, responder) or raw_provider(settings.provider)
+    state = provider.availability()
+    console.print(f"[bold]provider[/bold]  {settings.provider}")
+    if not state.available:
+        console.print(f"[red]Not available.[/red] {escape(state.detail)}")
+        raise typer.Exit(code=1)
+
+    if seat == "author":
+        question = question_for(slots_for(None)[0])
+        material = material_for(
+            "crypto", bars=2190, citations=Citations(task_ref="TSK-0001")
+        )
+        system = AUTHOR_SYSTEM
+    elif seat == "critic":
+        question = critique_question((ObjectionType.SURVIVORSHIP,))
+        # The shape AgentCritic actually builds, key for key. A hand-made
+        # approximation rehearsed the prompt rather than the seat: the section
+        # names differed, the stand-in found no headline metric, and it
+        # abstained three times out of three on evidence that plainly shows a
+        # defect. A rehearsal of something the company never sends measures
+        # nothing.
+        material = {
+            "the_specification": {
+                "signal": "rotation",
+                "lookback": 12,
+                "universe_basis": "survivors_only",
+                "bars": 400,
+                "round_trip_cost_bps": "40",
+            },
+            "as_reported": {
+                "sharpe": "0.42",
+                "note": (
+                    "this is one draw of history, which is all a researcher "
+                    "ever has"
+                ),
+            },
+            "mechanical_tests": {
+                "survivorship": (
+                    "varied run sharpe = 0.11; change against the original = "
+                    "0.31; this is a corrective test (the varied run is the "
+                    "truer one)"
+                )
+            },
+        }
+        system = CRITIC_SYSTEM
+    else:
+        console.print(f"[red]Unknown seat {seat!r}.[/red] Choose author or critic.")
+        raise typer.Exit(code=1)
+
+    if settings.provider != "mock" and not yes:
+        console.print(
+            f"\n[yellow]This makes {samples} real calls.[/yellow] Re-run with "
+            "--yes to proceed."
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        result = rehearse(
+            provider,
+            question=question,
+            material=material,
+            system=system,
+            tier=ModelTier(tier),
+            samples=samples,
+        )
+    except ProviderUnavailable as error:
+        # The same treatment `model check` gives it. A rehearsal that runs out
+        # of allowance halfway through has not found anything about the seat,
+        # and saying so is more useful than a partial rate nobody can compare.
+        console.print(f"\n[red]The rehearsal stopped.[/red] {escape(str(error))}")
+        raise typer.Exit(code=1) from None
+
+    table = Table(title=f"the {seat} seat, {result.model} at {result.tier.value}")
+    for column in ("#", "outcome", "chose", "detail"):
+        table.add_column(column, overflow="fold")
+    for index, sample in enumerate(result.samples, 1):
+        tone = "green" if sample.outcome == "usable" else "yellow"
+        table.add_row(
+            str(index),
+            f"[{tone}]{sample.outcome}[/{tone}]",
+            ", ".join(sample.chosen) or "—",
+            escape(sample.detail[:120]),
+        )
+    console.print(table)
+
+    console.print()
+    console.print(f"[bold]{result.describe()}[/bold]")
+    if result.choices:
+        spread = ", ".join(f"{k}={v}" for k, v in sorted(result.choices.items()))
+        console.print(f"what it picked: {spread}")
+        if len(result.choices) == 1 and result.total > 1:
+            console.print(
+                "[dim]One answer every time. Conforming, but it has not decided "
+                "anything the software could not have.[/dim]"
+            )
+    console.print(
+        "\n[dim]Conformance measures whether an answer can be used, not whether "
+        "it is right. Whether it is right is what the scenario suite and the "
+        "selection correction are for.[/dim]"
+    )

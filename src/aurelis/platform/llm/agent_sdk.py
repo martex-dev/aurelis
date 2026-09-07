@@ -137,4 +137,13 @@ def _translate(error: Exception) -> Exception:
             "the Claude Code process this SDK spawns is not logged in. Run "
             "`claude` and sign in, then try again. Nothing was spent."
         )
+    if "session limit" in detail or "usage limit" in detail:
+        # The scarce resource on a subscription is allowance, and running out
+        # of it is an ordinary operating state -- the company will meet it far
+        # more often than it meets a bug. It says when the limit resets,
+        # because "try later" without a time is advice nobody can act on.
+        return ProviderUnavailable(
+            f"the subscription allowance is exhausted: {detail.strip()}. Work "
+            "already recorded is unaffected; rerun after it resets."
+        )
     return ProviderUnavailable(f"the Claude Agent SDK could not complete the call: {detail}")
