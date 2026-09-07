@@ -345,7 +345,12 @@ def _revise(
     )
 
     with runtime.database.session() as session:
-        author = StrategyAuthor(runtime.provider, runtime.synthesis, clock=runtime.clock)
+        author = StrategyAuthor(
+            runtime.provider,
+            runtime.synthesis,
+            clock=runtime.clock,
+            tier=runtime.roster.get(session, authored.agent_ref).authority.tier,
+        )
         which = author.ask_one(
             session,
             agent_ref=authored.agent_ref,

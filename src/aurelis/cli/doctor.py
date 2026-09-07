@@ -30,6 +30,7 @@ from aurelis.authoring.invariants import (
     AUTHORING_TRIGGERS,
     verify_authoring_invariants,
 )
+from aurelis.core.enums import ModelTier
 from aurelis.core.errors import AurelisError
 from aurelis.org import CHARTERS, DESKS
 from aurelis.org.desks import DeskStatus
@@ -39,6 +40,7 @@ from aurelis.platform.db.tables import Base
 from aurelis.platform.db.triggers import expected_trigger_names, verify_invariants
 from aurelis.platform.llm.factory import raw_provider
 from aurelis.platform.llm.pricing import PRICE_TABLE_VERSION
+from aurelis.platform.llm.routing import NoModelForTier, model_for
 from aurelis.research.triggers import (
     expected_research_trigger_names,
     verify_research_invariants,
@@ -297,6 +299,7 @@ def _check_database(runtime: Runtime) -> list[Check]:
             ),
         )
     )
+    checks.append(_routing_check(runtime))
     with runtime.database.engine.connect() as connection:
         absent_search = verify_authoring_invariants(connection)
     checks.append(
@@ -452,3 +455,33 @@ def run_checks(runtime: Runtime) -> list[Check]:
         *_check_provider(runtime),
         *_check_engines(),
     ]
+
+
+def _routing_check(runtime: Runtime) -> Check:
+    """Can the configured provider answer at every tier the company uses?
+
+    Worth a check rather than a crash at the call site. A provider missing a
+    rung fails at the first piece of work that needs it, and the tiers are
+    unevenly used -- HIGH is seven charters, so the gap could sit unnoticed
+    until the first Board meeting, which is the worst possible time to find it.
+    """
+    provider = runtime.provider.name
+    missing: list[str] = []
+    reached: list[str] = []
+    for tier in (ModelTier.LOW, ModelTier.MID, ModelTier.HIGH):
+        try:
+            reached.append(f"{tier.value}={model_for(provider, tier)}")
+        except NoModelForTier as error:
+            missing.append(f"{tier.value}: {error}")
+    return Check(
+        "models",
+        "tier routing",
+        Status.OK if not missing else Status.PROBLEM,
+        f"{provider} — " + ("; ".join(reached) if not missing else "; ".join(missing))
+        + (
+            ""
+            if missing
+            else ". NONE is refused rather than routed: that tier means the work "
+            "is deterministic"
+        ),
+    )

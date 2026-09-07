@@ -111,6 +111,12 @@ jobs:
           # first design exists, then the best result corrected for how wide
           # the search was. It beats buy-and-hold and still does not survive.
           aurelis strategy campaign -w "$workspace" --budget 3
+          # Model routing. The tier every charter declares now picks a real
+          # model; offline that is still the mock, and `model check` proves the
+          # whole path end to end without credentials.
+          aurelis model routes
+          aurelis model tiers
+          aurelis model check -w "$workspace"
           # The company staffs its seven desks on measured evidence, through
           # the same org-change lifecycle it uses for everything else.
           aurelis orgdev scale -w "$workspace"

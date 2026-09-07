@@ -21,6 +21,7 @@ from typing import Protocol, runtime_checkable
 
 from aurelis.core.errors import ProviderUnavailable
 from aurelis.platform.llm.pricing import usd_for
+from aurelis.platform.llm.routing import MOCK_MODEL
 from aurelis.platform.llm.types import LlmRequest, LlmResponse, Usage
 
 __all__ = ["Availability", "MockProvider", "ModelProvider"]
@@ -78,7 +79,7 @@ class MockProvider:
         *,
         responder: Callable[[LlmRequest], str] | None = None,
         scripted: list[str] | None = None,
-        model_id: str = "mock-1",
+        model_id: str = MOCK_MODEL,
     ) -> None:
         self._responder = responder
         self._script: deque[str] = deque(scripted or [])

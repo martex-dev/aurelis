@@ -58,6 +58,7 @@ from aurelis.agents.interpret import (
 )
 from aurelis.core.enums import ModelTier
 from aurelis.platform.budget.ledger import Spend
+from aurelis.platform.llm.routing import model_for
 from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
 
 __all__ = [
@@ -213,7 +214,7 @@ def decide_as(
     tier: ModelTier = ModelTier.MID,
     max_tokens: int = 300,
     task_ref: str | None = None,
-    model: str = "mock-1",
+    model: str | None = None,
 ) -> Decision:
     """Ask an agent to choose from a closed set, and refuse anything else.
 
@@ -224,11 +225,16 @@ def decide_as(
     the caller, which is what an Agent Behavior Auditor samples for.
     """
     rendered = f"{render_material(material)}\n\n{question.render()}"
+    # The tier decides the model, and the charter decides the tier. Callers
+    # that pass an explicit id are pinning one deliberately; everything else
+    # goes through the router, which is what stopped every call site in the
+    # company from asking a real provider for a model called "mock-1".
+    model_id = model or model_for(provider.name, tier)
     response = provider.complete(
         session,
         LlmRequest(
             model=ModelRef(
-                provider=provider.name, model=model, tier=tier, max_tokens=max_tokens
+                provider=provider.name, model=model_id, tier=tier, max_tokens=max_tokens
             ),
             system=system,
             messages=(Message("user", rendered),),

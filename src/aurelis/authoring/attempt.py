@@ -274,7 +274,8 @@ def run_authoring(
 
     # -------------------------------------------------------- the authoring
     with runtime.database.session() as session:
-        agent_ref = runtime.roster.by_handle(session, agent_handle).ref
+        seated = runtime.roster.by_handle(session, agent_handle)
+        agent_ref = seated.ref
         task = runtime.queue.enqueue(
             session,
             kind="strategy.author",
@@ -291,7 +292,15 @@ def run_authoring(
             task_ref=task_ref,
             failure_ref=failure[0].ref if failure else None,
         )
-        author = StrategyAuthor(runtime.provider, runtime.synthesis, clock=runtime.clock)
+        author = StrategyAuthor(
+            runtime.provider,
+            runtime.synthesis,
+            clock=runtime.clock,
+            # The Strategy Architect is a HIGH charter. Designing a strategy
+            # with the model a routine officer uses would be a cost decision
+            # made by a function default.
+            tier=seated.authority.tier,
+        )
         try:
             authored = author.author(
                 session,

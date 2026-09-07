@@ -62,6 +62,7 @@ from aurelis.authoring.design import (
     space_size,
 )
 from aurelis.core.clock import Clock, SystemClock
+from aurelis.core.enums import ModelTier
 from aurelis.desks.calendars import calendar_for
 from aurelis.desks.costs import costs_for
 from aurelis.engines.spec import ExperimentSpec
@@ -314,7 +315,7 @@ def weakness_question() -> Question:
 class StrategyAuthor:
     """Drives an agent through the design space and writes what it chose."""
 
-    __slots__ = ("_provider", "_synthesis", "_clock", "turns")
+    __slots__ = ("_provider", "_synthesis", "_clock", "tier", "turns")
 
     def __init__(
         self,
@@ -322,10 +323,16 @@ class StrategyAuthor:
         synthesis: Synthesis,
         *,
         clock: Clock | None = None,
+        tier: ModelTier = ModelTier.MID,
     ) -> None:
         self._provider = provider
         self._synthesis = synthesis
         self._clock = clock or SystemClock()
+        self.tier = tier
+        """Which model answers. The **agent's own** tier, resolved from the
+        charters it covers, passed in by whoever seated it -- not a default
+        chosen by this signature. A Strategy Architect is a HIGH charter and
+        should not design with the model a source-reliability officer uses."""
         self.turns: list[AuthorTurn] = []
 
     # ------------------------------------------------------------- asking
@@ -348,6 +355,7 @@ class StrategyAuthor:
                 question=question,
                 material=material,
                 system=SYSTEM,
+                tier=self.tier,
                 task_ref=task_ref,
             )
         except (UnsourcedFigures, ValueError) as error:

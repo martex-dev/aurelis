@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from aurelis.core.enums import ModelTier
 from aurelis.platform.budget.ledger import Spend
+from aurelis.platform.llm.routing import model_for
 from aurelis.platform.llm.types import LlmRequest, LlmResponse, Message, ModelRef
 
 if TYPE_CHECKING:
@@ -141,7 +142,7 @@ def interpret_as(
     tier: ModelTier = ModelTier.MID,
     max_tokens: int = 400,
     task_ref: str | None = None,
-    model: str = "mock-1",
+    model: str | None = None,
 ) -> Interpretation:
     """Ask the model to interpret ``material`` as ``agent_ref``, and refuse
     anything else.
@@ -155,11 +156,12 @@ def interpret_as(
     reason is recorded against the agent, which is the outcome an Agent
     Behavior Auditor needs to be able to sample for.
     """
+    chosen = model or model_for(provider.name, tier)
     response = provider.complete(
         session,
         LlmRequest(
             model=ModelRef(
-                provider=provider.name, model=model, tier=tier, max_tokens=max_tokens
+                provider=provider.name, model=chosen, tier=tier, max_tokens=max_tokens
             ),
             system=system,
             messages=(Message("user", render_material(material)),),
@@ -180,18 +182,31 @@ def interpret(
     *,
     system: str,
     material: dict[str, Any],
-    tier: ModelTier = ModelTier.MID,
+    tier: ModelTier | None = None,
     max_tokens: int = 400,
 ) -> Interpretation:
-    """:func:`interpret_as`, bound to the agent whose turn is running."""
+    """:func:`interpret_as`, bound to the agent whose turn is running.
+
+    ``tier`` defaults to **the agent's own**, resolved from the charters it
+    covers rather than fixed at MID by this signature. That is the whole point
+    of a charter declaring a tier: a Company Manager and a source-reliability
+    officer should not think with the same model because one function had a
+    default.
+
+    A task may still pin a model id in its payload. That is a deliberate
+    override for a specific piece of work, and it stays -- but the default now
+    goes through the router rather than being the literal string ``mock-1``,
+    which is what a real provider would have been asked for.
+    """
+    pinned = context.task.payload.get("model")
     return interpret_as(
         context.provider,
         context.session,
         agent_ref=context.agent.ref,
         system=system,
         material=material,
-        tier=tier,
+        tier=tier if tier is not None else context.agent.authority.tier,
         max_tokens=max_tokens,
         task_ref=context.task.ref,
-        model=str(context.task.payload.get("model", "mock-1")),
+        model=str(pinned) if pinned else None,
     )

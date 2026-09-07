@@ -89,6 +89,15 @@ class Usage:
 
     tokens_in: int = 0
     tokens_out: int = 0
+    estimated: bool = False
+    """Whether these counts were measured or guessed.
+
+    The subscription provider does not always get a usage report from the SDK
+    and falls back to counting characters. Token budgets bind against these
+    numbers, so a budget enforced on the subscription path is enforced on an
+    approximation -- which is a real limitation and belongs on the value rather
+    than in a docstring somebody has to go and find.
+    """
 
     @property
     def total(self) -> int:

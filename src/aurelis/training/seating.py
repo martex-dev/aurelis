@@ -136,12 +136,17 @@ def run_seating(
     procedure = suite.run(base.restricted_to(specialty))
 
     with runtime.database.session() as session:
-        agent_ref = runtime.roster.by_handle(session, agent_handle).ref
+        seated = runtime.roster.by_handle(session, agent_handle)
+        agent_ref = seated.ref
         critic = AgentCritic(
             runtime.provider,
             session,
             agent_ref=agent_ref,
             specialty=specialty,
+            # Resolved from the charters this agent covers, not chosen here.
+            # `resolve_authority` has computed it since M1; until M17 nothing
+            # downstream used it.
+            tier=seated.authority.tier,
         )
         result = suite.run_agent(critic)
 

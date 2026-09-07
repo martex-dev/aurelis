@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M16 — the search is declared, then subtracted.** M15 authored one
-strategy; M16 gives the agent a budget to revise inside, declared and frozen
-before the first design exists. The campaign found a design that beat holding
-the asset — and the correction for how wide it searched took it away. Nothing
-here is live market data or live trading, and every page says so. · 2026-09-07
+Status: **M17 — the charter decides which model answers.** The tier every
+charter declares now reaches a real model instead of a hard-coded `"mock-1"`.
+The subscription path has been exercised end to end and stops, honestly, at
+*not logged in*. Nothing here is live market data or live trading, and every
+page says so. · 2026-09-07
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -700,6 +700,7 @@ Look around:
 | `aurelis research show HYP-0001` | every metric, its interval, and who computed it |
 | `aurelis research graveyard` | everything killed, and why |
 | `aurelis strategy author` · `strategy campaign` | what the company tried to build, and what survives the search |
+| `aurelis model routes` · `model tiers` | which model each role reaches, and what generalists cost |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -910,7 +911,8 @@ automatically by the company, five milestones in.
 | **M13** ✅ | Scale & hardening | coverage per desk, staffed on evidence, a queue that counts |
 | **M14** ✅ | Agents that decide | a closed answer set, figure-checked, scored by the same gate |
 | **M15** ✅ | Agents that author | 72 designs, the search declared, the result negative |
-| **M16** ✅ | **Budgets and corrections** | revise inside a frozen budget, then pay for the search |
+| **M16** ✅ | Budgets and corrections | revise inside a frozen budget, then pay for the search |
+| **M17** ✅ | **Model routing** | the charter's tier picks the model, and NONE is refused |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

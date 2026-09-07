@@ -132,7 +132,15 @@ class AgentCritic:
     through :class:`~aurelis.training.suite.TrainingSuite` unchanged.
     """
 
-    __slots__ = ("agent_ref", "provider", "session", "specialty", "turns", "errors")
+    __slots__ = (
+        "agent_ref",
+        "provider",
+        "session",
+        "specialty",
+        "tier",
+        "turns",
+        "errors",
+    )
 
     def __init__(
         self,
@@ -141,11 +149,16 @@ class AgentCritic:
         *,
         agent_ref: str,
         specialty: frozenset[ObjectionType],
+        tier: ModelTier = ModelTier.MID,
     ) -> None:
         self.provider = provider
         self.session = session
         self.agent_ref = agent_ref
         self.specialty = specialty
+        self.tier = tier
+        """Which model answers. The agent's own tier, resolved from its
+        charters and passed in by whoever seated it, rather than a constant
+        that happened to be right for the Strategy Critic."""
         self.turns: list[AgentTurn] = []
         self.errors: list[str] = []
 
@@ -195,7 +208,7 @@ class AgentCritic:
                 question=question,
                 material=material,
                 system=CRITIC_SYSTEM,
-                tier=ModelTier.MID,
+                tier=self.tier,
             )
         except (UndecidableAnswer, UnsourcedFigures) as exc:
             # A critique nobody could act on is not a critique. The turn is

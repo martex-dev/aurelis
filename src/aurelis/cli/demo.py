@@ -27,9 +27,10 @@ from decimal import Decimal
 
 import sqlalchemy as sa
 
-from aurelis.core.enums import BudgetPeriod, BudgetScope, EventKind, TaskStatus
+from aurelis.core.enums import BudgetPeriod, BudgetScope, EventKind, ModelTier, TaskStatus
 from aurelis.platform.budget.ledger import BudgetEnvelope, Spend
 from aurelis.platform.db.tables import Artifact
+from aurelis.platform.llm.routing import model_for
 from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
 from aurelis.runtime import COMPANY_SCOPE_ID, Runtime
 
@@ -73,7 +74,15 @@ class DemoResult:
 
 def run_demo(runtime: Runtime, *, rounds: int = 2) -> DemoResult:
     """Run the scripted exchange. Idempotent enough to run repeatedly."""
-    model = ModelRef(provider=runtime.provider.name, model="mock-1", max_tokens=512)
+    # Routed rather than named. A scripted exchange is LOW-tier work, and the
+    # provider decides what LOW means -- which is the difference between this
+    # demo running offline and it asking a real provider for "mock-1".
+    model = ModelRef(
+        provider=runtime.provider.name,
+        model=model_for(runtime.provider.name, ModelTier.LOW),
+        tier=ModelTier.LOW,
+        max_tokens=512,
+    )
     envelope = BudgetEnvelope(company=COMPANY_SCOPE_ID, mission=_MISSION)
     transcript: list[tuple[str, str]] = []
 

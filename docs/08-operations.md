@@ -273,3 +273,12 @@ lists them:
   authored version and does not. The campaign picks its own next revision.
 - **A campaign is one desk over fixture data.** The correction is arithmetic
   about a search, not evidence about a market.
+- **No real model has answered anything yet.** M17 routes the charter's tier to
+  a real model and the subscription path reaches Claude Code, which reports
+  *not logged in*. Sign in with `claude`, then `aurelis model check`. Until
+  that returns text, nothing is known about whether the closed answer sets
+  survive contact with a model.
+- **Token counts on the subscription path are estimates.** The SDK does not
+  always report usage, so the provider counts characters. `Usage.estimated`
+  carries it and `aurelis model check` prints it — a budget enforced there is
+  enforced on an approximation.

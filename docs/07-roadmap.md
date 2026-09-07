@@ -662,6 +662,55 @@ See [ADR-0017](adr/0017-a-search-budget-is-declared-and-then-subtracted.md).
 
 ---
 
+## M17 — The charter decides which model answers ✅
+
+The first of the four milestones toward running the company on a real model.
+
+Every charter declares a `ModelTier`, `resolve_authority` has computed each
+agent's tier since M1, and the price table knows which model belongs to which
+tier. **None of it reached a model.** Every call site passed the literal string
+`"mock-1"`, so pointing the runtime at a real provider would have asked
+Anthropic for a model by that name.
+
+- `platform/llm/routing.py` — provider x tier -> model id, with `NONE` refused
+  and every routed model checked against the price table at import.
+- The seats pass **the agent's own tier**, resolved from its charters, rather
+  than a default chosen by a function signature.
+- `aurelis model routes` / `tiers` / `check` — the table, the consequence, and
+  the one command in the repository that reaches a provider.
+
+### What routing made visible
+
+```
+76 charters      none=7  low=14  mid=48  high=7
+17 agents        6 route HIGH because they hold one HIGH charter
+
+25 charters are held by an agent that routes above the tier they were
+   written for. AUDIT spans low, mid and high, so its cheapest work
+   bills at fifteen times the rate that work needs.
+ 7 charters are NONE tier, all held by GOV: work that should call no
+   model at all.
+```
+
+Not an argument against generalists — a **measurable** cost of them. Fission
+(M11) moves a charter to its own agent, and after a split the low-tier work
+routes low. The next fission proposal can cite a number rather than an
+intuition.
+
+### The subscription path, exercised for the first time
+
+`claude-agent-sdk` installs, the provider reports available, the request is
+built and dispatched, and Claude Code answers **Not logged in**. The wiring is
+real; the authentication is the operator's. Three things changed because of it:
+the SDK's errors are translated into `ProviderUnavailable` with a sentence
+instead of a forty-frame traceback; `availability()` stopped claiming a login
+it had not checked; and `Usage.estimated` now says whether token counts were
+measured or guessed, because budgets bind against them.
+
+See [ADR-0018](adr/0018-the-charter-decides-which-model-answers.md).
+
+---
+
 ## Sequencing
 
 ```
