@@ -145,6 +145,11 @@ class EventKind(StrEnum):
     """An agent wrote a piece of a strategy, with a cited origin. The event
     the company's claim to have *created* an edge rests on."""
 
+    MANDATE_ASSESSED = "gov.mandate_assessed"
+    """The company measured itself against the conditions it must meet before
+    asking a human for a live account. Carries the standard digest, so a bar
+    lowered after it was missed cannot be lowered quietly."""
+
     CAMPAIGN_OPENED = "strategy.campaign_opened"
     """A search budget was declared and hashed before any design existed. The
     event the campaign correction is entitled to be computed against."""

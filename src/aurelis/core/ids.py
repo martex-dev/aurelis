@@ -98,6 +98,11 @@ class RefKind(StrEnum):
     """An experiment on the company's own shape, run over the scenario suite.
     Distinct from EXP-, which is an experiment about a market."""
 
+    MANDATE = "MDT"
+    """One time the company checked itself against the standard it must meet
+    before asking to trade real money. Its own prefix because the refusals
+    outnumber the asks and both are permanent."""
+
     CAMPAIGN = "CPN"
     """A declared search budget: how many designs the company let itself try
     before it started trying them. Its own prefix because a campaign outlives

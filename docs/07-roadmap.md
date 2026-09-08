@@ -826,6 +826,63 @@ See [ADR-0020](adr/0020-the-company-pays-for-its-own-shape.md).
 
 ---
 
+## M20 — The company asks, rather than being switched on ✅
+
+The obvious last milestone was a live broker adapter. That is the wrong shape,
+and the person who would have to fund it said so: he wants the agents, when
+they are ready, *to tell him themselves* that they have a strategy worth trying
+and that he should buy a live account.
+
+Building an adapter and switching it on makes the human decide readiness on the
+company's behalf. So M20 is a **standard**, an **assessment**, and an **ask**.
+
+- `mandate/standard.py` — ten conditions declared in advance and hashed, each
+  checked against a row the company already writes. No self-assessment.
+- `mandate/assessment.py` — two verdicts, `ready` or `not_yet`. There is no
+  third: a company that could report "nearly" would report it about everything.
+- Only a `ready` escalates. A `not_yet` is recorded and nobody is interrupted.
+- A database CHECK refuses `ready` while anything declared is unmet.
+
+### The honest first answer
+
+After running everything this company knows how to do:
+
+```
+BLOCKED  live_data           0 of 7 desks on live data; every one is a fixture
+MET      authored            3 strategy designs authored by an agent
+unmet    survived_selection  0 of 1 campaigns cleared the search; surplus -0.0267
+MET      beat_the_baselines  1 of 3 attempts beat holding the asset
+unmet    settled             authored claims: {'underpowered': 3}
+BLOCKED  replicated          no replication has ever been recorded
+MET      reviewed            1 objection raised: 1 upheld
+unmet    risk_cleared        0 risk assessments
+unmet    paper_gap_measured  paper trading never compared against a backtest
+MET      chain_intact        chain verified: 306 events
+
+NOT YET — 4 of 10. Nobody was interrupted.
+```
+
+### Blocked is not the same as unmet
+
+*Unmet* is a research result: go and do better. **Blocked** means no amount of
+research would help, because the machinery to produce the evidence does not
+exist. Two conditions are blocked — no desk has a wired feed, and nothing
+writes a replication record. That turns the standard from a scoreboard into the
+company's own answer to *what to build next*.
+
+### Running it found a bug in it
+
+The first `reviewed` check required no upheld objection anywhere. A fully
+exercised company fails that, because the M5 review ends with a critic correctly
+killing a biased claim — so the criterion read unmet **because the critic had
+worked**. A bar a healthy company can never clear is not a bar. And fixing it
+between two assessments made the next report print, in red, that the standard
+had moved — the guard firing on its own author.
+
+See [ADR-0021](adr/0021-the-company-asks-rather-than-being-switched-on.md).
+
+---
+
 ## Sequencing
 
 ```

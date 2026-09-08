@@ -290,6 +290,14 @@ lists them:
   zero marginal cost. The tier saving is structural and the rate table says what
   it is worth on the metered path; the company does not print a figure it never
   measured.
+- **The company says it is not ready, and names why.** `aurelis mandate assess`
+  checks ten conditions declared in advance. Four are met. Two are *blocked* —
+  no desk has a wired feed, and nothing writes a replication record — and those
+  are the company's own answer to what to build next.
+- **Two conditions have machinery but no operator command.** `risk_cleared` and
+  `paper_gap_measured` are satisfiable — the paper cycle is built and tested —
+  but nothing in the CLI drives it, so an operator cannot produce those rows.
+  A gap in the operator surface, not in the standard.
 - **Token counts on the subscription path are estimates.** The SDK does not
   always report usage, so the provider counts characters. `Usage.estimated`
   carries it and `aurelis model check` prints it — a budget enforced there is

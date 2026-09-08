@@ -130,6 +130,13 @@ jobs:
           # need -- proposed on a reading, hashed before the Board, measured
           # after. It improves by less than it moved, and says so.
           aurelis orgdev retier -w "$workspace"
+          # The last word. The company checks itself against ten conditions it
+          # declared in advance and says not yet -- naming the two that no
+          # amount of research could fix. A run where this said READY on
+          # fixture data would be a bug in the standard.
+          aurelis mandate standard
+          aurelis mandate assess -w "$workspace"
+          aurelis mandate history -w "$workspace"
           aurelis ledger verify -w "$workspace"
           # Chain verification and artifact digests, then a full backup/restore
           # round trip -- a restore that only reports "a file opened" has
