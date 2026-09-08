@@ -58,22 +58,26 @@ def test_the_standard_is_declared_in_advance_and_hashed() -> None:
 def test_the_first_condition_is_the_one_it_cannot_argue_around() -> None:
     """Everything else could be satisfied on fixtures, and satisfying them on
     fixtures would prove the machinery works rather than that a market has an
-    edge in it."""
+    edge in it. So it is asked first."""
     assert STANDARD[0].key == "live_data"
-    assert STANDARD[0].blocked
 
 
-def test_unmeetable_is_distinguished_from_unmet() -> None:
-    """The difference between a to-do list and a result.
+def test_nothing_is_blocked_any_more() -> None:
+    """The difference between a to-do list and a result, and the to-do list is
+    now empty.
 
-    Two conditions cannot be satisfied by any amount of research today: no desk
-    has a wired feed, and nothing writes a replication record.
+    M20 reported two conditions that no amount of research could satisfy: no
+    desk had a wired feed, and nothing wrote a replication record. M21 built
+    both, so every remaining condition is a research result rather than a
+    missing capability -- which is a much harder place for the company to be.
     """
     blocked = {c.key for c in STANDARD if c.blocked}
-    assert blocked == {"live_data", "replicated"}
+    assert blocked == set(), (
+        "a blocked criterion names machinery that does not exist; there is "
+        "none left, so every unmet condition is now the company's own problem"
+    )
     for criterion in STANDARD:
-        if criterion.blocked:
-            assert len(criterion.blocked_by) > 40, "it says what is missing"
+        assert not criterion.blocked_by
 
 
 # ------------------------------------------------------ the honest answer
@@ -84,8 +88,11 @@ def test_a_company_that_has_done_nothing_is_not_ready(company: Runtime) -> None:
     assert outcome.verdict == NOT_YET
     assert not outcome.ready
     assert outcome.escalated_to is None
-    assert len(outcome.blocked) == 2
+    assert not outcome.blocked, "M21 left nothing the company cannot attempt"
     assert len(outcome.findings) == len(STANDARD)
+    assert len(outcome.unmet) > len(outcome.met), (
+        "a fresh company has done nothing, and the standard says so"
+    )
 
 
 def test_a_company_that_has_done_everything_is_still_not_ready(

@@ -25,6 +25,7 @@ import aurelis.intel.briefing  # noqa: F401  -- registers the briefing handler
 import aurelis.research.triage  # noqa: F401  -- registers question and triage
 from aurelis import __version__
 from aurelis.cli.company import agent_app, org_app
+from aurelis.cli.data import data_app
 from aurelis.cli.demo import run_demo
 from aurelis.cli.desk import desk_app
 from aurelis.cli.doctor import Status, run_checks
@@ -66,6 +67,7 @@ app.add_typer(trading_app, name="trading")
 app.add_typer(training_app, name="training")
 app.add_typer(model_app, name="model")
 app.add_typer(mandate_app, name="mandate")
+app.add_typer(data_app, name="data")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

@@ -26,6 +26,7 @@ from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
 from aurelis.desks.opening import Desks
+from aurelis.intel.snapshots import Snapshots
 from aurelis.meetings.chair import Chair
 from aurelis.meetings.forecasts import ForecastScorer
 from aurelis.memory.graph import KnowledgeGraph
@@ -47,6 +48,7 @@ from aurelis.platform.queue.queue import TaskQueue
 from aurelis.platform.scheduler.scheduler import Scheduler
 from aurelis.portfolio.construction import Book
 from aurelis.research.lifecycle import Research
+from aurelis.research.replication import Replications
 from aurelis.research.triggers import install_research_invariants
 from aurelis.risk.authority import Risk
 from aurelis.strategy.gates import Gates
@@ -90,6 +92,8 @@ class Runtime:
     chair: Chair
     forecasts: ForecastScorer
     research: Research
+    replications: Replications
+    snapshots: Snapshots
     synthesis: Synthesis
     gates: Gates
     strategies: Strategies
@@ -152,6 +156,8 @@ class Runtime:
         )
         forecasts = ForecastScorer(ledger, the_clock)
         research = Research(artifacts, ledger, the_clock)
+        replications = Replications(ledger, the_clock)
+        snapshots = Snapshots(ledger, the_clock)
         synthesis = Synthesis(ledger, the_clock)
         gates = Gates(ledger, the_clock)
         strategies = Strategies(gates, ledger, the_clock)
@@ -210,6 +216,8 @@ class Runtime:
             chair=chair,
             forecasts=forecasts,
             research=research,
+            replications=replications,
+            snapshots=snapshots,
             synthesis=synthesis,
             gates=gates,
             strategies=strategies,

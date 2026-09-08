@@ -883,6 +883,67 @@ See [ADR-0021](adr/0021-the-company-asks-rather-than-being-switched-on.md).
 
 ---
 
+## M21 — The two things the mandate said were blocked ✅
+
+M20's standard reported two conditions as *blocked* — unsatisfiable by any
+amount of research, because the machinery did not exist. This is the company
+acting on its own answer.
+
+### Live data is a recording, not a connection
+
+The hard part is not the HTTP call. **An experiment cannot be reproduced
+against a moving endpoint**, and every preregistration here locks a spec whose
+data fingerprint has to still mean something tomorrow. So a fetch is an event
+with a record: vendor, endpoint, window, bar count, and a hash of every bar.
+`SnapshotSource` then serves it through exactly the protocol the fixtures use —
+the engine cannot tell the difference, and must not be able to.
+
+```
+SNP-0001   coinbase   BTC-USD   1h   3000 bars
+           2026-05-06 to 2026-09-08
+           digest c422d457...  verifies
+```
+
+**The company has seen a market.** It does not make the research powered: four
+months of hourly bars against the fifteen years `desks/power` says the claim
+needs.
+
+### A replication must vary something
+
+The `replications` table had existed since M5 with a docstring explaining what
+it was for, and nothing had ever written a row into it. Every engine here is
+deterministic, so a re-run returns the same number and learning that teaches
+nothing — `Variation` is closed (`SEED`, `SHORTER_WINDOW`, `EARLIER_WINDOW`),
+`vary()` never touches the rule, and the criteria are inherited from the lock.
+That is why it costs no error budget.
+
+### Two bugs the first runs found
+
+**Same verdict is not the same as a result surviving.** Three variations of an
+underpowered registration all came back underpowered and every one was recorded
+as `held` — which `memory/confidence.py` counts as evidence, so replications of
+nothing would have accumulated into confidence about nothing.
+`NOTHING_TO_REPLICATE` now exists and is checked first.
+
+**The pagination loop could not stop.** It terminated only on an empty page, so
+a vendor returning overlapping data walked `end` backwards past the epoch until
+`fromtimestamp` raised. The condition is now *progress*, with a floor behind it.
+
+### A result can replicate and still be wrong
+
+The first genuine `HELD` in the system is M5's registration under a seed
+variation — the *survivorship-biased* rotation claim that the M5 review then
+killed on an upheld objection. Replication tests whether a number survives a
+perturbation, not whether the specification that produced it was honest, and
+both records now sit against the same registration.
+
+Nothing is blocked any more: every remaining condition is a research result
+rather than a missing capability.
+
+See [ADR-0022](adr/0022-live-data-is-a-recording-and-a-replication-must-vary.md).
+
+---
+
 ## Sequencing
 
 ```

@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M20 — the company asks, rather than being switched on.** It measures
-itself against ten conditions declared in advance and hashed, and after running
-everything it knows how to do it meets four of them and says *not yet* — naming
-the two that no amount of research could fix. Nothing here is live market data
-or live trading, and every page says so. · 2026-09-08
+Status: **M21 — the company has seen a market.** 3000 hourly BTC-USD bars,
+fetched once and frozen into a hashed snapshot, because an experiment cannot be
+reproduced against a moving endpoint. Both conditions the mandate called
+*blocked* are now built, so every one it still misses is the company's own
+problem. No live trading, and every page says so. · 2026-09-08
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -704,6 +704,8 @@ Look around:
 | `aurelis model check` · `model rehearse` | one real call; and whether a seat's answers are usable at all |
 | `aurelis orgdev retier` | the company splits the agent paying most for a model it did not need |
 | `aurelis mandate standard` · `mandate assess` | what it must show before asking to trade, and whether it can |
+| `aurelis data fetch` · `data snapshots` | the one command that reaches a market, and what it recorded |
+| `aurelis research replicate REG-0001` | re-test a locked result under one declared variation |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -918,7 +920,8 @@ automatically by the company, five milestones in.
 | **M17** ✅ | Model routing | the charter's tier picks the model, and NONE is refused |
 | **M18** ✅ | A real model in the seat | 0/5 usable, then 5/5, with no guard widened |
 | **M19** ✅ | Self-improvement, measured | 25 overtiered charters, six splits, and what it did not fix |
-| **M20** ✅ | **The mandate** | ten hashed conditions, four met, and nobody interrupted |
+| **M20** ✅ | The mandate | ten hashed conditions, four met, and nobody interrupted |
+| **M21** ✅ | **Real data, real replication** | a market recorded and hashed; a variation that must vary |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

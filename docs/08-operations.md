@@ -291,9 +291,17 @@ lists them:
   it is worth on the metered path; the company does not print a figure it never
   measured.
 - **The company says it is not ready, and names why.** `aurelis mandate assess`
-  checks ten conditions declared in advance. Four are met. Two are *blocked* —
-  no desk has a wired feed, and nothing writes a replication record — and those
-  are the company's own answer to what to build next.
+  checks ten conditions declared in advance. Nothing is *blocked* any more:
+  every condition it misses is a research result rather than a missing
+  capability.
+- **Real market data enters through `aurelis data fetch --yes`.** It is the one
+  command in the repository that reaches a market — public, unauthenticated,
+  and it asks before it goes. What it stores is a hashed recording, not a
+  connection: research runs against the snapshot, because an experiment cannot
+  be reproduced against a moving endpoint. `aurelis data snapshots` shows what
+  is held and whether each still verifies.
+- **Real data does not make the research powered.** Four months of hourly bars
+  against the fifteen years the power calculation says the claim needs.
 - **Two conditions have machinery but no operator command.** `risk_cleared` and
   `paper_gap_measured` are satisfiable — the paper cycle is built and tested —
   but nothing in the CLI drives it, so an operator cannot produce those rows.

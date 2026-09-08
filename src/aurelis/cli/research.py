@@ -440,3 +440,63 @@ def research_defects() -> None:
         "specification under review. The prose is the critic's; the arithmetic "
         "is not.[/dim]"
     )
+
+
+@research_app.command("replicate")
+def research_replicate(
+    registration: Annotated[str, typer.Argument(help="Registration, e.g. REG-0001.")],
+    workspace: WorkspaceOption = None,
+    variation: Annotated[
+        str, typer.Option(help="seed, shorter_window or earlier_window.")
+    ] = "seed",
+    author: Annotated[str, typer.Option(help="Which agent runs it.")] = "QUANT",
+) -> None:
+    """Re-test a locked registration under one declared variation.
+
+    A replication is not a re-run: every engine here is deterministic, so
+    running the identical specification again returns the identical number and
+    learning that is not evidence about a market. Something must vary, the
+    variation comes from a closed set, and the criteria are inherited from the
+    lock rather than chosen afterwards — which is why it costs no error budget.
+    """
+    from aurelis.research.replication import Variation
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        with runtime.database.session() as session:
+            who = runtime.roster.by_handle(session, author).ref
+            report = runtime.replications.replicate(
+                session,
+                registration_ref=registration,
+                variation=Variation(variation),
+                author=who,
+            )
+    finally:
+        runtime.close()
+
+    tone = {
+        "held": "green",
+        "broke": "red",
+        "underpowered": "yellow",
+        "nothing_to_replicate": "yellow",
+    }[report.outcome.value]
+    console.print()
+    console.print(
+        f"[bold]{report.ref}[/bold]  {report.variation.value}  "
+        f"[{tone}]{report.outcome.value.upper()}[/{tone}]"
+    )
+    console.print(
+        f"{report.original_verdict} -> {report.replicated_verdict}"
+    )
+    console.print(escape(report.detail))
+    if not report.settled_anything:
+        console.print(
+            "\n[yellow]Nothing was replicated.[/yellow] The original never "
+            "settled, so there was no result for a variation to hold or break."
+        )
+    console.print(
+        "\n[dim]A replication spends no error budget: it is not a new bet on "
+        "the same data, it asks whether one already-declared result survives a "
+        "declared perturbation.[/dim]"
+    )

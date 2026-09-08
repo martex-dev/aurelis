@@ -92,16 +92,33 @@ class Criterion:
 
 
 def _live_data(session: Session) -> tuple[bool, str]:
+    """Has a real market ever entered the record?
+
+    Checked against ingested snapshots rather than a flag on the desk. A
+    snapshot is a hashed recording of bars that genuinely traded; a boolean on
+    an opening is whatever the code that wrote it believed. The criterion is
+    about the data, so it reads the data.
+    """
     rows = session.execute(
-        sa.text("SELECT desk, data_is_live FROM desk_openings")
+        sa.text(
+            "SELECT ref, source, symbol, bars, digest, fetched_at "
+            "FROM market_snapshots WHERE is_live = 1 "
+            "ORDER BY fetched_at DESC LIMIT 1"
+        )
     ).all()
     if not rows:
-        return False, "no desk has been opened"
-    live = [str(desk) for desk, is_live in rows if is_live]
-    return (
-        bool(live),
-        f"{len(live)} of {len(rows)} desk(s) on live data"
-        + (f": {', '.join(sorted(live))}" if live else "; every one is a fixture"),
+        desks = session.execute(sa.text("SELECT count(*) FROM desk_openings")).scalar_one()
+        return False, (
+            f"no live market snapshot has been ingested; {desks} desk(s) opened, "
+            "every one on a fixture"
+        )
+    ref, source, symbol, bars, dgst, fetched = rows[0]
+    total = session.execute(
+        sa.text("SELECT count(*) FROM market_snapshots WHERE is_live = 1")
+    ).scalar_one()
+    return True, (
+        f"{total} live snapshot(s); newest {ref} — {bars} bar(s) of {symbol} "
+        f"from {source}, digest {str(dgst)[:12]}, fetched {fetched}"
     )
 
 
@@ -245,11 +262,6 @@ STANDARD: tuple[Criterion, ...] = (
         "Every number it holds was computed on a fixture. A recommendation "
         "drawn from synthetic prices is a recommendation about the fixture.",
         _live_data,
-        blocked_by=(
-            "no desk has a wired feed. The sources are named in the desk "
-            "registry and none is connected, so no amount of research can "
-            "satisfy this one."
-        ),
     ),
     Criterion(
         "authored",
@@ -285,11 +297,6 @@ STANDARD: tuple[Criterion, ...] = (
         "One result on one draw of history is one number. A replication that "
         "varied nothing is a re-run.",
         _replicated,
-        blocked_by=(
-            "the replications table has no writer. The record shape exists and "
-            "no code path fills it, so this cannot be satisfied by running "
-            "anything the company currently knows how to run."
-        ),
     ),
     Criterion(
         "reviewed",

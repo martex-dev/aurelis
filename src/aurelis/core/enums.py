@@ -145,6 +145,11 @@ class EventKind(StrEnum):
     """An agent wrote a piece of a strategy, with a cited origin. The event
     the company's claim to have *created* an edge rests on."""
 
+    MARKET_SNAPSHOT_INGESTED = "intel.market_snapshot_ingested"
+    """Real market data entered the company. Carries the vendor, the window and
+    the hash of every bar, because an experiment cannot be reproduced against a
+    moving endpoint and the snapshot is what makes it reproducible."""
+
     MANDATE_ASSESSED = "gov.mandate_assessed"
     """The company measured itself against the conditions it must meet before
     asking a human for a live account. Carries the standard digest, so a bar

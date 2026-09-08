@@ -134,6 +134,11 @@ jobs:
           # declared in advance and says not yet -- naming the two that no
           # amount of research could fix. A run where this said READY on
           # fixture data would be a bug in the standard.
+          # A replication under a declared variation. Offline: the fixture is
+          # the source, and the point is that the record gets written at all --
+          # the table existed from M5 with nothing ever filling it.
+          aurelis research replicate REG-0001 -w "$workspace" --variation seed
+          aurelis data snapshots -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

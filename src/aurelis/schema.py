@@ -19,6 +19,7 @@ from aurelis.alerts import tables as _alerts
 from aurelis.authoring import tables as _authoring
 from aurelis.comms import tables as _comms
 from aurelis.desks import tables as _desks
+from aurelis.intel import snapshots as _snapshots
 from aurelis.intel import tables as _intel
 from aurelis.mandate import tables as _mandate
 from aurelis.meetings import tables as _meetings
@@ -44,6 +45,7 @@ TABLE_MODULES = (
     _agents,
     _comms,
     _intel,
+    _snapshots,
     _missions,
     _meetings,
     _research,

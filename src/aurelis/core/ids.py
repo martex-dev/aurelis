@@ -98,6 +98,11 @@ class RefKind(StrEnum):
     """An experiment on the company's own shape, run over the scenario suite.
     Distinct from EXP-, which is an experiment about a market."""
 
+    SNAPSHOT = "SNP"
+    """One recorded fetch of real market data. Its own prefix because every
+    experiment run on it cites it, and a citation has to name something that
+    cannot change."""
+
     MANDATE = "MDT"
     """One time the company checked itself against the standard it must meet
     before asking to trade real money. Its own prefix because the refusals
