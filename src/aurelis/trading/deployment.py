@@ -132,10 +132,13 @@ def deploy(
 ) -> Deployment:
     """Take one authored version as far towards a paper book as it can go.
 
-    Writes the gate criteria first and the evaluations second, in that order,
-    because a criterion chosen after its observation is a description of what
-    happened. Both are ordinary records with a registrar and a timestamp, and
-    the trigger behind them refuses an evaluation that predates its criterion.
+    **Nothing is written until nothing can refuse.** The verdict, the silent
+    gates and the failing gates are all checked first, so a refused deployment
+    leaves the record exactly as it found it. The criteria themselves come from
+    :func:`~aurelis.strategy.gates.default_criteria` — fixed in code, not
+    chosen from the observation — which is what keeps them from being a
+    description of what happened; the write order then keeps the trigger behind
+    them satisfied.
     """
     moment = at or runtime.clock.now()
     version = _version(session, version_ref)
@@ -182,6 +185,39 @@ def deploy(
                 f"its registration came back {verdict}, not confirmed. "
                 "PROMISING is a claim about evidence, and the only evidence "
                 "for this version is the verdict it earned"
+            ),
+            failures=failures,
+        )
+
+    # Everything that can refuse, refuses before anything is written. The
+    # first version walked the strategy up its own state machine and then
+    # asked for a promotion, so a refusal left it stranded at UNDER_REVIEW --
+    # and the next attempt crashed trying to walk it back down to CANDIDATE,
+    # which the machine correctly forbids. CI found it on the first run.
+    if readiness.silent:
+        return Deployment(
+            version_ref,
+            portfolio_ref,
+            weight,
+            readiness,
+            refusal=(
+                f"{len(readiness.silent)} gate(s) have no observable in the "
+                "record: "
+                + ", ".join(item.gate.value for item in readiness.silent)
+                + ". A promotion needs every gate evaluated, and a gate nobody "
+                "can answer cannot be passed"
+            ),
+            failures=failures,
+        )
+    if failures:
+        return Deployment(
+            version_ref,
+            portfolio_ref,
+            weight,
+            readiness,
+            refusal=(
+                f"{len(failures)} gate(s) answered and did not clear their own "
+                "criterion"
             ),
             failures=failures,
         )

@@ -1021,7 +1021,7 @@ takes many deployments, which is exactly why the mean gap is tracked as a
 company competence rather than read off one run — and the command says so under
 the table.
 
-### Six bugs the first runs found
+### Seven bugs the first runs found
 
 **The driver was running a different strategy.** The first walk traded on all
 275 bars where the backtest traded 52 times in 2,100. The intent compared the
@@ -1049,6 +1049,13 @@ to move a paper-trading strategy to `candidate`, which the state machine refuses
 — correctly, and with a traceback at whoever typed the command twice. A version
 already allocated is now reported as already allocated, kept apart from
 "deployed" so a re-run cannot read as a decision.
+
+**A refused deployment left the strategy stranded.** `deploy` walked the
+strategy up its own state machine *before* asking for the promotion, so a
+refusal left it at `under_review` and the next attempt crashed trying to walk it
+back to `candidate`. Found by CI on the first run, because martex-quant is a
+local wheel CI cannot install and gate A is therefore silent there. Now nothing
+is written until nothing can refuse.
 
 **A sourced engine claimed the wrong desk.** `LocalEngine(source=...)` defaults
 its desk to `synthetic`, so the first snapshot-backed run was refused as "local

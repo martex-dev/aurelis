@@ -136,6 +136,20 @@ than bounding it — and `risk_cleared` would have been satisfied by that.
   `PostTrade.company_gap` aggregates across deployments: one run cannot
   separate them.
 
+- **A refused deployment left the strategy stranded.** `deploy` walked the
+  strategy up its own state machine before asking for the promotion, so a
+  refusal stopped it at `under_review` — and the next attempt crashed trying to
+  move it back to `candidate`. **Nothing is written until nothing can refuse**:
+  the verdict, the silent gates and the failing gates are all checked first, and
+  a refused deployment now leaves the record exactly as it found it. Found by
+  CI, which cannot install martex-quant (a local wheel) and therefore sees gate
+  A as silent where a developer machine sees it fail.
+
+- **Gate A prefers a recorded deflation.** If the run already carries a
+  `deflated_sharpe` result the gate cites it and the artifact it came from,
+  rather than recomputing. Two sources of truth for one number drift on the
+  first assumption either of them changes.
+
 - **Deploying twice walked the strategy backwards.** The second call tried to
   move a `paper_trading` strategy to `candidate`; the state machine refused, as
   it should, with a traceback at an operator who typed a command twice. A live

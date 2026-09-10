@@ -277,6 +277,67 @@ def test_the_gates_are_read_from_the_record_and_silence_is_not_zero(
         ), item.source
 
 
+def test_gate_a_prefers_a_recorded_deflation_over_recomputing_one(
+    company: Runtime,
+) -> None:
+    """Two sources of truth for one number drift on the first assumption
+    either of them changes. If the record already holds a deflated Sharpe, the
+    gate cites it — with the artifact it came from — rather than recomputing.
+    """
+    import uuid
+
+    version_ref, _snap = _authored(company)
+    with company.database.session() as session:
+        attempt = session.execute(
+            sa.select(AuthoringAttempt).where(
+                AuthoringAttempt.version_ref == version_ref
+            )
+        ).scalar_one()
+        session.add(
+            Result(
+                result_id=uuid.uuid4(),
+                run_ref=attempt.run_ref,
+                metric="deflated_sharpe",
+                value=Decimal("0.42"),
+                unit="probability",
+                method="martex.probabilistic_sharpe_ratio",
+                artifact_digest="a" * 64,
+                created_at=company.clock.now(),
+            )
+        )
+        session.flush()
+        item = gather(session, version_ref=version_ref).evidence[0]
+
+    assert item.gate is Gate.A_STATISTICAL
+    assert item.value == Decimal("0.42")
+    assert attempt.run_ref in item.source
+    assert "aaaaaaaa" in item.source, "the artifact it was measured in"
+
+
+def test_gate_a_is_silent_where_the_deflation_cannot_be_computed(
+    company: Runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """martex-quant is an optional dependency and CI does not have it, so this
+    is the state gate A is actually in there. It refuses to approximate — a
+    metric that sometimes means one thing and sometimes another is worse than a
+    missing one — so the gate reports silence and the deployment refuses."""
+    from aurelis.engines.protocol import EngineUnavailable
+
+    def _absent(*args: object, **kwargs: object) -> None:
+        raise EngineUnavailable("martex-quant is not installed")
+
+    version_ref, _snap = _authored(company)
+    monkeypatch.setattr(
+        "aurelis.engines.martex.MartexStatistics.deflate", staticmethod(_absent)
+    )
+    with company.database.session() as session:
+        item = gather(session, version_ref=version_ref).evidence[0]
+
+    assert item.gate is Gate.A_STATISTICAL
+    assert item.value is None
+    assert "martex-quant" in item.source
+
+
 def test_a_replication_that_held_moves_the_gate_it_answers(company: Runtime) -> None:
     """The evidence is live, not a snapshot of the moment it was written.
 
@@ -484,6 +545,21 @@ def _record_answers_every_gate(
             split="sealed",
             computed_by="custodian",
             artifact_digest="0" * 64,
+            created_at=company.clock.now(),
+        )
+    )
+    # A recorded deflation, which is the source gate A prefers. Recording it
+    # here also keeps this test off martex-quant, which is an optional local
+    # wheel: without it gate A is silent, and that is asserted separately.
+    session.add(
+        Result(
+            result_id=uuid.uuid4(),
+            run_ref=attempt.run_ref,
+            metric="deflated_sharpe",
+            value=Decimal("0.99"),
+            unit="probability",
+            method="martex.probabilistic_sharpe_ratio",
+            artifact_digest="1" * 64,
             created_at=company.clock.now(),
         )
     )

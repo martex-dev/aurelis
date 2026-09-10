@@ -113,8 +113,11 @@ jobs:
           aurelis strategy campaign -w "$workspace" --budget 3
           # What stands between an authored version and a paper book, read
           # from the record: seven gates, each a number or a silence naming
-          # what is absent. On fixtures gate G is silent (capacity is a claim
-          # about traded volume) and the deployment is refused.
+          # what is absent. Several are silent here -- capacity is a claim
+          # about traded volume and there is no recorded market; the deflated
+          # Sharpe needs martex-quant, which is an optional wheel this job
+          # does not install. A silent gate cannot be passed, so the
+          # deployment is refused and nothing is written.
           aurelis trading readiness -w "$workspace"
           aurelis trading deploy -w "$workspace"
           # And the refusal must bite. Offline there is no recorded market and

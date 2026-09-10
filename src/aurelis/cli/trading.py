@@ -494,9 +494,10 @@ def trading_deploy(
     for failure in outcome.failures:
         console.print(f"  [red]fail[/red] {escape(failure)}")
     console.print(
-        "\n[dim]A refusal here is the promotion machinery working. The gates "
-        "were registered before they were evaluated, and the evidence came "
-        "from the record rather than from this command.[/dim]"
+        "\n[dim]A refusal here is the promotion machinery working, and it "
+        "wrote nothing: no gate registered, no state moved, no allocation "
+        "made. Every number above came from the record rather than from this "
+        "command.[/dim]"
     )
 
 

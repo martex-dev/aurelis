@@ -180,8 +180,31 @@ def _observations(session: Session, attempt: AuthoringAttempt) -> int | None:
 
 
 def _statistical(session: Session, attempt: AuthoringAttempt) -> Evidence:
-    """Gate A: the observed Sharpe deflated by the trials that produced it."""
+    """Gate A: the observed Sharpe deflated by the trials that produced it.
+
+    **A recorded measurement wins.** An engine that produced the run may have
+    attached a deflated Sharpe already, and recomputing it here would be a
+    second source of truth for a number the record holds — the two would drift
+    on the first assumption either of them changed. Only when nothing was
+    recorded is it computed, and only if martex-quant is present: it refuses to
+    approximate, and a metric that sometimes means one thing and sometimes
+    another is worse than a missing one.
+    """
     gate, metric = Gate.A_STATISTICAL, "deflated_sharpe"
+    recorded = session.execute(
+        sa.select(Result.value, Result.artifact_digest, Result.method).where(
+            Result.run_ref == attempt.run_ref, Result.metric == metric
+        )
+    ).first()
+    if recorded is not None:
+        value, digest, method = recorded
+        return Evidence(
+            gate,
+            metric,
+            Decimal(str(value)),
+            f"{attempt.run_ref} measured it: {method or 'engine'}, "
+            f"artifact {digest[:16]}",
+        )
     raw = attempt.metrics.get("sharpe")
     if raw is None:
         return Evidence(
