@@ -43,7 +43,28 @@ from aurelis.research.replication import ReplicationOutcome
 from aurelis.research.tables import Registration, Replication
 from aurelis.strategy.tables import PromotionGate
 
-__all__ = ["AGENDA", "JUDGING_DEPARTMENTS", "Action", "Choice", "choose", "stuck_reasons"]
+__all__ = [
+    "AGENDA",
+    "JUDGING_DEPARTMENTS",
+    "Action",
+    "ActionRefused",
+    "Choice",
+    "choose",
+    "stuck_reasons",
+]
+
+
+class ActionRefused(RuntimeError):
+    """The action ran and the seat refused what came back.
+
+    Distinct from a failure. A failed action is exhausted for the run because
+    retrying it would do the same thing again; a refused judgement is one
+    agent's unusable reply, recorded against that agent, and the next agent
+    may well answer. The first live wake of the service found the difference:
+    one agent cited a rounded figure, the seat refused it, and the loop marked
+    the whole judge action failed and stopped seating the other five.
+    """
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,8 +142,50 @@ def _judges(session: Session) -> list[Any]:
     )
 
 
+def _answered_on_this_material(session: Session, agent_ref: str) -> bool:
+    """Whether the agent's last word on the seat was a refusal or a decline
+    made against the recordings that still stand.
+
+    The seat shows the same material until a new recording exists, and the
+    response cache hands the same reply back to the same prompt -- so seating
+    an agent again before anything has changed is asking the same question and
+    refusing the same answer. An agent whose last judgement event is newer than
+    the newest recording, and was not a seal, waits for the next fetch.
+    """
+    from aurelis.core.enums import EventKind
+    from aurelis.platform.db.tables import Event
+
+    last_word = session.execute(
+        sa.select(Event.kind, Event.seq)
+        .where(
+            Event.actor == agent_ref,
+            Event.kind.in_(
+                [
+                    EventKind.THESIS_SEALED.value,
+                    EventKind.THESIS_DECLINED.value,
+                    EventKind.THESIS_REFUSED.value,
+                ]
+            ),
+        )
+        .order_by(Event.seq.desc())
+        .limit(1)
+    ).first()
+    if last_word is None or last_word[0] == EventKind.THESIS_SEALED.value:
+        return False
+    newest_recording = session.execute(
+        sa.select(sa.func.max(Event.seq)).where(
+            Event.kind == EventKind.MARKET_SNAPSHOT_INGESTED.value
+        )
+    ).scalar()
+    return newest_recording is None or int(last_word[1]) > int(newest_recording)
+
+
 def _seatable(session: Session) -> tuple[list[Any], int, int]:
-    """Agents with an instrument they hold no open view on, and the counts."""
+    """Agents with an instrument they hold no open view on, and the counts.
+
+    An agent whose last reply on the current recordings was refused or
+    declined is not offered the seat again until a newer recording exists.
+    """
     from aurelis.intel.snapshots import MarketSnapshot
     from aurelis.judgement.tables import Thesis
 
@@ -137,7 +200,7 @@ def _seatable(session: Session) -> tuple[list[Any], int, int]:
                 )
             ).scalars()
         )
-        if instruments - held:
+        if instruments - held and not _answered_on_this_material(session, agent.ref):
             seatable.append(agent)
     return seatable, len(instruments), open_views
 
@@ -160,10 +223,12 @@ def _nothing_to_judge(session: Session) -> str:
     if seatable:
         return ""
     return (
-        f"every judging agent holds an open view on every recorded market "
-        f"({open_views} sealed and waiting). A second view on the same "
-        "instrument before the first resolves is the same bet twice. What is "
-        "missing is time and a fresh recording, and the loop fetches nothing"
+        f"every judging agent holds an open view on every recorded market, or "
+        f"was refused or declined on the recordings that stand ({open_views} "
+        "sealed and waiting). A second view on the same instrument before the "
+        "first resolves is the same bet twice, and the same material gets the "
+        "same answer. What is missing is time and a fresh recording, and the "
+        "loop fetches nothing"
     )
 
 

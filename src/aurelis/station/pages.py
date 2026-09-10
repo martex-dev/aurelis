@@ -50,6 +50,7 @@ __all__ = [
     "not_found",
     "research_page",
     "sealed_room_page",
+    "service_page",
     "theses_page",
     "thesis_page",
     "timeline_page",
@@ -878,6 +879,96 @@ def thesis_page(session: Session, ref: str) -> str | None:
         "<p class='mono'>Sealed fields cannot be edited and the row cannot be "
         "deleted; the database refuses. The score is written once, by the "
         "resolver, from the close of the bar that opened at the horizon.</p>"
+    )
+
+
+def service_page(session: Session) -> str:
+    view = proj.service_view(session)
+    grants = _rows(
+        ["ref", "source", "desk", "instruments", "bars", "by", "why", "state"],
+        [
+            [
+                escape_text(g["ref"]),
+                escape_text(g["source"]),
+                escape_text(g["desk"]),
+                escape_text(g["instruments"]),
+                str(g["bars"]),
+                escape_text(g["by"]),
+                escape_text(g["reason"][:120]),
+                "<span class='pill ok'>ACTIVE</span>"
+                if g["active"]
+                else "<span class='pill dim'>REVOKED</span>",
+            ]
+            for g in view.grants
+        ],
+    )
+    wakes = _rows(
+        [
+            "wake",
+            "at",
+            "fetched",
+            "failed",
+            "scored",
+            "pending",
+            "run",
+            "calls",
+            "left",
+            "incidents",
+            "note",
+        ],
+        [
+            [
+                escape_text(w["ref"]),
+                _when(w["at"]),
+                str(w["fetched"]),
+                str(w["fetch_failures"]),
+                str(w["scored"]),
+                str(w["pending"]),
+                escape_text(w["run"]),
+                str(w["calls"]),
+                str(w["left"]),
+                str(w["incidents"]),
+                escape_text(w["note"][:80]),
+            ]
+            for w in view.wakes
+        ],
+    )
+    incidents = _rows(
+        ["ref", "severity", "source", "at", "message", "state"],
+        [
+            [
+                escape_text(i["ref"]),
+                _pill(i["severity"]),
+                escape_text(i["source"]),
+                _when(i["at"]),
+                escape_text(i["message"][:140]),
+                "<span class='pill warn'>OPEN</span>"
+                if i["open"]
+                else "<span class='pill dim'>RESOLVED</span>",
+            ]
+            for i in view.incidents
+        ],
+    )
+    return (
+        "<h1>The Service</h1>"
+        "<p class='mono'>The company running unattended: every wake fetches "
+        "under a grant a person recorded, settles every view a recording "
+        "covers, runs the loop inside a daily model-call budget, and writes "
+        "down what happened. A vendor outage or a model out of allowance is an "
+        "incident here, not a crash. It fetches nothing that is not granted and "
+        "it cannot trade.</p>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("wakes", figure_span(view.wakes_total)),
+                ("last wake", _when(view.last_wake_at)),
+                ("open incidents", figure_span(view.open_incidents)),
+            ]
+        )
+        + "</div>"
+        f"<h2>Grants</h2>{grants}"
+        f"<h2>Wakes</h2>{wakes}"
+        f"<h2>Incidents</h2>{incidents}"
     )
 
 

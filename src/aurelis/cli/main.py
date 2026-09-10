@@ -37,6 +37,7 @@ from aurelis.cli.model import model_app
 from aurelis.cli.orgdev import orgdev_app
 from aurelis.cli.research import research_app
 from aurelis.cli.run import run_app
+from aurelis.cli.service import service_app
 from aurelis.cli.station import station_app
 from aurelis.cli.strategy import strategy_app
 from aurelis.cli.thesis import thesis_app
@@ -72,6 +73,7 @@ app.add_typer(mandate_app, name="mandate")
 app.add_typer(data_app, name="data")
 app.add_typer(run_app, name="run")
 app.add_typer(thesis_app, name="thesis")
+app.add_typer(service_app, name="service")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

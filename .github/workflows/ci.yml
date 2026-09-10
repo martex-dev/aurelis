@@ -210,6 +210,14 @@ jobs:
             echo "the loop placed the same bet twice: $sealed -> $(count_theses)" >&2
             exit 1
           fi
+          # M27: the company runs unattended. A person records a grant once
+          # (offline: a fixture, marked as not a market); one wake fetches
+          # under it, settles what a recording covers, runs the loop inside a
+          # daily model-call budget, and writes a row. The grant cannot be
+          # widened, and the service cannot trade.
+          aurelis service grant -w "$workspace" --source fixture:crypto --instrument BTC/USDT --reason "CI rehearsal of the service"
+          aurelis service start -w "$workspace" --once --calls-per-day 60
+          aurelis service status -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

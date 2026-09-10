@@ -129,6 +129,18 @@ class RefKind(StrEnum):
     because a thesis is cited by its own score, and the wrong ones are cited
     more often than the right ones."""
 
+    GRANT = "GRT"
+    """A standing permission, recorded by a person, for the service to fetch
+    named instruments from a named vendor. Its own prefix because it is the
+    one thing an unattended company may not give itself."""
+
+    SERVICE = "SVC"
+    """One invocation of the service. Its own prefix because a run that woke
+    forty times and one that was interrupted after one are both records."""
+
+    SERVICE_CYCLE = "WAKE"
+    """One wake of the service: what it fetched, settled, did and broke."""
+
     TRAINING_RUN = "TRN"
     """One agent's pass over the training-scenario suite. Its own prefix
     because a scenario score is cited alongside live work and must never be

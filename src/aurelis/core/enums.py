@@ -155,6 +155,24 @@ class EventKind(StrEnum):
     did nothing: a run that decided there was nothing worth doing is the
     outcome the loop exists to be able to reach."""
 
+    DATA_GRANTED = "service.data_granted"
+    """A person recorded which vendor and instruments the service may fetch."""
+
+    DATA_GRANT_REVOKED = "service.data_grant_revoked"
+
+    SERVICE_STARTED = "service.started"
+    SERVICE_WOKE = "service.woke"
+    """One wake: fetched, settled, worked, and what broke. Written every wake
+    including the ones where nothing happened."""
+
+    SERVICE_INCIDENT = "service.incident"
+    """Something broke on an unstaffed workspace, where nobody holds the alert
+    scope. Otherwise an incident is an alert raised by the Operations Director."""
+
+    SERVICE_STOPPED = "service.stopped"
+    """And why. A service that stopped silently is indistinguishable from one
+    that crashed."""
+
     THESIS_SEALED = "judgement.thesis_sealed"
     """An agent stated a view about a market, with a horizon and a confidence,
     and the view was hashed before the outcome existed."""

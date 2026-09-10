@@ -64,6 +64,7 @@ from aurelis.research.tables import (
     Result,
     Run,
 )
+from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.station.figures import Figure, Source
 from aurelis.strategy.tables import Strategy
 from aurelis.training.tables import TrainingRun
@@ -79,6 +80,7 @@ __all__ = [
     "MeetingView",
     "MissionView",
     "RoomStatus",
+    "ServiceView",
     "ThesesView",
     "TimelineEntry",
     "agent_view",
@@ -91,6 +93,7 @@ __all__ = [
     "meeting_view",
     "mission_view",
     "room_statuses",
+    "service_view",
     "theses_view",
     "timeline",
 ]
@@ -1175,6 +1178,89 @@ def theses_view(session: Session, *, now: dt.datetime, limit: int = 200) -> Thes
         fixture=_count(session, Thesis, Thesis.is_live.is_(False), detail="is_live = 0"),
         record=record,
         by_agent=[calibration_over(k, v) for k, v in sorted(by_agent.items())],
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceView:
+    """Is the company running, and what has it broken lately."""
+
+    grants: list[dict[str, Any]]
+    wakes: list[dict[str, Any]]
+    incidents: list[dict[str, Any]]
+    wakes_total: Figure
+    last_wake_at: dt.datetime | None
+    next_due_at: dt.datetime | None
+    open_incidents: Figure
+
+
+def service_view(session: Session, *, limit: int = 40) -> ServiceView:
+    grants = list(session.execute(sa.select(DataGrant).order_by(DataGrant.ref)).scalars())
+    wakes = list(
+        session.execute(
+            sa.select(ServiceCycle).order_by(ServiceCycle.started_at.desc()).limit(limit)
+        ).scalars()
+    )
+    incidents = list(
+        session.execute(
+            sa.select(Alert)
+            .where(Alert.source.like("service.%"))
+            .order_by(Alert.raised_at.desc())
+            .limit(limit)
+        ).scalars()
+    )
+    return ServiceView(
+        grants=[
+            {
+                "ref": g.ref,
+                "source": g.source,
+                "desk": g.desk,
+                "instruments": ", ".join(map(str, g.instruments)),
+                "bars": g.bars,
+                "by": g.granted_by,
+                "reason": g.reason,
+                "active": g.active,
+                "granted_at": g.granted_at,
+            }
+            for g in grants
+        ],
+        wakes=[
+            {
+                "ref": w.ref,
+                "service": w.service_ref,
+                "at": w.started_at,
+                "fetched": len(w.fetched),
+                "fetch_failures": w.fetch_failures,
+                "scored": w.scored,
+                "pending": w.pending,
+                "run": w.run_ref or "—",
+                "calls": w.calls,
+                "left": w.calls_left_today,
+                "incidents": len(w.incidents),
+                "note": w.note,
+            }
+            for w in wakes
+        ],
+        incidents=[
+            {
+                "ref": a.ref,
+                "severity": a.severity,
+                "source": a.source,
+                "message": a.message,
+                "at": a.raised_at,
+                "open": a.resolved_at is None,
+            }
+            for a in incidents
+        ],
+        wakes_total=_count(session, ServiceCycle),
+        last_wake_at=wakes[0].started_at if wakes else None,
+        next_due_at=wakes[0].next_due_at if wakes else None,
+        open_incidents=_count(
+            session,
+            Alert,
+            sa.and_(Alert.source.like("service.%"), Alert.resolved_at.is_(None)),
+            detail="source like service.%, unresolved",
+        ),
     )
 
 

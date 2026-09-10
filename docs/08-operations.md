@@ -162,6 +162,30 @@ Offline, `aurelis data record-fixture` records a desk fixture as a snapshot
 marked as not a market. Views on it are shown and labelled, and never counted
 toward the mandate.
 
+## 4b. Running it for days
+
+```bash
+aurelis service grant -w live --source coinbase --instrument BTC-USD --instrument ETH-USD \
+    --reason "the forward record needs fresh recordings every wake" --by <you> --yes
+aurelis service start -w live --every 1h --for 7d --calls-per-day 200
+aurelis service status -w live
+```
+
+The grant is the one decision a person makes: it names the vendor, the
+instruments, who and why, goes on the ledger, and cannot be widened — only
+revoked (`aurelis service revoke GRT-0001`). The service then wakes on the
+interval: fetch under the grants, settle every view a recording covers, run
+the loop inside what is left of the daily model-call budget, and write a row
+per wake. Ctrl-C stops it and the reason is recorded.
+
+A vendor that is down is a warning alert raised by the Operations Director and
+the wake continues; a model out of allowance is a failed action on the loop's
+record and the next wake retries. `service status` and the station's
+`/service` page show the grants, the wakes and every incident still open.
+
+Runs in a terminal in the foreground; a process manager or a screen session
+keeps it up across a logout. It cannot trade.
+
 ---
 
 ## 5. Running work
@@ -409,9 +433,12 @@ lists them:
   the prompt, which makes them distinguishable and does not make them
   independent. Independence needs different evidence and an adversary, and
   neither is built.
-- **The forward record is empty until a horizon passes.** Six views are sealed
-  on the live workspace; the first five resolve on 2026-09-11 at 19:00Z. Run
-  `aurelis thesis resolve --fetch --yes` after that.
+- **The forward record is empty until a horizon passes.** The live workspace
+  holds sealed views; the first resolve on 2026-09-11 at 19:00Z. A running
+  service settles them on its next wake; otherwise `aurelis thesis resolve
+  --fetch --yes`.
+- **The service wakes on a clock only.** Not on a market event, not on
+  another agent's finding. Those are the next things the brief asks for.
 - **Agents write rules; the menu is gone.** `aurelis strategy author` seats
   an agent to write a rule in the company's rule language (`aurelis.rules`),
   one declared cell per rule. Attempts recorded before M26 hold a menu pick

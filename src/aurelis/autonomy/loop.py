@@ -34,7 +34,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
-from aurelis.autonomy.agenda import Action, choose, stuck_reasons
+from aurelis.autonomy.agenda import Action, ActionRefused, choose, stuck_reasons
 from aurelis.autonomy.tables import AutonomyCycle
 from aurelis.core.enums import Actor, EventKind
 from aurelis.core.ids import uuid7
@@ -69,6 +69,8 @@ class CycleRecord:
         if self.action is None:
             return f"{self.n}. stopped — {self.reason}"
         mark = "moved" if self.moved else "no change"
+        if self.outcome == "refused":
+            mark = "refused"
         return f"{self.n}. {self.action} — {self.outcome}, {mark}: {self.detail[:90]}"
 
 
@@ -148,7 +150,12 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
         prefix = f"{len(scored)} view(s) scored from recordings; " if scored else ""
         if handle is None:
             return prefix + "nobody left to seat"
-        sealed = seat_agent(runtime, agent_handle=handle, at=at)
+        from aurelis.judgement.seat import JudgementRefused
+
+        try:
+            sealed = seat_agent(runtime, agent_handle=handle, at=at)
+        except JudgementRefused as error:
+            raise ActionRefused(prefix + f"{handle} was refused: {error.cause}") from error
         if sealed is None:
             return prefix + f"{handle} declined to state a view"
         return prefix + sealed.describe()
@@ -354,6 +361,14 @@ def run_autonomy(
         try:
             detail = _act(runtime, action, source=source, at=moment)
             outcome = "acted"
+        except ActionRefused as error:
+            # One agent's reply was unusable. That is recorded against the
+            # agent, and the action is not exhausted: the next cycle seats the
+            # next agent. Marking it failed would let one rounded figure stop
+            # the whole company judging for the rest of the run, which is what
+            # the first live wake of the service did.
+            detail = str(error)
+            outcome = "refused"
         except Exception as error:  # noqa: BLE001 - recorded, not swallowed
             # A failed action is a fact about the company, not a crash of the
             # loop, so the run continues. It is also not tried again: the

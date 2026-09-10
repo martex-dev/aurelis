@@ -47,6 +47,7 @@ from aurelis.research.triggers import (
     verify_research_invariants,
 )
 from aurelis.runtime import Runtime
+from aurelis.service.invariants import SERVICE_TRIGGERS, verify_service_invariants
 from aurelis.training.triggers import TRAINING_TRIGGERS, verify_training_invariants
 
 __all__ = ["Check", "Status", "run_checks"]
@@ -332,6 +333,22 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 "could be edited after the outcome, until repaired."
                 if absent_seal
                 else " — a sealed thesis cannot be edited, rescored or deleted"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_grant = verify_service_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "data grants",
+            Status.OK if not absent_grant else Status.PROBLEM,
+            f"{len(SERVICE_TRIGGERS) - len(absent_grant)}/{len(SERVICE_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_grant)}. A standing fetch grant "
+                "could be widened without a person, until repaired."
+                if absent_grant
+                else " — a data grant cannot be widened, only revoked"
             ),
         )
     )

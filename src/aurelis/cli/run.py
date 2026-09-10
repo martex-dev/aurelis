@@ -90,7 +90,9 @@ def run(
         if record.action is None:
             walk.add_row(str(record.n), "—", "stopped", "—", escape(record.reason))
             continue
-        tone = {"acted": "green", "failed": "red"}.get(record.outcome, "yellow")
+        tone = {"acted": "green", "failed": "red", "refused": "yellow"}.get(
+            record.outcome, "yellow"
+        )
         walk.add_row(
             str(record.n),
             record.action,

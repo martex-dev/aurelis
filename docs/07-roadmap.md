@@ -1427,6 +1427,82 @@ See [ADR-0027](adr/0027-a-strategy-is-a-rule-the-agent-wrote.md).
 
 ---
 
+## M27 — The company runs for days, and records what broke ✅
+
+M25 made the evidence forward and M26 made the strategy the agent's own. Both
+accumulate only if something records the market after a horizon passes and
+seats the judges again — and until now that something was a person typing two
+commands. This is the service that does the working day on its own.
+
+### A person grants, once, on the record
+
+`aurelis service grant` records which vendor and which instruments the
+service may fetch: who, when, why, on the ledger, frozen by three triggers
+(nothing but a revocation may change, a revocation is written once, nothing
+is deleted). The autonomy loop still does not fetch; the service fetches only
+under an active grant, and a test reads the source to assert nothing under
+`aurelis/service/` can grant itself one.
+
+### A wake is four steps, and none of them stops the next
+
+Fetch under the grants. Settle every view a recording now covers. Run the
+loop inside what is left of a rolling daily model-call budget. Write one row
+per wake, whatever happened. A vendor that is down is a warning alert raised
+by the Operations Director and the wake continues; a model out of allowance
+is a failed action on the loop's record and the next wake retries.
+
+```
+aurelis service grant --source coinbase --instrument BTC-USD --instrument ETH-USD \
+    --reason "the forward record needs fresh recordings every wake" --by <you> --yes
+aurelis service start --every 1h --for 7d --calls-per-day 200
+aurelis service status
+```
+
+### What two real wakes did
+
+A grant for BTC-USD, ETH-USD and SOL-USD, recorded by the operator. The first
+wake fetched all three, settled nothing (no horizon had passed), and seated
+the judges on the fresh recordings: INTEL sealed a 72-hour view on SOL-USD,
+then LEAD-R cited a rounded figure and was refused — and **the loop marked the
+whole judge action failed and stopped seating the other five.** A refusal is
+one agent's unusable reply, not a failure of the action; it is now recorded
+as `refused`, the next cycle seats the next agent, and an agent whose last
+word on the standing recordings was a refusal or a decline is not asked again
+until a newer recording exists, because the same material gets the same
+cached answer.
+
+The second wake, with the fix, went through all seven:
+
+```
+INTEL    declined
+LEAD-R   refused   cited 101, 101 -- rounded from a close near 100.09
+QUANT    refused   cited 101, -102
+ENG-R    declined
+STRAT    sealed    SOL-USD down over 24h at 0.55
+CRITIC   declined
+VALID    declined
+                   12 model calls, 184 left today, 0 incidents
+```
+
+Eight views now stand on the live workspace, every one of them *down*. The
+first five resolve on 2026-09-11 at 19:00Z; a running service settles them on
+its next wake.
+
+### What this milestone did not do
+
+- The service wakes on a clock only — not on a market event, not on another
+  agent's finding.
+- Four of seven judges declined on the second wake and two were refused for
+  rounding. The seat's figure rule is doing its job and it is expensive; a
+  material that shows fewer decimals would be refused less and would be a
+  different question.
+- Nothing has been scored yet. That is the point of the service, and it is
+  the one thing this milestone cannot demonstrate in the hour it took.
+
+See [ADR-0028](adr/0028-the-service-wakes-under-a-grant-and-records-what-broke.md).
+
+---
+
 ## Sequencing
 
 ```

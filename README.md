@@ -11,17 +11,17 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M26 — the menu is gone; a strategy is a rule the agent wrote.**
-The 72-point design space is deleted. An agent now writes its rule in a small
-closed language the engine runs and the ledger hashes, one declared cell per
-rule, through the same preregistration and selection machinery — which had to
-get stricter the day the menu went, because a positive surplus inside the
-noise had been passing as survival. On 28,000 recorded BTC hours a real model
-wrote three rules the menu could not express; the best returned +99% against
-+152% for holding, and the company reported that the campaign found nothing.
-M25's forward record (views sealed before the outcome, scored after) is
-accumulating; the first resolves 2026-09-11 19:00Z. No live trading, and every
-page says so. · 2026-09-10
+Status: **M27 — the company runs for days, and records what broke.** A
+person records a data grant once, on the ledger, and `aurelis service start`
+then wakes on an interval: fetch under the grant, settle every view a
+recording covers, seat the judges, write a row — with a vendor outage or a
+model out of allowance as an incident on the record, not a crash. Two real
+wakes on a real model seated seven agents; eight views now stand on the live
+workspace, all *down*, the first resolving 2026-09-11 19:00Z. Before it: M26
+deleted the 72-point menu (agents write rules in a closed language; a
+real-model campaign found nothing) and M25 made the evidence forward (views
+sealed before the outcome, scored after). No live trading, and every page
+says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -45,6 +45,7 @@ aurelis strategy author    # an agent writes a rule, and it loses
 aurelis strategy campaign  # it revises inside a budget, and still loses
 aurelis thesis seat        # an agent picks a market and seals a view, in advance
 aurelis thesis calibration # and is measured on what happened
+aurelis service start      # and the company runs on its own, under a grant you recorded
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -938,6 +939,7 @@ automatically by the company, five milestones in.
 | **M24** ✅ | **It runs itself** | the mandate is the work queue, and a search is never repeated |
 | **M25** ✅ | **Judgement, sealed** | views hashed before the outcome, scored after it, calibration as the measure |
 | **M26** ✅ | **The menu is gone** | agents write rules in a closed language; one rule, one cell; the correction demands a margin |
+| **M27** ✅ | **It runs for days** | a grant a person recorded, a wake every interval, and what broke on the record |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

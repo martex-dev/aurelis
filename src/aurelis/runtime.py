@@ -52,6 +52,8 @@ from aurelis.research.lifecycle import Research
 from aurelis.research.replication import Replications
 from aurelis.research.triggers import install_research_invariants
 from aurelis.risk.authority import Risk
+from aurelis.service.grants import Grants
+from aurelis.service.invariants import install_service_invariants
 from aurelis.strategy.gates import Gates
 from aurelis.strategy.lifecycle import Strategies
 from aurelis.strategy.synthesis import Synthesis
@@ -114,6 +116,7 @@ class Runtime:
     orgdev: OrgDevelopment
     org_experiments: OrgExperiments
     worker: AgentWorker
+    grants: Grants
 
     @classmethod
     def build(
@@ -187,6 +190,7 @@ class Runtime:
         desks = Desks(ledger, the_clock)
         handover = Handover(comms, ledger, the_clock)
         orgdev = OrgDevelopment(handover, ledger, the_clock)
+        grants = Grants(ledger, the_clock)
         org_experiments = OrgExperiments(training, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
@@ -238,6 +242,7 @@ class Runtime:
             orgdev=orgdev,
             org_experiments=org_experiments,
             worker=worker,
+            grants=grants,
         )
 
     def initialise(self) -> tuple[str, ...]:
@@ -259,6 +264,7 @@ class Runtime:
                     *install_org_invariants(connection),
                     *install_authoring_invariants(connection),
                     *install_judgement_invariants(connection),
+                    *install_service_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

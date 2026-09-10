@@ -649,6 +649,68 @@ def test_the_loop_seats_judges_until_every_market_has_a_view_then_says_why(
     assert "judge" not in {c.action for c in again.acted}, "the same bet is not placed twice"
 
 
+def test_one_agents_refusal_does_not_stop_the_others_being_seated(
+    settings: Settings, clock: FrozenClock
+) -> None:
+    """The first live wake of the service: one agent cited a rounded figure,
+    the seat refused it, and the loop marked the whole judge action failed and
+    stopped seating the other five. A refusal is one agent's reply."""
+    from aurelis.agents.tables import Agent
+
+    def one_liar(request: LlmRequest) -> str:
+        prompt = request.messages[-1].content
+        if "State your view on" in prompt and request.actor == "AG-0004":
+            return (
+                "HORIZON: 24h\nDIRECTION: up\nCONFIDENCE: 0.8\n"
+                "THESIS: it is at roughly 2467 and rising, which is enough.\n"
+                "WRONG_IF: it stops rising."
+            )
+        return standins()(request)
+
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=one_liar))
+    built.initialise()
+    built.staff()
+    with built.database.session() as session:
+        built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(200)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=200,
+        )
+        judges = session.execute(
+            sa.select(sa.func.count())
+            .select_from(Agent)
+            .where(
+                Agent.department.in_(
+                    ("market_intelligence", "quantitative_research", "strategy_laboratory")
+                )
+            )
+        ).scalar_one()
+    outcome = run_autonomy(built, cycles=judges + 3, calls=(judges + 3) * 2)
+    outcomes = [c.outcome for c in outcome.cycles if c.action == "judge"]
+    assert outcomes.count("refused") == 1, [c.describe() for c in outcome.cycles]
+    assert "failed" not in outcomes
+    assert len(_theses(built)) == judges - 1, "every other judge was seated"
+    assert "refused" in outcome.stuck["calibrated"], "the refusal is part of the stop reason"
+
+    # And the refused agent is not asked again on the same recordings; a new
+    # recording makes it seatable again.
+    again = run_autonomy(built, cycles=4, calls=8)
+    assert "judge" not in {c.action for c in again.acted}
+    with built.database.session() as session:
+        built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(200)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=200,
+        )
+    fresh = run_autonomy(built, cycles=4, calls=8)
+    assert [c.outcome for c in fresh.cycles if c.action == "judge"] == ["refused"]
+    built.close()
+
+
 def test_the_loop_settles_what_a_recording_covers_before_seating_anyone(
     company: Runtime,
 ) -> None:
