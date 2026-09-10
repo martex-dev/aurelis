@@ -11,13 +11,14 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M24 — it decides its own next action, and stops when searching
-harder would only raise the bar.** `aurelis run`: the company asks its own
-mandate what it is missing, acts, and refuses to repeat a search that found
-nothing. On a real model over real BTC it ran a campaign, held a review that
-**refuted a confirmed claim on survivorship**, replicated, and stopped — naming
-a reason for everything it gave up on. No live trading, and every page says
-so. · 2026-09-10
+Status: **M25 — agents pick their own market, state a view, and are scored
+on it.** A judgement cannot be backtested, so the evidence is forward: each
+view is sealed and hashed before the outcome exists, the database refuses to
+change it, and it is scored once when the horizon expires. Seven agents on a
+real model, three fresh recordings: six views sealed, one abstention, and
+every one of them said *down* — one opinion six times, which the record will
+score as six. Nothing is scored until 2026-09-11 19:00Z, and the station says
+so. No live trading, and every page says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -39,6 +40,8 @@ aurelis orgdev scale       # staff the desks, on measured evidence
 aurelis training seat      # an agent in the critic's seat, weighed by the gate
 aurelis strategy author    # an agent designs a strategy, and it loses
 aurelis strategy campaign  # it revises inside a budget, and still loses
+aurelis thesis seat        # an agent picks a market and seals a view, in advance
+aurelis thesis calibration # and is measured on what happened
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -930,6 +933,7 @@ automatically by the company, five milestones in.
 | **M22** ✅ | The gates get read | seven observables from the record, and a silence that is not a zero |
 | **M23** ✅ | A real model, a real market | it ran, it found nothing, and the seat had been reading the answer key |
 | **M24** ✅ | **It runs itself** | the mandate is the work queue, and a search is never repeated |
+| **M25** ✅ | **Judgement, sealed** | views hashed before the outcome, scored after it, calibration as the measure |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

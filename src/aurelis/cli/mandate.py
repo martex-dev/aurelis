@@ -1,7 +1,7 @@
 """``aurelis mandate`` — the standard, the answer, and the record of asking.
 
 The company does not get a live adapter switched on for it. It measures itself
-against ten conditions it declared in advance and answers in one of two words,
+against eleven conditions it declared in advance and answers in one of two words,
 and only a yes interrupts anybody.
 """
 

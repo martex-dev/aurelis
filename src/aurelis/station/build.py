@@ -77,6 +77,7 @@ def build_sealed(runtime: Runtime, out: Path, *, at: dt.datetime | None = None) 
             ("timeline", "Company timeline", pages.timeline_page(session, limit=500)),
             ("research", "Research", pages.research_page(session)),
             ("graveyard", "The Graveyard", pages.graveyard_page(session)),
+            ("theses", "Theses", pages.theses_page(session, now=moment)),
             ("workshop", "The Workshop", pages.workshop_page(session)),
             ("meetings", "Meetings", pages.meetings_page(session)),
             ("missions", "Missions", pages.missions_page(session)),

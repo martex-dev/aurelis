@@ -4,7 +4,7 @@ The endpoint of this project is not a live adapter somebody switches on. It is
 the company reaching the judgement itself, on evidence it gathered, and telling
 the person who would have to fund it.
 
-So there is a standard of ten conditions, declared in advance and hashed; an
+So there is a standard of eleven conditions, declared in advance and hashed; an
 assessment that answers it in one of two words; and an escalation that fires
 only on a yes. The refusals are recorded too, because a bar that was never seen
 to hold is not a bar.

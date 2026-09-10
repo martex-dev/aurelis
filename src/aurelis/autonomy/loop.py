@@ -135,6 +135,24 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
     as one so that "what can the company do unattended?" is answerable by
     reading twenty lines.
     """
+    if action.key == "judge":
+        from aurelis.autonomy.agenda import _seatable
+        from aurelis.judgement.resolution import resolve_due
+        from aurelis.judgement.seat import seat_agent
+
+        with runtime.database.session() as session:
+            settled = resolve_due(session, ledger=runtime.ledger, clock=runtime.clock, at=at)
+            scored = [r for r in settled if r.scored]
+            seatable, _, _ = _seatable(session)
+            handle = seatable[0].handle if seatable else None
+        prefix = f"{len(scored)} view(s) scored from recordings; " if scored else ""
+        if handle is None:
+            return prefix + "nobody left to seat"
+        sealed = seat_agent(runtime, agent_handle=handle, at=at)
+        if sealed is None:
+            return prefix + f"{handle} declined to state a view"
+        return prefix + sealed.describe()
+
     if action.key == "author":
         from aurelis.authoring.attempt import run_authoring
 

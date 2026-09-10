@@ -112,6 +112,49 @@ def data_fetch(
     )
 
 
+@data_app.command("record-fixture")
+def data_record_fixture(
+    workspace: WorkspaceOption = None,
+    desk: Annotated[str, typer.Option(help="Which desk fixture to record.")] = "crypto",
+    symbol: Annotated[str, typer.Option(help="Fixture instrument; default is the first.")] = "",
+    bars: Annotated[int, typer.Option(help="How many bars to record.")] = 720,
+) -> None:
+    """Record a desk fixture as a snapshot, offline, marked as not a market.
+
+    For CI and demonstrations: the judgement seat and the resolver read
+    recordings only, and offline there is no market to record. The row says
+    ``live market: no``, the seat tells the agent it is a fixture, and the
+    mandate does not count views made on it.
+    """
+    from aurelis.intel.fixturefeed import FixtureFeed
+    from aurelis.org.desks import Desk
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        feed = FixtureFeed(Desk(desk), clock=runtime.clock)
+        chosen = symbol or feed.symbols()[0]
+        with runtime.database.session() as session:
+            snapshot = runtime.snapshots.ingest(
+                session,
+                feed,
+                desk=desk,
+                symbol=chosen,
+                interval=feed.interval,
+                bars=bars,
+                is_live=False,
+            )
+            summary = _summary(snapshot)
+            ref = snapshot.ref
+    finally:
+        runtime.close()
+    console.print(_table(summary, title=f"{ref} — recorded from a fixture"))
+    console.print(
+        "\n[dim]Not a market. Every view sealed against this recording is a view "
+        "about a fixture and is reported apart from the market record.[/dim]"
+    )
+
+
 @data_app.command("snapshots")
 def data_snapshots(workspace: WorkspaceOption = None) -> None:
     """What real market data the company holds, if any."""

@@ -27,6 +27,7 @@ from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
 from aurelis.desks.opening import Desks
 from aurelis.intel.snapshots import Snapshots
+from aurelis.judgement.invariants import install_judgement_invariants
 from aurelis.meetings.chair import Chair
 from aurelis.meetings.forecasts import ForecastScorer
 from aurelis.memory.graph import KnowledgeGraph
@@ -257,6 +258,7 @@ class Runtime:
                     *install_training_invariants(connection),
                     *install_org_invariants(connection),
                     *install_authoring_invariants(connection),
+                    *install_judgement_invariants(connection),
                 )
         with self.database.session() as session:
             first_run = self.ledger.count(session) == 0

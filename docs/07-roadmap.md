@@ -1221,6 +1221,120 @@ See [ADR-0025](adr/0025-the-mandate-is-the-work-queue-and-a-search-is-never-repe
 
 ---
 
+## M25 — An agent picks its own market, states a view, and is scored on it ✅
+
+Everything measured about an agent so far was a measurement of a rule it
+chose from a menu somebody wrote in advance. This is the seat where the agent
+is measured on its *judgement*, and the whole design follows from one
+constraint: **a judgement cannot be backtested.** A model asked about last
+year already knows what happened. So the evidence is forward, sealed before
+the outcome exists, and scored when it does.
+
+### The judgement seat
+
+Two questions, two model calls, one row. *Which market?* — every instrument
+the company holds a recording of, with a software-computed summary and the
+agent's own record so far; nothing is assigned. *What do you think, and how
+sure are you?* — a horizon from a closed set, a direction, a confidence, a
+thesis in the agent's own words, and what would make it wrong. The prose is
+figure-checked; the confidence is the one number the agent is allowed to
+invent.
+
+The row is hashed at sealing and the database refuses to change it, rescore
+it or delete it. A horizon that already lies behind the clock is refused: the
+one way a forward prediction quietly becomes a backward one is a stale
+recording.
+
+```
+aurelis data fetch --symbol ETH-USD --yes     # a recording is what a view is sealed against
+aurelis thesis seat --agent INTEL --agent QUANT
+aurelis thesis list                           # open views with their horizon, scored ones with their score
+aurelis thesis resolve --fetch --yes          # settle what a fresh recording covers
+aurelis thesis calibration                    # Brier, hit rate, stated against observed by band
+```
+
+`calibrated` is the mandate's eleventh condition — thirty scored views on
+market data with a mean Brier below the coin toss — and `judge` is the loop's
+first action. It seats every judging agent on every recorded market and then
+stops with the honest reason: what is missing is time and a fresh recording,
+and the loop fetches nothing.
+
+### What real agents did, on a real market
+
+Three fresh Coinbase recordings (BTC-USD, ETH-USD, SOL-USD, 400 hours each,
+last bar 2026-09-10 19:00Z). Seven agents on Sonnet, fourteen model calls.
+
+```
+INTEL    BTC-USD  down  72h  0.60   resolves 2026-09-13 19:00Z
+LEAD-R   BTC-USD  down  24h  0.55   resolves 2026-09-11 19:00Z
+QUANT    BTC-USD  down  24h  0.58
+ENG-R    BTC-USD  down  24h  0.60
+STRAT    BTC-USD  down  24h  0.56
+CRITIC   ETH-USD  down  24h  0.56
+VALID    declined
+```
+
+Six sealed, one abstention, zero refusals — every reply in the required form on
+first contact, which no other seat here managed. One of them, in its own words:
+
+> The tape is in a persistent multi-timeframe downtrend (-5.67% over 168 bars)
+> and the post-drop rebound stalled at 77390.8 before grinding back down into
+> 77134.22, a lower-high sequence that reads as distribution rather than
+> accumulation.
+
+**Six views, one opinion.** Every view says down. Seven agents with different
+charters read the same twenty-four closes and reached the same conclusion in
+different words. That is not a society disagreeing; it is one view written six
+times, and the record will score it as six. Making the agents distinguishable
+(their identity is now in the prompt) did not make them independent. That
+needs different evidence — the event and entity layer the brief describes —
+and an adversary whose job is to attack a view before it is sealed. Neither
+exists yet.
+
+**Half the falsifiers restate the proposition.** "Wrong if the close at the
+horizon is above the reference" is the resolution rule. Nothing checks this
+yet.
+
+**Nothing is scored.** The forward record is empty until 2026-09-11 19:00Z,
+and the station says so rather than showing a number.
+
+### Five bugs the first runs found
+
+**The cache handed one agent another agent's answer.** Identical material and
+an identical system prompt is one cache key, correctly. The second agent seated
+got the first one's view. The seat now carries the agent's handle, department
+and charters, which is what makes the answer that agent's.
+
+**The seal did not survive a round-trip.** `0.65` reads back as `0.65000000`
+and `verify_seal` failed on every stored row. The seal is computed over the
+stored form on both sides.
+
+**Refusals were rolled back with the transaction that refused.** The event
+recording an unreadable view was written inside the session that then raised.
+It is appended in its own transaction now.
+
+**The stand-in declined everything on the crypto fixture** because its market
+regex did not allow the slash in `btc/usdt`. Found on the first offline run.
+
+**A fixture recording anchored in January expired every horizon.** The fixture
+feed lays its bars against the clock, marks the row as not a market, and the
+mandate does not count it.
+
+### What this milestone did not do
+
+- **The 72-point design space is still in the tree.** The brief says delete
+  it. It backs four mandate conditions and the paper driver, so removing it is
+  the next milestone, not a side effect of this one.
+- The material is twenty-four closes and four percentage changes. No events,
+  no entities, no order books, no text.
+- No agent attacks another's view. No position is taken on a view. Nothing
+  is sized.
+- Horizons are four fixed values; instruments are whatever has been recorded.
+
+See [ADR-0026](adr/0026-a-judgement-is-sealed-before-the-outcome-exists.md).
+
+---
+
 ## Sequencing
 
 ```

@@ -35,6 +35,8 @@ from sqlalchemy.orm import Session
 from aurelis.agents.tables import Agent, AgentState, ToolCall
 from aurelis.alerts.tables import Alert
 from aurelis.authoring.tables import AuthoringAttempt, Campaign
+from aurelis.judgement.calibration import AgentCalibration, agent_calibration, calibration_over
+from aurelis.judgement.tables import Thesis
 from aurelis.meetings.tables import (
     Decision,
     Forecast,
@@ -77,6 +79,7 @@ __all__ = [
     "MeetingView",
     "MissionView",
     "RoomStatus",
+    "ThesesView",
     "TimelineEntry",
     "agent_view",
     "company_status",
@@ -88,6 +91,7 @@ __all__ = [
     "meeting_view",
     "mission_view",
     "room_statuses",
+    "theses_view",
     "timeline",
 ]
 
@@ -132,10 +136,20 @@ class CompanyStatus:
     purpose: a company that reported only the count would be reporting
     activity, and the point of the record is that some of them did not work."""
 
+    views_open: Figure
+    """Views sealed and waiting for their horizon. Each one is a bet on the
+    record that has not yet been settled."""
+
+    views_scored: Figure
+    """Views whose horizon passed and were settled against a recording. The
+    company's forward track record, at its true size."""
+
     def figures(self) -> list[tuple[str, Figure]]:
         return [
             ("agents", self.agents),
             ("working", self.working),
+            ("views open", self.views_open),
+            ("views scored", self.views_scored),
             ("org changes", self.org_changes),
             ("of those, helped", self.org_changes_helped),
             ("missions", self.missions_open),
@@ -203,6 +217,10 @@ def company_status(session: Session, *, chain_ok: bool, chain_detail: str) -> Co
     return CompanyStatus(
         org_changes=changes,
         org_changes_helped=helped,
+        views_open=_count(session, Thesis, Thesis.scored_at.is_(None), detail="scored_at is null"),
+        views_scored=_count(
+            session, Thesis, Thesis.scored_at.is_not(None), detail="scored_at is not null"
+        ),
         agents=agents,
         working=working,
         missions_open=missions,
@@ -249,18 +267,12 @@ def room_statuses(session: Session) -> dict[Department, RoomStatus]:
     """Occupancy for every department in the registry, staffed or not."""
     rows = Counter(
         (str(department), str(state))
-        for department, state in session.execute(
-            sa.select(Agent.department, Agent.state)
-        ).all()
+        for department, state in session.execute(sa.select(Agent.department, Agent.state)).all()
     )
 
     statuses: dict[Department, RoomStatus] = {}
     for department in DEPARTMENTS:
-        counts = {
-            state: count
-            for (dept, state), count in rows.items()
-            if dept == department.value
-        }
+        counts = {state: count for (dept, state), count in rows.items() if dept == department.value}
         headcount = sum(counts.values())
         busy = counts.get(AgentState.WORKING.value, 0)
         meeting = counts.get(AgentState.IN_MEETING.value, 0)
@@ -315,9 +327,7 @@ def department_view(session: Session, department: Department) -> DepartmentView:
 
     rows = list(
         session.execute(
-            sa.select(Agent)
-            .where(Agent.department == department.value)
-            .order_by(Agent.ref)
+            sa.select(Agent).where(Agent.department == department.value).order_by(Agent.ref)
         ).scalars()
     )
     agents = [
@@ -339,9 +349,7 @@ def department_view(session: Session, department: Department) -> DepartmentView:
         detail=f"department = {department.value}",
     )
     spent = session.execute(
-        sa.select(sa.func.sum(CostEntry.usd)).where(
-            CostEntry.department_id == department.value
-        )
+        sa.select(sa.func.sum(CostEntry.usd)).where(CostEntry.department_id == department.value)
     ).scalar()
     spend = Figure(
         Decimal(str(spent or 0)),
@@ -351,13 +359,7 @@ def department_view(session: Session, department: Department) -> DepartmentView:
 
     charters = [
         {"id": held, "title": charter(held).name}
-        for held in sorted(
-            {
-                coverage
-                for row in rows
-                for coverage in _coverage(session, row.ref)
-            }
-        )
+        for held in sorted({coverage for row in rows for coverage in _coverage(session, row.ref)})
     ]
     return DepartmentView(
         department=department,
@@ -395,6 +397,26 @@ class AgentView:
     objections: Figure
     brier: Figure
     scored: Figure
+    views_sealed: Figure
+    """Theses this agent sealed before the outcome existed. Market recordings
+    only; a view on a fixture is kept apart and never merged into this."""
+
+    views_scored: Figure
+    views_brier: Figure
+    views_hit_rate: Figure
+    views_base_rate: Figure
+    """What always predicting the observed up-frequency would have scored on
+    the same theses. A record that beats the coin toss but not this has
+    learned the drift of the market and nothing else."""
+
+    views_bands: list[dict[str, str]]
+    """Stated confidence against observed hit rate, per band. Calibrated means
+    the two columns agree."""
+
+    views_fixture: Figure
+    """Views this agent sealed on fixture recordings. Reported so that a
+    stand-in exercised offline is visibly not a track record."""
+
     scenario_verdict: str
     """``passed`` | ``failed`` | ``not_scored`` | ``untested``. Shown beside
     the live record and never merged with it: a score on planted effects is
@@ -425,9 +447,7 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
         sa.and_(ToolCall.agent_ref == ref, ToolCall.outcome == "refused"),
         detail=f"agent = {ref}, outcome = refused",
     )
-    findings = _count(
-        session, Finding, Finding.author == ref, detail=f"author = {ref}"
-    )
+    findings = _count(session, Finding, Finding.author == ref, detail=f"author = {ref}")
     objections = _count(
         session,
         MeetingObjection,
@@ -437,9 +457,7 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
 
     scored_rows = list(
         session.execute(
-            sa.select(Forecast.brier).where(
-                Forecast.agent_ref == ref, Forecast.brier.is_not(None)
-            )
+            sa.select(Forecast.brier).where(Forecast.agent_ref == ref, Forecast.brier.is_not(None))
         ).scalars()
     )
     if scored_rows:
@@ -453,13 +471,50 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
     else:
         brier = Figure.absent("no forecast this agent made has been scored yet")
 
+    record = agent_calibration(session, ref, live_only=True)
+    views_source = Source.table("theses", f"agent = {ref}, is_live = 1")
+    if (
+        record.scored
+        and record.mean_brier is not None
+        and record.hit_rate is not None
+        and record.base_rate_brier is not None
+    ):
+        views_brier = Figure.derived(
+            record.mean_brier,
+            how="mean of (probability_up - outcome)^2 over scored theses",
+            sources=[views_source],
+        )
+        views_hit = Figure.derived(
+            record.hit_rate,
+            how="theses whose direction matched the outcome, over scored",
+            sources=[views_source],
+        )
+        views_base = Figure.derived(
+            record.base_rate_brier,
+            how="Brier of always predicting the observed up-frequency",
+            sources=[views_source],
+        )
+    else:
+        views_brier = Figure.absent("no view this agent sealed on a market has been scored yet")
+        views_hit = Figure.absent("no view this agent sealed on a market has been scored yet")
+        views_base = Figure.absent("no view this agent sealed on a market has been scored yet")
+    views_bands = [
+        {
+            "band": f"{band.low}-{band.high}",
+            "n": str(band.n),
+            "stated": str(band.stated) if band.stated is not None else "—",
+            "observed": str(band.observed) if band.observed is not None else "—",
+            "gap": str(band.gap) if band.gap is not None else "—",
+        }
+        for band in record.bands
+        if band.n
+    ]
+
     spent = session.execute(
         sa.select(sa.func.sum(CostEntry.usd)).where(CostEntry.actor == ref)
     ).scalar()
     model_rows = list(
-        session.execute(
-            sa.select(ModelCall.cache_hit).where(ModelCall.actor == ref)
-        ).scalars()
+        session.execute(sa.select(ModelCall.cache_hit).where(ModelCall.actor == ref)).scalars()
     )
     hits = sum(1 for hit in model_rows if hit)
     cache_rate = (
@@ -494,9 +549,7 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
         catch = (
             Figure(Decimal(training.catch_rate), source)
             if training.catch_rate is not None
-            else Figure.absent(
-                "no defect the suite can settle falls in this agent's specialty"
-            )
+            else Figure.absent("no defect the suite can settle falls in this agent's specialty")
         )
         alarms = Figure(training.false_alarms, source)
 
@@ -524,6 +577,18 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
             len(scored_rows),
             Source.table("forecasts", f"agent = {ref}, brier is not null"),
         ),
+        views_sealed=Figure(record.sealed, views_source),
+        views_scored=Figure(record.scored, views_source),
+        views_brier=views_brier,
+        views_hit_rate=views_hit,
+        views_base_rate=views_base,
+        views_bands=views_bands,
+        views_fixture=_count(
+            session,
+            Thesis,
+            sa.and_(Thesis.agent_ref == ref, Thesis.is_live.is_(False)),
+            detail=f"agent = {ref}, is_live = 0",
+        ),
         scenario_verdict=scenario_verdict,
         scenario_catch_rate=catch,
         scenario_false_alarms=alarms,
@@ -533,9 +598,7 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
             Source.table("cost_entries", f"actor = {ref}"),
             unit="USD",
         ),
-        model_calls=Figure(
-            len(model_rows), Source.table("model_calls", f"actor = {ref}")
-        ),
+        model_calls=Figure(len(model_rows), Source.table("model_calls", f"actor = {ref}")),
         cache_rate=cache_rate,
         hired_at=row.hired_at,
         note=row.note,
@@ -559,9 +622,7 @@ class MissionView:
 
 
 def mission_view(session: Session, ref: str) -> MissionView | None:
-    row = session.execute(
-        sa.select(Mission).where(Mission.ref == ref)
-    ).scalar_one_or_none()
+    row = session.execute(sa.select(Mission).where(Mission.ref == ref)).scalar_one_or_none()
     if row is None:
         return None
 
@@ -601,9 +662,7 @@ def mission_view(session: Session, ref: str) -> MissionView | None:
         objective=row.objective,
         state=row.state,
         desk=", ".join(str(desk) for desk in row.desks) or "—",
-        projects=[
-            {"ref": p.ref, "intent": p.intent, "state": p.state} for p in projects
-        ],
+        projects=[{"ref": p.ref, "intent": p.intent, "state": p.state} for p in projects],
         tasks_total=total,
         tasks_done=done,
         spend=Figure(
@@ -638,9 +697,7 @@ class MeetingView:
 
 
 def meeting_view(session: Session, ref: str) -> MeetingView | None:
-    row = session.execute(
-        sa.select(Meeting).where(Meeting.ref == ref)
-    ).scalar_one_or_none()
+    row = session.execute(sa.select(Meeting).where(Meeting.ref == ref)).scalar_one_or_none()
     if row is None:
         return None
 
@@ -657,9 +714,7 @@ def meeting_view(session: Session, ref: str) -> MeetingView | None:
             "evidence_refs": list(turn.evidence_refs),
         }
         for turn in session.execute(
-            sa.select(MeetingTurn)
-            .where(MeetingTurn.meeting_ref == ref)
-            .order_by(MeetingTurn.seq)
+            sa.select(MeetingTurn).where(MeetingTurn.meeting_ref == ref).order_by(MeetingTurn.seq)
         ).scalars()
     ]
     participants = [
@@ -714,9 +769,7 @@ def meeting_view(session: Session, ref: str) -> MeetingView | None:
             "question": forecast.question,
         }
         for forecast in session.execute(
-            sa.select(Forecast)
-            .where(Forecast.meeting_ref == ref)
-            .order_by(Forecast.agent_ref)
+            sa.select(Forecast).where(Forecast.meeting_ref == ref).order_by(Forecast.agent_ref)
         ).scalars()
     ]
 
@@ -764,30 +817,28 @@ class HypothesisView:
 
 
 def hypothesis_view(session: Session, ref: str) -> HypothesisView | None:
-    row = session.execute(
-        sa.select(Hypothesis).where(Hypothesis.ref == ref)
-    ).scalar_one_or_none()
+    row = session.execute(sa.select(Hypothesis).where(Hypothesis.ref == ref)).scalar_one_or_none()
     if row is None:
         return None
 
-    registration = session.execute(
-        sa.select(Registration)
-        .where(Registration.hypothesis_ref == ref)
-        .order_by(Registration.created_at.desc())
-    ).scalars().first()
+    registration = (
+        session.execute(
+            sa.select(Registration)
+            .where(Registration.hypothesis_ref == ref)
+            .order_by(Registration.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
 
     experiments = list(
-        session.execute(
-            sa.select(Experiment).where(Experiment.hypothesis_ref == ref)
-        ).scalars()
+        session.execute(sa.select(Experiment).where(Experiment.hypothesis_ref == ref)).scalars()
     )
     runs = list(
         session.execute(
             sa.select(Run)
             .where(
-                Run.experiment_ref.in_([e.ref for e in experiments])
-                if experiments
-                else sa.false()
+                Run.experiment_ref.in_([e.ref for e in experiments]) if experiments else sa.false()
             )
             .order_by(Run.started_at)
         ).scalars()
@@ -852,9 +903,7 @@ def hypothesis_view(session: Session, ref: str) -> HypothesisView | None:
                 "metric": result.metric,
                 "value": Figure(
                     result.value,
-                    Source.artifact(
-                        result.artifact_digest, f"{result.metric} on {result.split}"
-                    ),
+                    Source.artifact(result.artifact_digest, f"{result.metric} on {result.split}"),
                 ),
                 "low": result.low,
                 "high": result.high,
@@ -887,9 +936,7 @@ def hypothesis_view(session: Session, ref: str) -> HypothesisView | None:
             }
             for item in session.execute(
                 sa.select(Evidence).where(
-                    Evidence.finding_ref.in_([f.ref for f in findings])
-                    if findings
-                    else sa.false()
+                    Evidence.finding_ref.in_([f.ref for f in findings]) if findings else sa.false()
                 )
             ).scalars()
         ],
@@ -1027,6 +1074,111 @@ def graveyard_view(session: Session) -> GraveyardView:
 
 
 @dataclass(frozen=True, slots=True)
+class ThesesView:
+    """Every view an agent sealed, open or settled, and the record they make.
+
+    The open ones are drawn with their horizon, the settled ones with their
+    score, and the calibration is computed over market rows only. A fixture
+    row is shown and labelled, never counted.
+    """
+
+    open_rows: list[dict[str, Any]]
+    scored_rows: list[dict[str, Any]]
+    sealed: Figure
+    scored: Figure
+    right: Figure
+    brier: Figure
+    base_rate: Figure
+    fixture: Figure
+    record: AgentCalibration
+    by_agent: list[AgentCalibration]
+
+
+def theses_view(session: Session, *, now: dt.datetime, limit: int = 200) -> ThesesView:
+    rows = list(
+        session.execute(
+            sa.select(Thesis).order_by(Thesis.sealed_at.desc(), Thesis.ref.desc()).limit(limit)
+        ).scalars()
+    )
+
+    def common(row: Thesis) -> dict[str, Any]:
+        return {
+            "ref": row.ref,
+            "agent": row.agent_ref,
+            "instrument": row.instrument,
+            "is_live": row.is_live,
+            "direction": row.direction,
+            "horizon": f"{row.horizon_hours}h",
+            "confidence": str(row.confidence),
+            "reference": row.reference_close,
+            "resolves_at": row.resolves_at,
+            "sealed_at": row.sealed_at,
+            "thesis": row.thesis,
+            "wrong_if": row.wrong_if,
+            "seal": row.seal,
+        }
+
+    open_rows = []
+    scored_rows = []
+    for row in rows:
+        entry = common(row)
+        if row.scored_at is None:
+            left = row.resolves_at - now
+            entry["hours_left"] = max(0, int(left.total_seconds() // 3600))
+            entry["due"] = left.total_seconds() <= 0
+            open_rows.append(entry)
+        else:
+            entry["outcome"] = "up" if row.outcome else "down"
+            entry["hit"] = bool(row.outcome) == (row.direction == "up")
+            entry["brier"] = str(row.brier)
+            entry["resolution"] = row.resolution_close or "—"
+            entry["against"] = row.scored_against or "—"
+            scored_rows.append(entry)
+
+    live = [r for r in session.execute(sa.select(Thesis).where(Thesis.is_live.is_(True))).scalars()]
+    record = calibration_over("company", live)
+    source = Source.table("theses", "is_live = 1")
+    by_agent: dict[str, list[Thesis]] = {}
+    for row in live:
+        by_agent.setdefault(row.agent_ref, []).append(row)
+
+    if (
+        record.scored
+        and record.mean_brier is not None
+        and record.hit_rate is not None
+        and record.base_rate_brier is not None
+    ):
+        brier = Figure.derived(
+            record.mean_brier, how="mean Brier over scored market theses", sources=[source]
+        )
+        right = Figure.derived(
+            record.hit_rate, how="direction matched outcome, over scored", sources=[source]
+        )
+        base = Figure.derived(
+            record.base_rate_brier,
+            how="Brier of always predicting the observed up-frequency",
+            sources=[source],
+        )
+    else:
+        brier = Figure.absent("no view sealed on a market has been scored yet")
+        right = Figure.absent("no view sealed on a market has been scored yet")
+        base = Figure.absent("no view sealed on a market has been scored yet")
+
+    return ThesesView(
+        open_rows=open_rows,
+        scored_rows=scored_rows,
+        sealed=Figure(record.sealed, source),
+        scored=Figure(record.scored, source),
+        right=right,
+        brier=brier,
+        base_rate=base,
+        fixture=_count(session, Thesis, Thesis.is_live.is_(False), detail="is_live = 0"),
+        record=record,
+        by_agent=[calibration_over(k, v) for k, v in sorted(by_agent.items())],
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class WorkshopView:
     """What the company tried to create, and whether any of it worked.
 
@@ -1049,9 +1201,7 @@ class WorkshopView:
 
 def workshop_view(session: Session) -> WorkshopView:
     rows = list(
-        session.execute(
-            sa.select(AuthoringAttempt).order_by(AuthoringAttempt.ref.desc())
-        ).scalars()
+        session.execute(sa.select(AuthoringAttempt).order_by(AuthoringAttempt.ref.desc())).scalars()
     )
     return WorkshopView(
         rows=[
@@ -1084,9 +1234,7 @@ def workshop_view(session: Session) -> WorkshopView:
                 "surplus": row.surplus or "—",
                 "survives": row.survives_selection,
             }
-            for row in session.execute(
-                sa.select(Campaign).order_by(Campaign.ref.desc())
-            ).scalars()
+            for row in session.execute(sa.select(Campaign).order_by(Campaign.ref.desc())).scalars()
         ],
         attempts=_count(session, AuthoringAttempt),
         beat_a_baseline=_count(

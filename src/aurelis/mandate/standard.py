@@ -5,7 +5,7 @@ specified by the person who has to act on it: the company does **not** get a
 live adapter switched on for it. It reaches the judgement itself, on evidence,
 and asks.
 
-So the question is what would entitle it to ask. Ten conditions, and every one
+So the question is what would entitle it to ask. Eleven conditions, and every one
 is checked against a row the company already writes — no self-assessment, no
 prose, no confidence.
 
@@ -119,6 +119,50 @@ def _live_data(session: Session) -> tuple[bool, str]:
     return True, (
         f"{total} live snapshot(s); newest {ref} — {bars} bar(s) of {symbol} "
         f"from {source}, digest {str(dgst)[:12]}, fetched {fetched}"
+    )
+
+
+MIN_SCORED_THESES = 30
+"""How many scored, market-data theses a track record needs before it counts.
+
+Thirty is where a mean Brier score stops being a handful of coin flips and
+starts being a record; it is not where a sceptic goes quiet. The condition is
+a floor on evidence, and the reading always carries the count so that "met"
+can never be read as "enough".
+"""
+
+
+def _calibrated(session: Session) -> tuple[bool, str]:
+    """Has the company built a forward track record that beats a coin toss?
+
+    Read from sealed theses on **market** recordings only. A thesis about a
+    fixture is a thesis about a random walk, and being calibrated on one is
+    being calibrated on nothing. Pending theses are reported but do not count:
+    a view is evidence once the outcome exists, not before.
+    """
+    from aurelis.judgement.calibration import COIN_TOSS, calibration_over
+    from aurelis.judgement.tables import Thesis
+
+    rows = list(
+        session.execute(sa.select(Thesis).where(Thesis.is_live.is_(True))).scalars()
+    )
+    fixture = session.execute(
+        sa.select(sa.func.count()).select_from(Thesis).where(Thesis.is_live.is_(False))
+    ).scalar_one()
+    record = calibration_over("company", rows)
+    aside = f"; {fixture} more on fixtures, not counted" if fixture else ""
+    if not record.scored:
+        return False, (
+            f"{record.sealed} view(s) sealed on market data, none scored yet"
+            f"{aside}. A forward record needs at least {MIN_SCORED_THESES} scored"
+        )
+    met = record.scored >= MIN_SCORED_THESES and record.informative
+    return met, (
+        f"{record.scored} scored of {record.sealed} sealed on market data, "
+        f"mean Brier {record.mean_brier} (coin toss {COIN_TOSS}, base rate "
+        f"{record.base_rate_brier}), right {record.hit_rate}{aside}"
+        + ("" if record.scored >= MIN_SCORED_THESES else f"; needs {MIN_SCORED_THESES} scored")
+        + ("" if record.informative else "; no better than a coin toss")
     )
 
 
@@ -264,6 +308,15 @@ STANDARD: tuple[Criterion, ...] = (
         _live_data,
     ),
     Criterion(
+        "calibrated",
+        "Have its agents built a forward track record — views sealed before "
+        "the outcome, scored after it, better than a coin toss?",
+        "A judgement cannot be backtested: a model asked about last year "
+        "already knows what happened. The only honest evidence of skill is "
+        "views stated in advance, sealed, and scored when the horizon expires.",
+        _calibrated,
+    ),
+    Criterion(
         "authored",
         "Did an agent design the strategy, rather than the corpus supplying it?",
         "The company exists to create an edge, not to sift for one. A strategy "
@@ -328,12 +381,15 @@ STANDARD: tuple[Criterion, ...] = (
         _chain_intact,
     ),
 )
-"""The ten conditions, in the order a reader should meet them.
+"""The eleven conditions, in the order a reader should meet them.
 
 ``live_data`` is first because it is the one the company cannot argue its way
 around: everything else could be satisfied on fixtures, and satisfying them on
 fixtures would prove the machinery works rather than that a market has an edge
-in it.
+in it. ``calibrated`` is second because it is the only condition about the
+agents' own judgement rather than about a rule they wrote, and it is the one
+that cannot be produced by searching harder: it accumulates at the speed of the
+market, one sealed view at a time.
 """
 
 

@@ -43,7 +43,7 @@ from aurelis.research.replication import ReplicationOutcome
 from aurelis.research.tables import Registration, Replication
 from aurelis.strategy.tables import PromotionGate
 
-__all__ = ["AGENDA", "Action", "Choice", "choose", "stuck_reasons"]
+__all__ = ["AGENDA", "JUDGING_DEPARTMENTS", "Action", "Choice", "choose", "stuck_reasons"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +89,82 @@ def _count(session: Session, entity: Any, *where: Any) -> int:
 
 
 # ------------------------------------------------------------ the exhaustion rules
+
+
+JUDGING_DEPARTMENTS: tuple[str, ...] = (
+    "market_intelligence",
+    "quantitative_research",
+    "strategy_laboratory",
+)
+"""Whose agents take the judgement seat unattended.
+
+Not a menu of ideas: which market, which horizon and which direction stay with
+the agent. This is only the org question of who is asked, and it is the
+departments whose charters are about forming views. Risk and Trading are not
+asked, on purpose: the agent that sizes a position should not be the one whose
+view it rests on.
+"""
+
+
+def _judges(session: Session) -> list[Any]:
+    from aurelis.agents.tables import Agent, AgentState
+
+    return list(
+        session.execute(
+            sa.select(Agent)
+            .where(
+                Agent.department.in_(JUDGING_DEPARTMENTS),
+                Agent.state.in_([AgentState.ACTIVE.value, AgentState.WORKING.value]),
+            )
+            .order_by(Agent.ref)
+        ).scalars()
+    )
+
+
+def _seatable(session: Session) -> tuple[list[Any], int, int]:
+    """Agents with an instrument they hold no open view on, and the counts."""
+    from aurelis.intel.snapshots import MarketSnapshot
+    from aurelis.judgement.tables import Thesis
+
+    instruments = set(session.execute(sa.select(MarketSnapshot.symbol).distinct()).scalars())
+    open_views = _count(session, Thesis, Thesis.scored_at.is_(None))
+    seatable: list[Any] = []
+    for agent in _judges(session):
+        held = set(
+            session.execute(
+                sa.select(Thesis.instrument).where(
+                    Thesis.agent_ref == agent.ref, Thesis.scored_at.is_(None)
+                )
+            ).scalars()
+        )
+        if instruments - held:
+            seatable.append(agent)
+    return seatable, len(instruments), open_views
+
+
+def _nothing_to_judge(session: Session) -> str:
+    """The seat runs until every judge holds a view on every recorded market.
+
+    Then it stops, and the reason is the honest one: a forward record cannot be
+    hurried. The open views need their horizons to pass and a recording that
+    covers them, and the loop fetches nothing.
+    """
+    seatable, instruments, open_views = _seatable(session)
+    if not instruments:
+        return (
+            "no market has been recorded, so there is nothing to state a view "
+            "against. Fetching is a decision for a person"
+        )
+    if not _judges(session):
+        return "no active agent sits in a department that forms views"
+    if seatable:
+        return ""
+    return (
+        f"every judging agent holds an open view on every recorded market "
+        f"({open_views} sealed and waiting). A second view on the same "
+        "instrument before the first resolves is the same bet twice. What is "
+        "missing is time and a fresh recording, and the loop fetches nothing"
+    )
 
 
 def _authored_already(session: Session) -> str:
@@ -197,6 +273,16 @@ def _nothing_deployed(session: Session) -> str:
 
 
 AGENDA: tuple[Action, ...] = (
+    Action(
+        key="judge",
+        condition="calibrated",
+        intent=(
+            "settle any view whose horizon a recording already covers, then "
+            "seat one agent to choose a market and state a sealed view on it"
+        ),
+        exhausted=_nothing_to_judge,
+        estimated_calls=2,
+    ),
     Action(
         key="author",
         condition="authored",

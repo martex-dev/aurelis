@@ -17,6 +17,7 @@ with nothing summarised away.
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -49,6 +50,8 @@ __all__ = [
     "not_found",
     "research_page",
     "sealed_room_page",
+    "theses_page",
+    "thesis_page",
     "timeline_page",
 ]
 
@@ -228,6 +231,40 @@ def agent_page(session: Session, ref: str) -> str | None:
             ]
         )
         + "</div>"
+        "<h2>Forward record</h2>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("views sealed", figure_span(view.views_sealed)),
+                ("views scored", figure_span(view.views_scored)),
+                ("right", figure_span(view.views_hit_rate)),
+                ("brier", figure_span(view.views_brier)),
+                ("base rate", figure_span(view.views_base_rate)),
+                ("on fixtures", figure_span(view.views_fixture)),
+            ]
+        )
+        + "</div>"
+        + (
+            _rows(
+                ["band", "views", "said", "right", "over-confident by"],
+                [
+                    [
+                        escape_text(b["band"]),
+                        escape_text(b["n"]),
+                        escape_text(b["stated"]),
+                        escape_text(b["observed"]),
+                        escape_text(b["gap"]),
+                    ]
+                    for b in view.views_bands
+                ],
+            )
+            if view.views_bands
+            else ""
+        )
+        + "<p class='mono'>Views sealed before the outcome existed and scored "
+        "when the horizon expired. Brier: (p - outcome)^2, lower is better, 0.25 "
+        "is always saying 50%. Market recordings only; views on fixtures are "
+        "counted beside, never in. See <a href='/theses'>theses</a>.</p>"
         "<h2>Training record</h2>"
         "<div class='panel'>"
         + _kv(
@@ -696,6 +733,151 @@ def graveyard_page(session: Session) -> str:
         "about the design: the interval is too wide to say either way. They are "
         "counted separately because collapsing them is how confident nothing "
         "accumulates.</p>" + table
+    )
+
+
+def _fixture_tag(is_live: bool) -> str:
+    return "" if is_live else " <span class='pill dim'>FIXTURE</span>"
+
+
+def _thesis_row_open(row: dict[str, Any]) -> list[str]:
+    left = "due" if row["due"] else f"{row['hours_left']}h left"
+    return [
+        f"<a href='/thesis/{escape_text(row['ref'])}'>{escape_text(row['ref'])}</a>",
+        f"<a href='/agent/{escape_text(row['agent'])}'>{escape_text(row['agent'])}</a>",
+        escape_text(row["instrument"]) + _fixture_tag(row["is_live"]),
+        escape_text(f"{row['direction']} {row['horizon']}"),
+        escape_text(row["confidence"]),
+        escape_text(row["reference"]),
+        _when(row["resolves_at"])
+        + f" <span class='pill warn'>{escape_text(left).upper()}</span>",
+    ]
+
+
+def _thesis_row_scored(row: dict[str, Any]) -> list[str]:
+    return [
+        f"<a href='/thesis/{escape_text(row['ref'])}'>{escape_text(row['ref'])}</a>",
+        f"<a href='/agent/{escape_text(row['agent'])}'>{escape_text(row['agent'])}</a>",
+        escape_text(row["instrument"]) + _fixture_tag(row["is_live"]),
+        escape_text(f"{row['direction']} {row['horizon']}"),
+        escape_text(row["confidence"]),
+        escape_text(f"{row['reference']} → {row['resolution']}"),
+        "<span class='pill ok'>RIGHT</span>"
+        if row["hit"]
+        else "<span class='pill bad'>WRONG</span>",
+        escape_text(row["brier"]),
+    ]
+
+
+def theses_page(session: Session, *, now: dt.datetime) -> str:
+    view = proj.theses_view(session, now=now)
+    open_table = _rows(
+        ["ref", "agent", "market", "view", "confidence", "reference", "resolves"],
+        [_thesis_row_open(r) for r in view.open_rows],
+    )
+    scored_table = _rows(
+        ["ref", "agent", "market", "view", "confidence", "reference → close", "outcome", "brier"],
+        [_thesis_row_scored(r) for r in view.scored_rows],
+    )
+    agents = _rows(
+        ["agent", "sealed", "scored", "right", "brier", "base rate"],
+        [
+            [
+                f"<a href='/agent/{escape_text(a.label)}'>{escape_text(a.label)}</a>",
+                str(a.sealed),
+                str(a.scored),
+                str(a.hit_rate) if a.hit_rate is not None else "—",
+                str(a.mean_brier) if a.mean_brier is not None else "—",
+                str(a.base_rate_brier) if a.base_rate_brier is not None else "—",
+            ]
+            for a in view.by_agent
+        ],
+    )
+    return (
+        "<h1>Theses</h1>"
+        "<p class='mono'>Views agents sealed before the outcome existed. Each "
+        "one names a market, a horizon, a direction and a confidence, is hashed "
+        "at sealing, and is scored once against a recording when the horizon "
+        "expires. This is the forward record: it cannot be backtested into "
+        "existence, and a wrong call stays on the page.</p>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("sealed on markets", figure_span(view.sealed)),
+                ("scored", figure_span(view.scored)),
+                ("right", figure_span(view.right)),
+                ("brier", figure_span(view.brier)),
+                ("base rate", figure_span(view.base_rate)),
+                ("on fixtures", figure_span(view.fixture)),
+            ]
+        )
+        + "</div>"
+        f"<h2>Open ({len(view.open_rows)})</h2>{open_table}"
+        f"<h2>Scored ({len(view.scored_rows)})</h2>{scored_table}"
+        f"<h2>By agent</h2>{agents}"
+        "<p class='mono'>Brier is (p - outcome)^2, lower is better; 0.25 is "
+        "always saying 50%. The base rate is what always predicting the observed "
+        "up-frequency would have scored: a record that beats the coin toss but "
+        "not the base rate has learned the market's drift and nothing else.</p>"
+    )
+
+
+def thesis_page(session: Session, ref: str) -> str | None:
+    from aurelis.judgement.seat import verify_seal
+    from aurelis.judgement.tables import Thesis
+
+    row = session.execute(sa.select(Thesis).where(Thesis.ref == ref)).scalar_one_or_none()
+    if row is None:
+        return None
+    settled = row.scored_at is not None
+    hit = bool(row.outcome) == (row.direction == "up") if settled else None
+    pairs = [
+        (
+            "agent",
+            f"<a href='/agent/{escape_text(row.agent_ref)}'>{escape_text(row.agent_ref)}</a>",
+        ),
+        ("market", escape_text(row.instrument) + _fixture_tag(row.is_live)),
+        ("view", escape_text(f"{row.direction} over {row.horizon_hours}h")),
+        ("confidence", escape_text(str(row.confidence))),
+        ("probability up", escape_text(str(row.probability_up))),
+        ("reference close", escape_text(row.reference_close)),
+        ("reference bar", _when(row.reference_at)),
+        ("resolves", _when(row.resolves_at)),
+        ("sealed", _when(row.sealed_at)),
+        ("recording shown", escape_text(row.snapshot_ref)),
+        ("material", f"<span class='mono'>{escape_text(row.material_digest[:16])}</span>"),
+        ("model", escape_text(row.model)),
+        ("seal", f"<span class='mono'>{escape_text(row.seal[:16])}</span> "
+                 + (
+                     "<span class='pill ok'>VERIFIES</span>"
+                     if verify_seal(row)
+                     else "<span class='pill bad'>BROKEN</span>"
+                 )),
+    ]
+    if settled:
+        pairs += [
+            (
+                "outcome",
+                "<span class='pill ok'>RIGHT</span>"
+                if hit
+                else "<span class='pill bad'>WRONG</span>",
+            ),
+            ("close at horizon", escape_text(row.resolution_close or "—")),
+            ("resolution bar", _when(row.resolution_at)),
+            ("brier", escape_text(str(row.brier))),
+            ("scored against", escape_text(row.scored_against or "—")),
+            ("scored", _when(row.scored_at)),
+        ]
+    else:
+        pairs.append(("outcome", "<span class='pill warn'>OPEN</span>"))
+    return (
+        f"<h1>{escape_text(row.ref)}</h1>"
+        "<div class='panel'>" + _kv(pairs) + "</div>"
+        f"<h2>Thesis</h2><p>{escape_text(row.thesis)}</p>"
+        f"<h2>Wrong if</h2><p>{escape_text(row.wrong_if)}</p>"
+        "<p class='mono'>Sealed fields cannot be edited and the row cannot be "
+        "deleted; the database refuses. The score is written once, by the "
+        "resolver, from the close of the bar that opened at the horizon.</p>"
     )
 
 

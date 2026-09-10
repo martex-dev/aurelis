@@ -48,7 +48,7 @@ def test_the_standard_is_declared_in_advance_and_hashed() -> None:
     """A bar lowered after it was missed is the one change that would make all
     of this worthless. The digest is what makes such a change impossible to
     make quietly."""
-    assert len(STANDARD) == 10
+    assert len(STANDARD) == 11
     assert len({c.key for c in STANDARD}) == len(STANDARD)
     assert digest() == digest(), "the hash is stable across calls"
     assert all(c.asks.endswith("?") for c in STANDARD), "each one is a question"

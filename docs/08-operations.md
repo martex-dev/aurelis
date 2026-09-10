@@ -131,6 +131,37 @@ and stops *before* the limit rather than through it.
 It cannot fetch data — that reaches outside the company and needs a person —
 and it cannot trade, because no live adapter exists.
 
+The first thing it does, when a market has been recorded, is seat its judging
+agents: every agent in Market Intelligence, Quantitative Research and the
+Strategy Laboratory states one view per recorded market, and the loop stops
+seating when they all hold one. That is the forward record accumulating, and
+it cannot be hurried.
+
+## 4a. The forward record
+
+```bash
+aurelis data fetch -w live --symbol ETH-USD --bars 400 --yes   # a view needs a recording
+aurelis thesis seat -w live --agent INTEL --agent QUANT --agent STRAT
+aurelis thesis list -w live
+aurelis thesis resolve -w live --fetch --yes                   # once a horizon has passed
+aurelis thesis calibration -w live
+```
+
+A view is a market, a horizon, a direction and a confidence, sealed and hashed
+before the outcome exists. The database refuses to edit, rescore or delete it.
+`resolve` reads recordings only; `--fetch --yes` records the instruments with
+due views first, which is the one step that reaches a market.
+
+The measure is calibration, not P&L. `calibration` prints the mean Brier
+score (0.25 is always saying 50%), the hit rate, what always predicting the
+observed up-frequency would have scored, and stated-against-observed by
+confidence band. A record that beats the coin toss but not the base rate has
+learned the drift of the market and nothing else.
+
+Offline, `aurelis data record-fixture` records a desk fixture as a snapshot
+marked as not a market. Views on it are shown and labelled, and never counted
+toward the mandate.
+
 ---
 
 ## 5. Running work
@@ -364,7 +395,7 @@ lists them:
   it is worth on the metered path; the company does not print a figure it never
   measured.
 - **The company says it is not ready, and names why.** `aurelis mandate assess`
-  checks ten conditions declared in advance. Nothing is *blocked* any more:
+  checks eleven conditions declared in advance. Nothing is *blocked* any more:
   every condition it misses is a research result rather than a missing
   capability.
 - **Real market data enters through `aurelis data fetch --yes`.** It is the one
@@ -373,6 +404,16 @@ lists them:
   connection: research runs against the snapshot, because an experiment cannot
   be reproduced against a moving endpoint. `aurelis data snapshots` shows what
   is held and whether each still verifies.
+- **Six agents, one opinion.** The first seven agents seated on a real model
+  read the same twenty-four closes and all said *down*. Their identity is in
+  the prompt, which makes them distinguishable and does not make them
+  independent. Independence needs different evidence and an adversary, and
+  neither is built.
+- **The forward record is empty until a horizon passes.** Six views are sealed
+  on the live workspace; the first five resolve on 2026-09-11 at 19:00Z. Run
+  `aurelis thesis resolve --fetch --yes` after that.
+- **The 72-point design space is still in the tree.** It backs four mandate
+  conditions and the paper driver. Removing it is the next milestone.
 - **Real data does not make the research powered.** Four months of hourly bars
   against the fifteen years the power calculation says the claim needs.
 - **`aurelis trading readiness` says what stands in the way.** Seven promotion

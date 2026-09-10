@@ -29,7 +29,7 @@ from typing import Any
 from aurelis.platform.llm.providers import MockProvider, ModelProvider
 from aurelis.platform.llm.types import LlmRequest
 
-__all__ = ["seat_provider", "stands_in"]
+__all__ = ["seat_provider", "standins", "stands_in"]
 
 
 def stands_in(provider_name: str) -> bool:
@@ -50,3 +50,22 @@ def seat_provider(
     if stands_in(settings.provider):
         return MockProvider(responder=responder)
     return None
+
+
+def standins() -> Callable[[LlmRequest], str]:
+    """Every scripted seat behind one responder, for commands that seat several.
+
+    The autonomy loop puts agents in the author's seat and the judgement seat
+    in the same run. Each stand-in recognises its own prompt and answers only
+    that; the judge is asked first because its prompts are the more specific.
+    """
+    from aurelis.authoring.standin import scripted_author
+    from aurelis.judgement.standin import scripted_judge
+
+    def respond(request: LlmRequest) -> str:
+        prompt = request.messages[-1].content
+        if "Which market do you want" in prompt or "State your view on" in prompt:
+            return scripted_judge(request)
+        return scripted_author(request)
+
+    return respond

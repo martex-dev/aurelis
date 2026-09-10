@@ -146,7 +146,7 @@ jobs:
           # need -- proposed on a reading, hashed before the Board, measured
           # after. It improves by less than it moved, and says so.
           aurelis orgdev retier -w "$workspace"
-          # The last word. The company checks itself against ten conditions it
+          # The last word. The company checks itself against eleven conditions it
           # declared in advance and says not yet -- naming the two that no
           # amount of research could fix. A run where this said READY on
           # fixture data would be a bug in the standard.
@@ -171,6 +171,34 @@ jobs:
           after=$(count_campaigns)
           if [ "$before" != "$after" ]; then
             echo "the loop ran a second campaign: $before -> $after" >&2
+            exit 1
+          fi
+          # M25: the judgement seat. A recording is what a view is sealed
+          # against; offline that is a desk fixture, marked as not a market.
+          # Three agents pick a market and seal a view in advance; nothing is
+          # due, so resolve reports every horizon still ahead; the calibration
+          # report says nothing is scored rather than printing a number.
+          aurelis data record-fixture -w "$workspace" --symbol BTC/USDT
+          aurelis data record-fixture -w "$workspace" --symbol ETH/USDT
+          aurelis thesis seat -w "$workspace" --agent INTEL --agent QUANT --agent STRAT
+          aurelis thesis list -w "$workspace"
+          aurelis thesis resolve -w "$workspace"
+          aurelis thesis calibration -w "$workspace" --fixtures
+          # The loop seats every judging agent on every recorded market, then
+          # stops: a second view on the same instrument before the first
+          # resolves is the same bet twice, and the loop fetches nothing.
+          count_theses() {
+            python -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM theses').fetchone()[0])" "$workspace/aurelis.db"
+          }
+          aurelis run -w "$workspace" --cycles 20 --calls 60
+          sealed=$(count_theses)
+          if [ "$sealed" -le 3 ]; then
+            echo "the loop seated nobody: $sealed view(s)" >&2
+            exit 1
+          fi
+          aurelis run -w "$workspace" --cycles 20 --calls 60
+          if [ "$(count_theses)" != "$sealed" ]; then
+            echo "the loop placed the same bet twice: $sealed -> $(count_theses)" >&2
             exit 1
           fi
           aurelis mandate standard

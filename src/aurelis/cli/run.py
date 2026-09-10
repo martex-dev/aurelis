@@ -57,13 +57,12 @@ def run(
     if ctx.invoked_subcommand is not None:  # pragma: no cover - no subcommands yet
         return
 
-    from aurelis.authoring.standin import scripted_author
     from aurelis.autonomy.loop import run_autonomy
     from aurelis.core.config import load_settings
-    from aurelis.platform.llm.seating import seat_provider
+    from aurelis.platform.llm.seating import seat_provider, standins
 
     settings = load_settings(home=workspace) if workspace else load_settings()
-    runtime = Runtime.build(settings, provider=seat_provider(settings, scripted_author))
+    runtime = Runtime.build(settings, provider=seat_provider(settings, standins()))
     try:
         runtime.initialise()
         runtime.staff()

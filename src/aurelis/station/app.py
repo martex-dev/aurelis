@@ -180,6 +180,18 @@ class StationApp:
         with self.runtime.database.session() as session:
             return self._render("The Floor", pages.floor_page(session), "")
 
+    def _theses(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
+        with self.runtime.database.session() as session:
+            body = pages.theses_page(session, now=self.runtime.clock.now())
+        return self._render("Theses", body, "")
+
+    def _thesis(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
+        if not rest:
+            return self._theses(rest, _q)
+        with self.runtime.database.session() as session:
+            body = pages.thesis_page(session, rest[0])
+        return self._render(rest[0], body, f"thesis {rest[0]}")
+
     def _graveyard(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
         with self.runtime.database.session() as session:
             return self._render("Graveyard", pages.graveyard_page(session), "")
@@ -234,6 +246,8 @@ _ROUTES: dict[str, Route] = {
     "desk": StationApp._desk,
     "floor": StationApp._floor,
     "graveyard": StationApp._graveyard,
+    "theses": StationApp._theses,
+    "thesis": StationApp._thesis,
     "workshop": StationApp._workshop,
     "knowledge": StationApp._knowledge,
     "room": StationApp._room,

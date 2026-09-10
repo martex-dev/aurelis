@@ -32,6 +32,7 @@ from aurelis.authoring.invariants import (
 )
 from aurelis.core.enums import ModelTier
 from aurelis.core.errors import AurelisError
+from aurelis.judgement.invariants import JUDGEMENT_TRIGGERS, verify_judgement_invariants
 from aurelis.org import CHARTERS, DESKS
 from aurelis.org.desks import DeskStatus
 from aurelis.org.seed import registry_fingerprint, stored_fingerprint
@@ -314,6 +315,23 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 "raise its own budget after seeing the results, until repaired."
                 if absent_search
                 else " — a campaign budget cannot be raised once it has run"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_seal = verify_judgement_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "sealed theses",
+            Status.OK if not absent_seal else Status.PROBLEM,
+            f"{len(JUDGEMENT_TRIGGERS) - len(absent_seal)}/"
+            f"{len(JUDGEMENT_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_seal)}. A sealed prediction "
+                "could be edited after the outcome, until repaired."
+                if absent_seal
+                else " — a sealed thesis cannot be edited, rescored or deleted"
             ),
         )
     )

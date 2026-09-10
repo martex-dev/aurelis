@@ -1,6 +1,6 @@
 """Taking the standard, and answering it.
 
-The company checks itself against ten conditions it declared in advance, and
+The company checks itself against eleven conditions it declared in advance, and
 returns one of two words. There is no third: a company that could report
 "nearly ready" would eventually report it about everything.
 

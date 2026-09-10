@@ -155,6 +155,22 @@ class EventKind(StrEnum):
     did nothing: a run that decided there was nothing worth doing is the
     outcome the loop exists to be able to reach."""
 
+    THESIS_SEALED = "judgement.thesis_sealed"
+    """An agent stated a view about a market, with a horizon and a confidence,
+    and the view was hashed before the outcome existed."""
+
+    THESIS_DECLINED = "judgement.thesis_declined"
+    """An agent was offered the seat and said it had no view. A legitimate
+    answer, and recorded so that abstention is visible rather than free."""
+
+    THESIS_REFUSED = "judgement.thesis_refused"
+    """The agent answered in a form the seat could not read, or cited a figure
+    it was not shown. Nothing was sealed."""
+
+    THESIS_SCORED = "judgement.thesis_scored"
+    """A horizon expired, a recording covered it, and the proposition was
+    settled mechanically. Written once per thesis."""
+
     MANDATE_ASSESSED = "gov.mandate_assessed"
     """The company measured itself against the conditions it must meet before
     asking a human for a live account. Carries the standard digest, so a bar

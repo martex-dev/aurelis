@@ -124,6 +124,11 @@ class RefKind(StrEnum):
     kept, and the attempts that produced nothing are the ones that make the
     novelty claim checkable."""
 
+    THESIS = "THS"
+    """One judgement an agent sealed before the outcome existed. Its own prefix
+    because a thesis is cited by its own score, and the wrong ones are cited
+    more often than the right ones."""
+
     TRAINING_RUN = "TRN"
     """One agent's pass over the training-scenario suite. Its own prefix
     because a scenario score is cited alongside live work and must never be
