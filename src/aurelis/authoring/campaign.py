@@ -196,6 +196,7 @@ def run_campaign(
     agent_handle: str = "STRAT",
     budget: int = BUDGET,
     span: Decimal = SPAN_YEARS,
+    source: Any | None = None,
     at: dt.datetime | None = None,
 ) -> CampaignOutcome:
     """Author once, revise until the budget runs out, then pay for the search.
@@ -209,6 +210,12 @@ def run_campaign(
     width = declared_width(budget)
     interval = "1h"
     bars = bars_for_span(the_desk.value, years=span, interval=interval)
+    if source is not None:
+        # The recording decides the window, exactly as it does for a single
+        # attempt. A campaign whose revisions were measured on fewer bars than
+        # the design they revise would be comparing two different questions.
+        bars = len(source.bars(source.symbols()[0], limit=0))
+        interval = getattr(getattr(source, "snapshot", None), "interval", interval)
     power = required_observations(
         the_desk.value,
         annualised_claim=CLAIM,
@@ -224,6 +231,8 @@ def run_campaign(
         "criterion": CRITERION,
         "span_years": str(span),
         "claim": str(CLAIM),
+        "bars": bars,
+        "data": "fixture" if source is None else source.name,
     }
     with runtime.database.session() as session:
         agent_ref = runtime.roster.by_handle(session, agent_handle).ref
@@ -263,6 +272,7 @@ def run_campaign(
             span=span,
             declared_cells=space_size(),
             campaign_ref=campaign_ref,
+            source=source,
             at=moment,
         )
         attempts.append(first)
@@ -282,6 +292,7 @@ def run_campaign(
                     bars=bars,
                     power=power,
                     interval=interval,
+                    source=source,
                     history={
                         outcome.authored.design.describe(): (
                             f"sharpe {outcome.sharpe}"
@@ -321,7 +332,9 @@ def run_campaign(
         refusals=tuple(refusals),
         selection=selection,
         trials_in_family=trials,
-        caveat=caveat_for(runtime.provider.name),
+        caveat=caveat_for(
+            runtime.provider.name, "" if source is None else source.name
+        ),
     )
     _close(runtime, outcome, at=moment)
     return outcome
@@ -338,6 +351,7 @@ def _revise(
     power: Any,
     interval: str,
     history: dict[str, str],
+    source: Any | None = None,
     at: dt.datetime,
 ) -> AuthoringOutcome:
     """Ask the agent to change one thing, and measure what it changed it to.
@@ -348,7 +362,11 @@ def _revise(
     """
     authored = previous.authored
     base = _structural(
-        authored, bars=bars, interval=interval, task_ref=previous.task_ref
+        authored,
+        bars=bars,
+        interval=interval,
+        task_ref=previous.task_ref,
+        source="" if source is None else source.name,
     )
     material = revision_material(
         base,
@@ -410,6 +428,7 @@ def _revise(
         task_ref=previous.task_ref,
         bars=bars,
         power=power,
+        source=source,
         # One slot, not the whole space. The campaign already declared the sum
         # of these, so charging the full space here would count the search
         # twice -- and a denominator that is wrong upwards is as untrue as one
@@ -421,13 +440,18 @@ def _revise(
 
 
 def _structural(
-    authored: Any, *, bars: int, interval: str, task_ref: str
+    authored: Any, *, bars: int, interval: str, task_ref: str, source: str = ""
 ) -> dict[str, Any]:
     """The same structural material the first attempt saw.
 
     Identical on purpose: what a revision adds is the result, and nothing else.
     A revision shown different structure as well would make it impossible to
     say which of the two the agent responded to.
+
+    ``source`` is part of that sameness. It was missing here while the first
+    attempt was told it was reading a market, so a revising agent was briefed
+    that its data was a fixture — a difference between the two prompts that
+    had nothing to do with the result the revision was supposed to respond to.
     """
     from aurelis.authoring.author import Citations, material_for
 
@@ -436,6 +460,7 @@ def _structural(
         bars=bars,
         citations=Citations(task_ref=task_ref),
         interval=interval,
+        source=source,
     )
 
 

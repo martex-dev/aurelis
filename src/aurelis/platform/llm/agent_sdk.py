@@ -19,8 +19,12 @@ against an estimate is a real limitation and is stated rather than hidden.
 from __future__ import annotations
 
 import asyncio
+import tempfile
 import time
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 from aurelis.core.errors import ProviderUnavailable
 from aurelis.platform.llm.providers import Availability
@@ -33,6 +37,49 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+_NO_TOOLS: tuple[str, ...] = (
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "NotebookEdit",
+    "Read",
+    "Task",
+    "TodoWrite",
+    "WebFetch",
+    "WebSearch",
+    "Write",
+)
+"""Named explicitly as well as denied at the boundary.
+
+Belt and braces on purpose. The deny callback is the guard that actually holds;
+this list is what an operator reading the configuration sees, and it fails
+closed if a future SDK stops calling the callback.
+"""
+
+
+@lru_cache(maxsize=1)
+def _sandbox() -> Path:
+    """An empty directory for the spawned process to sit in, and empty settings.
+
+    Not the security boundary — the deny callback is that. This is so that a
+    seat's working directory is not the repository holding the tests it is
+    scored by, and so that the operator's own Claude Code configuration does
+    not follow the seat in.
+
+    That second part is not hypothetical. The first tool a seat was refused
+    was not a built-in at all: it was
+    ``mcp__claude_ai_Remote_Desktop_Commander__list_directory``, an MCP server
+    belonging to the person running the command. The spawned process inherits
+    whatever they have connected, so the reachable tool surface is not a list
+    this repository can enumerate — which is exactly why the guard is a
+    callback that denies everything rather than a list of names.
+    """
+    path = Path(tempfile.mkdtemp(prefix="aurelis-seat-"))
+    (path / "settings.json").write_text("{}", encoding="utf-8")
+    return path
+
+
 class AgentSdkProvider:
     """Claude Agent SDK against the local subscription."""
 
@@ -40,6 +87,13 @@ class AgentSdkProvider:
 
     def __init__(self) -> None:
         self._checked: Availability | None = None
+        self.refused_tools: list[str] = []
+        """Tools the model reached for and was refused.
+
+        Kept rather than discarded: an agent that keeps trying to look things
+        up is telling the company its material is not enough, and that is
+        worth seeing rather than silently blocking.
+        """
 
     def availability(self) -> Availability:
         if self._checked is not None:
@@ -92,23 +146,80 @@ class AgentSdkProvider:
             latency_ms=latency,
         )
 
-    async def _query(self, request: LlmRequest) -> str:
-        from claude_agent_sdk import ClaudeAgentOptions, query
+    async def refuse_tool(self, tool: str, _input: Any, _context: Any) -> Any:
+        """Refuse every tool, in code rather than by configuration.
 
-        prompt = "\n\n".join(m.content for m in request.messages)
-        options = ClaudeAgentOptions(
+        **This is the seat's most important guard.** ``allowed_tools=[]`` reads
+        as *no restriction*, not as *nothing allowed*, and the first campaign
+        against a real model found out how: the agent answered a design
+        question by running ``Grep`` over this repository, reading
+        ``authoring/standin.py`` — the file that scripts what a stand-in
+        answers — and the campaign tests, and then replying. It was not
+        reasoning about a market. It had found the answer key.
+
+        A name list cannot be the guard, because the reachable surface is not
+        this repository's to enumerate: the spawned process inherits the
+        operator's own MCP servers, and the first tool actually refused here
+        was one of those. So every tool is denied, whatever it is called.
+        """
+        from claude_agent_sdk import PermissionResultDeny
+
+        self.refused_tools.append(tool)
+        return PermissionResultDeny(
+            message=(
+                "This seat has no tools. Answer from the material in the "
+                "prompt alone."
+            ),
+            interrupt=False,
+        )
+
+    def options(self, request: LlmRequest) -> Any:
+        """The options one seat runs under. Separate so a test can read them."""
+        from claude_agent_sdk import ClaudeAgentOptions
+
+        return ClaudeAgentOptions(
             system_prompt=request.system,
             model=request.model.model,
-            max_turns=1,
+            # Bounded, but not one. The SDK spawns Claude Code, which may
+            # spend a turn thinking before it answers, and at max_turns=1 that
+            # comes back as "Reached maximum number of turns (1)" with no
+            # text -- intermittently, on exactly the longer prompts the
+            # authoring seat sends. Four is headroom for a model that takes a
+            # moment.
+            max_turns=4,
             allowed_tools=[],
+            disallowed_tools=list(_NO_TOOLS),
+            can_use_tool=self.refuse_tool,
+            # No MCP servers, and none of the operator's settings. A seat is
+            # a model answering from its material, not a session inheriting
+            # whatever the person running it happens to have connected.
+            mcp_servers={},
+            strict_mcp_config=True,
+            settings=str(_sandbox() / "settings.json"),
+            # Nothing of the company's to read even if a tool got through.
+            cwd=str(_sandbox()),
         )
+
+    async def _query(self, request: LlmRequest) -> str:
+        from claude_agent_sdk import query
+
+        prompt = "\n\n".join(m.content for m in request.messages)
+        options = self.options(request)
         chunks: list[str] = []
         async for message in query(prompt=prompt, options=options):
             for block in getattr(message, "content", []) or []:
                 piece = getattr(block, "text", None)
                 if isinstance(piece, str):
                     chunks.append(piece)
-        return "".join(chunks)
+        text = "".join(chunks)
+        if not text.strip():
+            raise ProviderUnavailable(
+                "the Claude Agent SDK returned no text. The call reached the "
+                "model and came back empty, which is a failure rather than an "
+                "abstention: an empty answer recorded as one an agent gave "
+                "would put silence on the record as a decision."
+            )
+        return text
 
 
 def _translate(error: Exception) -> Exception:
@@ -136,6 +247,12 @@ def _translate(error: Exception) -> Exception:
         return ProviderUnavailable(
             "the Claude Code process this SDK spawns is not logged in. Run "
             "`claude` and sign in, then try again. Nothing was spent."
+        )
+    if "maximum number of turns" in detail:
+        return ProviderUnavailable(
+            "the Claude Agent SDK stopped at its turn limit before producing "
+            "any text. Nothing was recorded. This is the provider giving up, "
+            "not the agent declining to answer."
         )
     if "session limit" in detail or "usage limit" in detail:
         # The scarce resource on a subscription is allowance, and running out

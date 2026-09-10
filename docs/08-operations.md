@@ -231,9 +231,57 @@ rests on. A broken chain means either corruption (restore) or tampering
 
 ---
 
-## 8. Cost
+## 8. Running it on a real model
 
-Everything in this repository runs against the mock provider: no credentials,
+The whole system runs offline for free, and that stays the default. To put real
+models in the seats on a Claude subscription:
+
+```bash
+pip install -e '.[subscription]'          # the Claude Agent SDK
+claude                                     # sign in once, then exit
+export AURELIS_PROVIDER=agent_sdk          # or AURELIS_PROVIDER=anthropic_api
+aurelis model check -w live --yes          # one real call, end to end
+```
+
+`aurelis doctor` reports the provider and whether the SDK is installed. It does
+**not** report whether you are signed in — the SDK spawns Claude Code as a
+subprocess, and whether that process is authenticated is only knowable by
+making a call. That is what `model check` is for.
+
+### What it costs
+
+Very little, because the deterministic work is done in software. Measured on a
+full pipeline:
+
+| step | model calls |
+| --- | --- |
+| `demo` + `agent hire` | 4 |
+| `strategy author` | 6 |
+| `strategy campaign --budget 5` | 14 |
+
+Under a subscription every call reports `usd = 0`, which is true rather than
+missing: the scarce resource is allowance, and the budget ledger meters tokens
+separately for exactly that reason. Token counts on that path are **estimates**
+— the SDK does not always report usage — and `Usage.estimated` says so
+wherever a number surfaces.
+
+### A seat has no tools
+
+The provider denies every tool the model reaches for, refuses to load the
+operator's MCP servers or settings, and runs in an empty directory. This is not
+hardening for its own sake: without it the agent answers design questions by
+grepping this repository, including the module that scripts what a stand-in is
+supposed to say. See [ADR-0024](adr/0024-a-seat-has-no-tools.md).
+
+`aurelis model rehearse --seat author` measures whether a real model's answers
+can be *used* before you spend a campaign on it. It is cheap and it has caught
+a 0/5 before.
+
+---
+
+## 9. Cost
+
+Everything in CI runs against the mock provider: no credentials,
 no network, zero cost. Switching to a real provider is a configuration change,
 and the guards that keep it affordable are already in force — model routing by
 charter tier, response caching, per-task allowances, per-scope envelopes, and
@@ -244,7 +292,7 @@ the Mission Control station shows spend per agent and per department.
 
 ---
 
-## 9. What is on the other side of M13
+## 10. What is on the other side of M13
 
 Stated plainly, because a system that hides its gaps is worse than one that
 lists them:
@@ -261,9 +309,11 @@ lists them:
 - **Postgres is written and unexercised.**
 - **No automatic recovery of a dead worker.** Stranded tasks are returned
   manually, on purpose.
-- **Nothing behind either agent seat is a model.** `aurelis training seat` and
-  `aurelis strategy author` both run a deterministic stand-in, because every
-  model call in this repository goes to the mock provider. The machinery is
+- **Nothing behind either agent seat is a model, offline.** `aurelis training
+  seat` and `aurelis strategy author` run a deterministic stand-in whenever the
+  provider is `mock`, which is what CI and every offline demonstration use.
+  Point `AURELIS_PROVIDER` at a real provider and the seats get that instead —
+  see section 8. The machinery is
   real; the reasoner is not, and both commands say so in their own output.
 - **No authored strategy has survived its own search.** One campaign has
   reached a design that beat buying and holding; corrected for how wide the

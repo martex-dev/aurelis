@@ -34,3 +34,6 @@ secrets/
 .idea/
 .DS_Store
 Thumbs.db
+
+# A live workspace: real model, real data. Runtime state, never committed.
+live/

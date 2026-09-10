@@ -11,11 +11,12 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M22 — the company can say exactly what stops it.** Seven promotion
-gates, read from its own record rather than typed in, each answered with a
-number or with a silence naming what is absent. Three fail, two cannot be
-asked, and the paper book stays empty — which is the promotion machinery
-working. No live trading, and every page says so. · 2026-09-10
+Status: **M23 — it runs on a real model, over a real market, and found
+nothing.** 40,000 hours of BTC-USD, Opus in the author's seat, five attempts
+inside a declared budget: every design lost, and the best sat below what a
+search that wide returns from noise. Building it found the seat reading this
+repository for answers — see [ADR-0024](docs/adr/0024-a-seat-has-no-tools.md).
+No live trading, and every page says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -924,7 +925,8 @@ automatically by the company, five milestones in.
 | **M19** ✅ | Self-improvement, measured | 25 overtiered charters, six splits, and what it did not fix |
 | **M20** ✅ | The mandate | ten hashed conditions, four met, and nobody interrupted |
 | **M21** ✅ | Real data, real replication | a market recorded and hashed; a variation that must vary |
-| **M22** ✅ | **The gates get read** | seven observables from the record, and a silence that is not a zero |
+| **M22** ✅ | The gates get read | seven observables from the record, and a silence that is not a zero |
+| **M23** ✅ | **A real model, a real market** | it ran, it found nothing, and the seat had been reading the answer key |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

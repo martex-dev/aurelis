@@ -1065,6 +1065,91 @@ See [ADR-0023](adr/0023-a-gate-is-a-reader-and-paper-trades-what-research-never-
 
 ---
 
+## M23 — The company runs on a real model, and the seat had the answer key ✅
+
+The first instruction to actually *run* the thing: a Claude subscription, real
+models in the seats, real market data. It worked, and then it found something
+much worse than a bug.
+
+### What running it took
+
+`aurelis model check --yes` made one real call through `agent_sdk` — Haiku,
+6.4 seconds, zero marginal cost. `demo` and `agent hire` cost **4 model calls
+between them**, because the deterministic work is done in software, which is
+what §33 of the charter asks for. A five-attempt campaign costs about 20. The
+whole pipeline is roughly 24 calls.
+
+### The seat was reading the answer key
+
+Raising `max_turns` past 1 to fix an unexplained provider failure did not fix
+it — it revealed it. Streaming the raw SDK messages showed the agent answering a
+design question by running `Grep` over this repository:
+
+```
+ToolUseBlock(name='Grep', pattern='one_day|three_days|six_hours|one_week')
+ToolResultBlock(content='tests/test_campaign.py-199- ...')
+ToolUseBlock(name='Grep', pattern='six_hours', path='src')
+ToolResultBlock(content='src/aurelis/authoring/standin.py-41- ...')
+TextBlock(text='ANSWER: three_days  BECAUSE: ...')
+```
+
+`allowed_tools=[]` reads as *no restriction*, not as *nothing allowed*. The
+agent had read `standin.py` — the module that scripts what a stand-in is
+supposed to answer — and the campaign tests, and then replied.
+
+**None of the company's own honesty machinery could have caught it.** The figure
+check passed, because every figure cited was real: it had gone and looked them
+up. The preregistration passed, because the design was locked before the run.
+The contamination lived in a subprocess the ledger never sees.
+
+The guard is now a callback that denies every tool by name-independent refusal —
+because after the built-ins were cut off, the next thing a seat reached for was
+`mcp__claude_ai_Remote_Desktop_Commander__list_directory`, **an MCP server
+belonging to the operator**. The reachable surface is not this repository's to
+enumerate. See [ADR-0024](adr/0024-a-seat-has-no-tools.md).
+
+### Four more bugs, all in what the agent was told
+
+**The research window was capped at the fixture's size.** `SPAN_YEARS` is a
+quarter because that is what the fixture holds, and `min(span, available)` threw
+away real history: the first run against 40,000 recorded hours researched 2,190
+of them. The recording decides the window now.
+
+**The material told the agent its data was a fixture** while it was measuring a
+recording of a real market — and the campaign's revision prompt did too, so a
+revising agent was briefed differently from the attempt it was revising.
+
+**The campaign's footer said "the data is a fixture rather than a market"**
+under numbers measured on 28,000 hours of BTC-USD. The same class of falsehood
+M18 found, in the sibling command.
+
+**A lookback of "one hundred and sixty-eight bars" was refused as an invented
+figure** when the model wrote `168`. The figure check compares numerals; the
+choice spelled it in words. The material has to state a number in the form a
+citation of it will take.
+
+### What the agents actually produced
+
+40,000 hourly BTC-USD bars, Feb 2022 to Sep 2026, hashed and verifying. 28,000
+for research, 12,000 held back. Opus in the author's seat, five attempts, each
+revising on the last one's result:
+
+```
+best observed        -0.0084199
+expected best of 96   0.01503771
+surplus              -0.02345763
+survives the search   no
+beat the baselines    no
+```
+
+Every design lost money. The best is below what a search of that width returns
+from noise alone. The company reported: **the campaign found nothing.**
+
+That is the system working. It ran on a real model, over a real market, and
+concluded honestly that it had not found an edge.
+
+---
+
 ## Sequencing
 
 ```

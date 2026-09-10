@@ -255,7 +255,12 @@ class AuthoredStrategy:
 
 
 def material_for(
-    desk: Desk | str, *, bars: int, citations: Citations, interval: str = "1h"
+    desk: Desk | str,
+    *,
+    bars: int,
+    citations: Citations,
+    interval: str = "1h",
+    source: str = "",
 ) -> dict[str, Any]:
     """Everything the author gets to see. A pure function of the desk.
 
@@ -281,7 +286,16 @@ def material_for(
         "desk": {
             "market": DESKS[the_desk].name,
             "calendar": calendar.name,
-            "data": "fixture, not live market data",
+            # Named, because this line was a flat "fixture, not live market
+            # data" and stayed that way when the seat was first pointed at a
+            # recording of a real market. An agent briefed with a false fact
+            # about its own data is being asked to reason about a different
+            # problem than the one it is scored on.
+            "data": (
+                f"recorded market data: {source}"
+                if source
+                else "fixture, not live market data"
+            ),
         },
         "costs": {
             "round trip": f"{costs.round_trip_bps} bps",
@@ -466,7 +480,13 @@ class StrategyAuthor:
         self.turns = []
         the_desk = desk if isinstance(desk, Desk) else Desk(desk)
         moment = at or self._clock.now()
-        material = material_for(the_desk, bars=bars, citations=citations, interval=interval)
+        material = material_for(
+            the_desk,
+            bars=bars,
+            citations=citations,
+            interval=interval,
+            source=source,
+        )
 
         family_slot = slots_for(None)[0]
         family = self._one(

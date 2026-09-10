@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -133,6 +134,22 @@ class CoinbaseCandles:
     name: str = "coinbase"
     endpoint: str = "https://api.exchange.coinbase.com"
     timeout: int = 25
+    pause: float = 0.12
+    """Seconds between pages.
+
+    A courtesy throttle, not a correctness one. Years of hourly history is a
+    few hundred requests, and a public endpoint nobody pays for should not be
+    asked for them as fast as a socket will go. Set to zero in tests, which
+    never reach the network anyway.
+    """
+
+    attempts: int = 4
+    """How many times one page may be asked for before the walk gives up.
+
+    Bounded rather than generous: a vendor that is down should be reported as
+    down, not waited on until somebody notices.
+    """
+
     opener: Any = None
     """Injectable, so a test can supply a recorded payload. Nothing in the
     suite touches the network."""
@@ -167,6 +184,8 @@ class CoinbaseCandles:
             if len(collected) == before:
                 break
             end = start
+            if self.pause:
+                time.sleep(self.pause)
 
         ordered = [collected[key] for key in sorted(collected)]
         if not ordered:
@@ -191,26 +210,50 @@ class CoinbaseCandles:
         return [_bar_from(row) for row in raw]
 
     def _get(self, url: str) -> list[list[Any]]:
+        """One page, with a bounded retry on the failures that are transient.
+
+        A long walk is a few hundred requests and it stores nothing until the
+        last one returns, so a single dropped connection three hundred pages in
+        used to throw the whole fetch away. It happened on the first real
+        attempt at years of history: the endpoint closed the connection partway
+        and 90,000 bars became nothing.
+
+        Retried: a refused connection, a timeout, ``429`` and the 5xx range —
+        the vendor being busy, which waiting fixes. Not retried: ``400`` or
+        ``404``, which mean the request itself is wrong, and repeating a
+        malformed request is just asking a public endpoint the same bad
+        question five times.
+        """
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         opener = self.opener or urllib.request.urlopen
-        try:
-            with opener(request, timeout=self.timeout) as response:
-                payload = json.load(response)
-        except urllib.error.HTTPError as error:
-            raise FeedUnavailable(
-                f"{self.name} refused the request ({error.code}). Nothing was "
-                "stored."
-            ) from error
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
-            raise FeedUnavailable(
-                f"{self.name} could not be reached: {error}. Nothing was stored."
-            ) from error
-        if not isinstance(payload, list):
-            raise FeedUnavailable(
-                f"{self.name} returned {type(payload).__name__}, not a list of "
-                "candles. Nothing was stored."
-            )
-        return payload
+        last = ""
+        for attempt in range(self.attempts):
+            if attempt:
+                time.sleep(self.pause * (2**attempt))
+            try:
+                with opener(request, timeout=self.timeout) as response:
+                    payload = json.load(response)
+            except urllib.error.HTTPError as error:
+                if error.code != 429 and error.code < 500:
+                    raise FeedUnavailable(
+                        f"{self.name} refused the request ({error.code}). "
+                        "Nothing was stored."
+                    ) from error
+                last = f"refused the request ({error.code})"
+                continue
+            except (urllib.error.URLError, TimeoutError, OSError) as error:
+                last = f"could not be reached: {error}"
+                continue
+            if not isinstance(payload, list):
+                raise FeedUnavailable(
+                    f"{self.name} returned {type(payload).__name__}, not a "
+                    "list of candles. Nothing was stored."
+                )
+            return payload
+        raise FeedUnavailable(
+            f"{self.name} {last} on all {self.attempts} attempts. Nothing was "
+            "stored."
+        )
 
 
 def _bar_from(row: list[Any]) -> Bar:

@@ -334,8 +334,14 @@ def run_authoring(
     interval = "1h"
     bars = bars_for_span(the_desk.value, years=span, interval=interval)
     if source is not None:
-        available = len(source.bars(source.symbols()[0], limit=0))
-        bars = min(bars, available)
+        # The source decides, not the span. SPAN_YEARS is a quarter because
+        # that is what the fixture holds, and taking the minimum of the two
+        # threw away real history: the first run against 40,000 recorded hours
+        # researched 2,190 of them and reported the shortfall against the
+        # fixture's size. Power is the binding constraint on every claim this
+        # company makes, so a recording that offers more bars is used in full;
+        # the window it may read was already cut by the hold-out.
+        bars = len(source.bars(source.symbols()[0], limit=0))
         interval = getattr(getattr(source, "snapshot", None), "interval", interval)
     power = required_observations(
         the_desk.value,

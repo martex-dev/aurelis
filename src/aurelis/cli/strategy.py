@@ -224,6 +224,32 @@ def strategy_markets(workspace: WorkspaceOption = None) -> None:
         runtime.close()
 
 
+def _snapshot_source(runtime: Runtime, ref: str) -> object:
+    """A recorded market, cut to the window research may read.
+
+    The hold-out is taken here rather than by the caller so that every command
+    that measures on a snapshot reserves the same tail. A research window
+    chosen per command would be a research window chosen after the fact.
+    """
+    from aurelis.intel.snapshots import MarketSnapshot, SnapshotSource
+    from aurelis.trading.paper import held_out
+
+    with runtime.database.session() as session:
+        row = session.execute(
+            sa.select(MarketSnapshot).where(MarketSnapshot.ref == ref)
+        ).scalar_one_or_none()
+        if row is None:
+            console.print(f"[red]no snapshot {escape(ref)}[/red]")
+            raise typer.Exit(2)
+        research = held_out(row.bars)
+        source = SnapshotSource(session, row, upto=research)
+    console.print(
+        f"[dim]measuring on {escape(row.ref)}: {research} of {row.bars} bars, "
+        f"{row.bars - research} held back for a forward walk[/dim]"
+    )
+    return source
+
+
 @strategy_app.command("author")
 def strategy_author(
     workspace: WorkspaceOption = None,
@@ -251,9 +277,7 @@ def strategy_author(
     from aurelis.authoring.design import space_size
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
-    from aurelis.intel.snapshots import MarketSnapshot, SnapshotSource
     from aurelis.platform.llm.seating import seat_provider
-    from aurelis.trading.paper import held_out
 
     settings = load_settings(home=workspace) if workspace else load_settings()
     runtime = Runtime.build(
@@ -262,21 +286,7 @@ def strategy_author(
     try:
         runtime.initialise()
         runtime.staff()
-        source = None
-        if snapshot:
-            with runtime.database.session() as session:
-                row = session.execute(
-                    sa.select(MarketSnapshot).where(MarketSnapshot.ref == snapshot)
-                ).scalar_one_or_none()
-                if row is None:
-                    console.print(f"[red]no snapshot {escape(snapshot)}[/red]")
-                    raise typer.Exit(2)
-                research = held_out(row.bars)
-                source = SnapshotSource(session, row, upto=research)
-            console.print(
-                f"[dim]measuring on {escape(row.ref)}: {research} of {row.bars} "
-                f"bars, {row.bars - research} held back for a forward walk[/dim]"
-            )
+        source = _snapshot_source(runtime, snapshot) if snapshot else None
         outcome = run_authoring(
             runtime, desk=Desk(desk), agent_handle=agent, source=source
         )
@@ -356,6 +366,12 @@ def strategy_campaign(
     desk: Annotated[str, typer.Option(help="Which desk to author for.")] = "crypto",
     agent: Annotated[str, typer.Option(help="Which agent takes the seat.")] = "STRAT",
     budget: Annotated[int, typer.Option(help="Attempts the campaign may make.")] = 5,
+    snapshot: Annotated[
+        str,
+        typer.Option(
+            help="Measure on a recorded market snapshot instead of the fixture."
+        ),
+    ] = "",
 ) -> None:
     """Author, revise inside a declared budget, then pay for the search.
 
@@ -380,7 +396,11 @@ def strategy_campaign(
         runtime.initialise()
         runtime.staff()
         outcome = run_campaign(
-            runtime, desk=Desk(desk), agent_handle=agent, budget=budget
+            runtime,
+            desk=Desk(desk),
+            agent_handle=agent,
+            budget=budget,
+            source=_snapshot_source(runtime, snapshot) if snapshot else None,
         )
         with runtime.database.session() as session:
             verification = runtime.ledger.verify(session)

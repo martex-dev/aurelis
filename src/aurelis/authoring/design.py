@@ -135,10 +135,15 @@ SLOTS: tuple[Slot, ...] = (
         kind=ComponentKind.SIGNAL,
         prompt="How far back does the signal look?",
         choices=(
-            Choice("six_hours", "six bars — reacts fast, trades often"),
-            Choice("one_day", "twenty-four bars"),
-            Choice("three_days", "seventy-two bars"),
-            Choice("one_week", "one hundred and sixty-eight bars — slowest"),
+            # Digits, not words. These were spelled out, and the figure check
+            # compares numerals: a model that answered "a 168 bar lookback"
+            # was citing the very choice it had been offered and was refused
+            # for inventing a figure. The material has to state a number in
+            # the form a citation of it will take.
+            Choice("six_hours", "6 bars — reacts fast, trades often"),
+            Choice("one_day", "24 bars"),
+            Choice("three_days", "72 bars"),
+            Choice("one_week", "168 bars — slowest"),
         ),
     ),
     Slot(
