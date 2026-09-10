@@ -54,6 +54,7 @@ __all__ = [
     "theses_page",
     "thesis_page",
     "timeline_page",
+    "mechanisms_page",
     "world_page",
 ]
 
@@ -1002,6 +1003,52 @@ def service_page(session: Session) -> str:
         f"<h2>Grants</h2>{grants}"
         f"<h2>Wakes</h2>{wakes}"
         f"<h2>Incidents</h2>{incidents}"
+    )
+
+
+def mechanisms_page(session: Session) -> str:
+    view = proj.mechanisms_view(session)
+    rows = _rows(
+        ["ref", "title", "agent", "trigger", "predicts", "scored", "brier", "base rate", "verdict"],
+        [
+            [
+                f"<a href='/agent/{escape_text(r['agent'])}'>{escape_text(r['ref'])}</a>",
+                escape_text(r["title"][:40]),
+                escape_text(r["agent"]),
+                escape_text(f"{r['trigger']} {r['direction']} {r['horizon']}h"),
+                str(r["predictions"]),
+                str(r["scored"]),
+                escape_text(r["brier"]),
+                escape_text(r["base_rate"]),
+                (
+                    "<span class='pill ok'>SCHEME</span>"
+                    if r["is_scheme"]
+                    else "<span class='pill bad'>RETIRED</span>"
+                    if r["retired"]
+                    else f"<span class='pill warn'>{escape_text(r['verdict']).upper()}</span>"
+                ),
+            ]
+            for r in view.rows
+        ],
+    )
+    return (
+        "<h1>Mechanisms</h1>"
+        "<p class='mono'>The join from a mined conjunction to a tested scheme. An "
+        "agent states why a pattern should work, who is on the other side, and how "
+        "it decays; the mechanism then predicts every other occurrence, sealed "
+        "before the outcome and scored. The instance it was found on is excluded. "
+        "A mechanism is a scheme only when its out-of-sample predictions beat a "
+        "coin toss and the base rate; one that does not is retired and kept.</p>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("mechanisms", figure_span(view.total)),
+                ("candidate schemes", figure_span(view.schemes)),
+                ("retired", figure_span(view.retired)),
+            ]
+        )
+        + "</div>"
+        f"{rows}"
     )
 
 

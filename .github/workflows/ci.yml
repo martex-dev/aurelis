@@ -225,6 +225,13 @@ jobs:
           aurelis world derive -w "$workspace"
           aurelis world events -w "$workspace" --limit 5
           aurelis world cooccur -w "$workspace" --hours 24
+          # M30: a mechanism. Offline a stand-in states one over the fixture's
+          # break-then-break conjunction; it seals forward predictions, and the
+          # list shows it gathering evidence. It always predicts up, so on a
+          # fixture it will not beat the base rate and the sweep would retire it.
+          aurelis mechanism discover -w "$workspace" --agent QUANT --trigger price.range_break --then price.range_break --hours 48
+          aurelis mechanism list -w "$workspace"
+          aurelis mechanism sweep -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

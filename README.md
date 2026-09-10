@@ -11,18 +11,16 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M29 — the world is entities, events and relations, and price is
-one event type.** The company's ontology was a price series; the schemes it
-is meant to find are patterns over entities and events inside time windows.
-There is now an immutable typed event stream, a relation graph, the venue's
-own catalogue as the first non-price source (837 products on the live
-workspace, statuses and all), notable-price events derived from recordings,
-and window queries — including co-occurrence, whose footer says a
-conjunction is not a discovery. Judges see the events for the market they
-chose. Behind it: M28 attacks every view before the seal and scores the
-critic; M27 runs the company for days under a grant; M26 deleted the menu;
-M25 made the evidence forward. No live trading, and every page says so. ·
-2026-09-11
+Status: **M30 — a mechanism is the join from a mined conjunction to a tested
+scheme.** An agent states why a pattern should work, who is on the other
+side, and how it decays; the mechanism then predicts every future occurrence,
+sealed before the outcome and scored, and beats a coin toss and the base rate
+or is retired. Shown the spike-then-break pattern that fired 37 times on live
+BTC, **two real agents declined to state a mechanism** — the requirement
+separating a coincidence from a scheme, which is the whole point. Behind it:
+M29 built the event/entity world model; M28 attacks every view; M27 runs for
+days; M26 deleted the menu; M25 made the evidence forward. No live trading,
+and every page says so. · 2026-09-11
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -48,6 +46,7 @@ aurelis thesis seat        # an agent picks a market and seals a view, in advanc
 aurelis thesis calibration # and is measured on what happened
 aurelis service start      # and the company runs on its own, under a grant you recorded
 aurelis world events       # what it knows that is not a price
+aurelis mechanism discover # turn a mined conjunction into a tested scheme, or decline
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -944,6 +943,7 @@ automatically by the company, five milestones in.
 | **M27** ✅ | **It runs for days** | a grant a person recorded, a wake every interval, and what broke on the record |
 | **M28** ✅ | **Disagreement** | a critic attacks every view before the seal, and is scored on catches and false alarms |
 | **M29** ✅ | **The world model** | entities, an immutable event stream, relations; the catalogue as the first non-price source |
+| **M30** ✅ | **Mechanisms** | an agent's causal story over a mined pattern, tested by additional forward predictions or retired |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

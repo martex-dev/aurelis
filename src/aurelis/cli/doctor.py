@@ -33,6 +33,7 @@ from aurelis.authoring.invariants import (
 from aurelis.core.enums import ModelTier
 from aurelis.core.errors import AurelisError
 from aurelis.judgement.invariants import JUDGEMENT_TRIGGERS, verify_judgement_invariants
+from aurelis.mechanism.invariants import MECHANISM_TRIGGERS, verify_mechanism_invariants
 from aurelis.org import CHARTERS, DESKS
 from aurelis.org.desks import DeskStatus
 from aurelis.org.seed import registry_fingerprint, stored_fingerprint
@@ -366,6 +367,22 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 "be edited or a relation denied, until repaired."
                 if absent_world
                 else " — an event is immutable and a relation is append-only"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_mech = verify_mechanism_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "mechanisms",
+            Status.OK if not absent_mech else Status.PROBLEM,
+            f"{len(MECHANISM_TRIGGERS) - len(absent_mech)}/{len(MECHANISM_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_mech)}. A stated mechanism could "
+                "be fitted to its own results, until repaired."
+                if absent_mech
+                else " — a stated mechanism cannot be edited, only retired"
             ),
         )
     )

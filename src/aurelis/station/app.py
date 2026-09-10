@@ -180,6 +180,10 @@ class StationApp:
         with self.runtime.database.session() as session:
             return self._render("The Floor", pages.floor_page(session), "")
 
+    def _mechanisms(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
+        with self.runtime.database.session() as session:
+            return self._render("Mechanisms", pages.mechanisms_page(session), "")
+
     def _world(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
         with self.runtime.database.session() as session:
             return self._render("World", pages.world_page(session), "")
@@ -257,6 +261,7 @@ _ROUTES: dict[str, Route] = {
     "theses": StationApp._theses,
     "service": StationApp._service,
     "world": StationApp._world,
+    "mechanisms": StationApp._mechanisms,
     "thesis": StationApp._thesis,
     "workshop": StationApp._workshop,
     "knowledge": StationApp._knowledge,

@@ -268,12 +268,18 @@ def critic_record(session: Session, critic_ref: str, *, live_only: bool = True) 
     )
 
 
-def _rows(session: Session, *where: sa.ColumnElement[bool], live_only: bool) -> list[Thesis]:
+def _rows(
+    session: Session, *where: sa.ColumnElement[bool], live_only: bool
+) -> list[Thesis]:
     query = sa.select(Thesis)
     for clause in where:
         query = query.where(clause)
     if live_only:
         query = query.where(Thesis.is_live.is_(True))
+    # A mechanism firing carries its proposer as agent_ref but is not that
+    # agent judging; it belongs to the mechanism record, not the forward
+    # calibration the mandate and the agent pages read.
+    query = query.where(Thesis.mechanism_ref.is_(None))
     return list(session.execute(query.order_by(Thesis.sealed_at)).scalars())
 
 

@@ -254,6 +254,22 @@ class Service:
         if derived:
             notes.append(f"{derived} price event(s) derived")
 
+        # After new events and settlements, every active mechanism seals
+        # predictions on any occurrence it has not yet, and mechanisms that
+        # gathered enough evidence and failed are retired.
+        from aurelis.mechanism.predictions import generate_all
+
+        with runtime.database.session() as session:
+            runs = generate_all(
+                session, runtime.mechanisms, ledger=runtime.ledger, clock=runtime.clock, at=moment
+            )
+            retired = runtime.mechanisms.sweep_retirements(session, at=moment)
+        mech_sealed = sum(len(r.sealed) for r in runs)
+        if mech_sealed:
+            notes.append(f"{mech_sealed} mechanism prediction(s) sealed")
+        if retired:
+            notes.append(f"{len(retired)} mechanism(s) retired")
+
         # 4. write it down, whatever it was
         note = "; ".join(notes)
         with runtime.database.session() as session:

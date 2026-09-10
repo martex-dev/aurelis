@@ -42,6 +42,7 @@ from aurelis.judgement.calibration import (
     critic_record,
 )
 from aurelis.judgement.tables import Thesis
+from aurelis.mechanism.library import Mechanisms
 from aurelis.meetings.tables import (
     Decision,
     Forecast,
@@ -85,6 +86,7 @@ __all__ = [
     "KnowledgeView",
     "MeetingView",
     "MissionView",
+    "MechanismsView",
     "RoomStatus",
     "ServiceView",
     "ThesesView",
@@ -99,6 +101,7 @@ __all__ = [
     "knowledge_view",
     "meeting_view",
     "mission_view",
+    "mechanisms_view",
     "room_statuses",
     "service_view",
     "theses_view",
@@ -1162,7 +1165,12 @@ def theses_view(session: Session, *, now: dt.datetime, limit: int = 200) -> Thes
             entry["against"] = row.scored_against or "—"
             scored_rows.append(entry)
 
-    live = [r for r in session.execute(sa.select(Thesis).where(Thesis.is_live.is_(True))).scalars()]
+    live = [
+        r
+        for r in session.execute(
+            sa.select(Thesis).where(Thesis.is_live.is_(True), Thesis.mechanism_ref.is_(None))
+        ).scalars()
+    ]
     record = calibration_over("company", live)
     source = Source.table("theses", "is_live = 1")
     by_agent: dict[str, list[Thesis]] = {}
@@ -1285,6 +1293,54 @@ def service_view(session: Session, *, limit: int = 40) -> ServiceView:
             sa.and_(Alert.source.like("service.%"), Alert.resolved_at.is_(None)),
             detail="source like service.%, unresolved",
         ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class MechanismsView:
+    """Every mechanism and what its out-of-sample predictions say."""
+
+    total: Figure
+    schemes: Figure
+    retired: Figure
+    rows: list[dict[str, Any]]
+
+
+def mechanisms_view(session: Session) -> MechanismsView:
+    from aurelis.mechanism.tables import Mechanism
+
+    statuses = Mechanisms().statuses(session)
+    rows = [
+        {
+            "ref": st.mechanism.ref,
+            "title": st.mechanism.title,
+            "agent": st.mechanism.agent_ref,
+            "trigger": st.mechanism.trigger_kind,
+            "direction": st.mechanism.direction,
+            "horizon": st.mechanism.horizon_hours,
+            "why": st.mechanism.why,
+            "predictions": st.predictions,
+            "scored": st.scored,
+            "brier": (
+                str(st.calibration.mean_brier) if st.calibration.mean_brier is not None else "-"
+            ),
+            "base_rate": str(st.calibration.base_rate_brier)
+            if st.calibration.base_rate_brier is not None
+            else "-",
+            "verdict": st.verdict,
+            "is_scheme": st.is_scheme,
+            "retired": st.retired,
+        }
+        for st in statuses
+    ]
+    return MechanismsView(
+        total=_count(session, Mechanism),
+        schemes=Figure(
+            sum(1 for r in rows if r["is_scheme"]),
+            Source.table("mechanisms", "out-of-sample calibrated, beats the base rate"),
+        ),
+        retired=_count(session, Mechanism, Mechanism.retired_at.is_not(None), detail="retired"),
+        rows=rows,
     )
 
 

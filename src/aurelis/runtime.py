@@ -28,6 +28,8 @@ from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
 from aurelis.desks.opening import Desks
 from aurelis.intel.snapshots import Snapshots
 from aurelis.judgement.invariants import install_judgement_invariants
+from aurelis.mechanism.invariants import install_mechanism_invariants
+from aurelis.mechanism.library import Mechanisms
 from aurelis.meetings.chair import Chair
 from aurelis.meetings.forecasts import ForecastScorer
 from aurelis.memory.graph import KnowledgeGraph
@@ -120,6 +122,7 @@ class Runtime:
     worker: AgentWorker
     grants: Grants
     world: World
+    mechanisms: Mechanisms
 
     @classmethod
     def build(
@@ -195,6 +198,7 @@ class Runtime:
         orgdev = OrgDevelopment(handover, ledger, the_clock)
         grants = Grants(ledger, the_clock)
         world = World(ledger, the_clock)
+        mechanisms = Mechanisms(ledger, the_clock)
         org_experiments = OrgExperiments(training, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
@@ -248,6 +252,7 @@ class Runtime:
             worker=worker,
             grants=grants,
             world=world,
+            mechanisms=mechanisms,
         )
 
     def initialise(self) -> tuple[str, ...]:
@@ -271,6 +276,7 @@ class Runtime:
                     *install_judgement_invariants(connection),
                     *install_service_invariants(connection),
                     *install_world_invariants(connection),
+                    *install_mechanism_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:

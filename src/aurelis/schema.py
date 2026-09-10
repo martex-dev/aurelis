@@ -24,6 +24,7 @@ from aurelis.intel import snapshots as _snapshots
 from aurelis.intel import tables as _intel
 from aurelis.judgement import tables as _judgement
 from aurelis.mandate import tables as _mandate
+from aurelis.mechanism import tables as _mechanism
 from aurelis.meetings import tables as _meetings
 from aurelis.memory import tables as _memory
 from aurelis.missions import tables as _missions
@@ -65,6 +66,7 @@ TABLE_MODULES = (
     _autonomy,
     _mandate,
     _judgement,
+    _mechanism,
     _service,
     _world,
 )

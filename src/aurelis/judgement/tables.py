@@ -98,6 +98,25 @@ class Thesis(Base):
 
     response_because: Mapped[str | None] = mapped_column(sa.Text)
 
+    # ------------------------------------------------ mechanism predictions
+    mechanism_ref: Mapped[str | None] = mapped_column(sa.String(24), index=True)
+    """Set when this thesis is a mechanism firing rather than an agent's view.
+    The mechanism's out-of-sample record is read from these."""
+
+    mechanism_training: Mapped[bool] = mapped_column(default=False, server_default=sa.false())
+    """Whether this is the occurrence the mechanism was found on. Excluded from
+    the score: a mechanism scored on the instance that suggested it is circular.
+
+    A server default of false so the additive migration can add it to a table
+    that already holds views -- every existing thesis is a judgement, not a
+    mechanism firing, so false is what those rows mean."""
+
+    mechanism_prediction_key: Mapped[str | None] = mapped_column(
+        sa.String(64), unique=True, index=True
+    )
+    """Hash of (mechanism, trigger event), so one occurrence seals one
+    prediction and re-running generation seals nothing new."""
+
     sealed_at: Mapped[dt.datetime] = mapped_column(index=True)
     seal: Mapped[str] = mapped_column(sa.String(64))
     """SHA-256 over every field above. Recomputed by :func:`verify_seal`."""

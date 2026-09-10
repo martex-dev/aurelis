@@ -1641,6 +1641,62 @@ See [ADR-0030](adr/0030-the-world-is-entities-events-and-relations.md).
 
 ---
 
+## M30 — A mechanism is the join from a conjunction to a tested scheme ✅
+
+The brief's critical design point. M29 can mine the event stream for
+co-occurrences; M25 can score a forward view. Neither is a discovery. A mined
+pattern becomes one only when an agent states a **mechanism** — why it works,
+who is on the other side, how it decays — and that mechanism generates
+**additional predictions** beyond the one it was found on, tested separately.
+
+### The seat and the loop
+
+An agent is shown a mined co-occurrence and states a mechanism, or declines.
+The count is not a reason; a causal story and a decay model are required, and
+the prose is figure-checked. The mechanism is hashed and immutable. It then
+predicts every future occurrence of its trigger, each sealed before the
+outcome and scored through the M25 resolver, tagged to the mechanism, the
+training instance excluded. A mechanism whose out-of-sample predictions beat a
+coin toss and the base rate is a candidate scheme; one that gathers evidence
+and fails is retired and kept.
+
+```
+aurelis mechanism discover --trigger price.volume_spike --then price.range_break
+aurelis mechanism list        # what each mechanism's out-of-sample record says
+aurelis mechanism sweep       # retire mechanisms that failed with enough evidence
+```
+
+### What two real models did
+
+Shown the spike-then-break co-occurrence on the live workspace — the one that
+fired 37 times on BTC-USD — a Strategy agent and a Quant agent on Sonnet both
+**declined to state a mechanism.** That is the design working: the seat did
+not let a pattern become a scheme because it occurred often, and the model,
+asked for a causal reason and who is on the other side, would not fabricate
+one. Requiring a mechanism separated a coincidence from a scheme.
+
+Offline, a stand-in states a deliberately-unfounded mechanism, its predictions
+seal and score as the clock advances, they fail to beat the base rate of a
+market that only rises, and the sweep retires it — the whole loop, at no cost.
+
+### Also
+
+An untracked, incomplete parallel draft (`aurelis/schemes/`) referencing
+enum values that never existed was removed; it broke the type check and was
+wired into nothing. The tracked implementation is `aurelis/mechanism/`.
+
+### What this milestone did not do
+
+- The trigger is a price-derived event, because that is what the stream holds;
+  the social and on-chain sources the memecoin example needs are not built.
+- No agent mines the stream to choose which conjunction to bring to the seat.
+- A mechanism that becomes a scheme is not turned into a sized strategy; it
+  accrues a record, and that is where this stops.
+
+See [ADR-0031](adr/0031-a-mechanism-is-the-join-from-a-conjunction-to-a-scheme.md).
+
+---
+
 ## Sequencing
 
 ```

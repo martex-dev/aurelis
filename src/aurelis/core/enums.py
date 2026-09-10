@@ -155,6 +155,17 @@ class EventKind(StrEnum):
     did nothing: a run that decided there was nothing worth doing is the
     outcome the loop exists to be able to reach."""
 
+    MECHANISM_STATED = "mechanism.stated"
+    """An agent gave a causal story for a mined pattern: why it works, who is on
+    the other side, and how it decays."""
+
+    MECHANISM_DECLINED = "mechanism.declined"
+    MECHANISM_PREDICTED = "mechanism.predicted"
+    """A mechanism sealed forward predictions on the occurrences of its trigger."""
+
+    MECHANISM_RETIRED = "mechanism.retired"
+    """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
+
     WORLD_EVENT_RECORDED = "world.event_recorded"
     """A typed event about an entity entered the world model: a listing seen,
     a status change, a volume spike derived from a recording."""

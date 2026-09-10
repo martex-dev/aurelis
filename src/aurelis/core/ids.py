@@ -124,6 +124,10 @@ class RefKind(StrEnum):
     kept, and the attempts that produced nothing are the ones that make the
     novelty claim checkable."""
 
+    MECHANISM = "MEC"
+    """A causal pattern an agent stated over a mined conjunction. Its own prefix
+    because it is cited by every prediction it generates and outlives them."""
+
     THESIS = "THS"
     """One judgement an agent sealed before the outcome existed. Its own prefix
     because a thesis is cited by its own score, and the wrong ones are cited

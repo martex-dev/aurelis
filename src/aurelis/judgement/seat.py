@@ -392,6 +392,9 @@ def seal_of(row: Thesis) -> str:
             else "",
             "response": row.response or "",
             "response_because": row.response_because or "",
+            "mechanism": row.mechanism_ref or "",
+            "mechanism_training": bool(row.mechanism_training),
+            "mechanism_prediction_key": row.mechanism_prediction_key or "",
             "sealed_at": isoformat(row.sealed_at),
         }
     )

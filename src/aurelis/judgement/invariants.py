@@ -54,6 +54,9 @@ _SEALED_CHANGED = (
     "OR NEW.confidence_stated IS NOT OLD.confidence_stated "
     "OR NEW.response IS NOT OLD.response "
     "OR NEW.response_because IS NOT OLD.response_because "
+    "OR NEW.mechanism_ref IS NOT OLD.mechanism_ref "
+    "OR NEW.mechanism_training IS NOT OLD.mechanism_training "
+    "OR NEW.mechanism_prediction_key IS NOT OLD.mechanism_prediction_key "
     "OR NEW.sealed_at <> OLD.sealed_at OR NEW.seal <> OLD.seal"
 )
 
