@@ -262,19 +262,17 @@ def strategy_author(
         ),
     ] = "",
 ) -> None:
-    """Put an agent in the author's seat and measure what it designs.
+    """Put an agent in the author's seat and measure what it writes.
 
-    The agent chooses a whole strategy from a closed space, in its own words,
+    The agent writes a rule in the company's rule language, in its own words,
     before anything has been run on the data it will be scored against — and
-    the company preregisters the **whole space it chose from**, not the one
-    design it picked.
+    the company preregisters the rule as one declared cell.
 
     ``--snapshot`` measures the design on recorded market bars rather than the
     desk fixture, and reserves the snapshot's tail: the research window stops
     short so that a forward paper walk has bars the design never read.
     """
     from aurelis.authoring.attempt import run_authoring
-    from aurelis.authoring.design import space_size
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
     from aurelis.platform.llm.seating import seat_provider
@@ -301,19 +299,16 @@ def strategy_author(
         f"[bold]{authored.version_ref}[/bold]  authored by {authored.agent_ref} "
         f"on the {authored.desk.value} desk"
     )
-    console.print(f"[dim]{escape(authored.design.describe())}[/dim]")
     console.print()
-
-    choices = Table(title=f"what the agent chose — 1 of {space_size()} reachable designs")
-    for column in ("slot", "chose", "in its own words"):
-        choices.add_column(column, overflow="fold")
-    for turn in authored.turns:
-        choices.add_row(
-            turn.slot,
-            ", ".join(turn.chosen) or "-",
-            escape(turn.reasoning[:110]),
-        )
-    console.print(choices)
+    rule = Table(title="what the agent wrote")
+    rule.add_column("", style="bold", width=12)
+    rule.add_column("", overflow="fold")
+    rule.add_row("rule", escape(authored.program.text))
+    rule.add_row("rationale", escape(authored.rationale))
+    for weakness in authored.weaknesses:
+        rule.add_row("weakness", escape(weakness))
+    rule.add_row("digest", authored.program.digest[:16])
+    console.print(rule)
 
     measured = Table(title="what the measurement said")
     measured.add_column("", style="bold", width=18)
@@ -329,7 +324,7 @@ def strategy_author(
         "beat the baselines",
         "[green]yes[/green]" if outcome.beat_baselines else "[red]no[/red]",
     )
-    measured.add_row("declared cells", f"{outcome.declared_cells} (the whole space)")
+    measured.add_row("declared cells", f"{outcome.declared_cells} (one rule, one cell)")
     measured.add_row("trials in family", str(outcome.trials_in_family))
     if outcome.shortfall:
         measured.add_row(
@@ -351,7 +346,7 @@ def strategy_author(
     if not outcome.beat_baselines:
         console.print()
         console.print(
-            "[yellow]The authored design did not beat holding the asset.[/yellow] "
+            "[yellow]The authored rule did not beat holding the asset.[/yellow] "
             "A rule that cannot beat buying and holding has not found anything, "
             "and one that cannot beat doing nothing has found less. That is the "
             "result, and it is reported rather than tuned away."
@@ -411,12 +406,12 @@ def strategy_campaign(
     console.print(
         f"[bold]{outcome.campaign_ref}[/bold]  {outcome.agent_ref} on the "
         f"{outcome.desk.value} desk — {outcome.budget} attempts, "
-        f"{outcome.width} designs declared before the first"
+        f"{outcome.width} rules declared before the first"
     )
     console.print()
 
     walk = Table(title="the campaign, attempt by attempt")
-    for column in ("#", "attempt", "design", "sharpe", "total return", "cells"):
+    for column in ("#", "attempt", "rule", "sharpe", "total return", "cells"):
         walk.add_column(column, overflow="fold")
     best = outcome.best
     for index, attempt in enumerate(outcome.attempts, 1):
@@ -424,7 +419,7 @@ def strategy_campaign(
         walk.add_row(
             f"{index}{marker}",
             attempt.attempt_ref,
-            escape(attempt.authored.design.describe()),
+            escape(attempt.authored.program.text.replace("\n", " | ")),
             str(attempt.sharpe),
             str(attempt.total_return),
             str(attempt.declared_cells),
@@ -444,6 +439,7 @@ def strategy_campaign(
     )
     tone = "green" if check.survives else "red"
     paid.add_row("surplus", f"[{tone}]{check.surplus}[/{tone}]")
+    paid.add_row("margin it must clear", str(check.margin))
     paid.add_row(
         "survives the search",
         "[green]yes[/green]" if check.survives else "[red]no[/red]",
@@ -464,15 +460,15 @@ def strategy_campaign(
     console.print()
     if not check.survives:
         console.print(
-            "[yellow]The campaign found nothing.[/yellow] Its best design is "
-            "below what searching this wide returns from noise alone — so the "
-            "number it found is what a search of this width produces when "
-            "there is no edge to find. Searching harder raises that bar faster "
-            "than it finds anything."
+            "[yellow]The campaign found nothing.[/yellow] Its best rule does not "
+            "clear what searching this wide returns from noise alone by more "
+            "than the estimator's own noise — so the number it found is what a "
+            "search of this width produces when there is no edge to find. "
+            "Searching harder raises that bar faster than it finds anything."
         )
     console.print(
-        "[dim]The correction treats the designs as independent and normal. "
-        "Designs over one price series are correlated, which makes the true "
+        "[dim]The correction treats the rules as independent and normal. "
+        "Rules over one price series are correlated, which makes the true "
         "expected maximum smaller than this — so it is conservative, and may "
         "call a real edge nothing.[/dim]"
     )

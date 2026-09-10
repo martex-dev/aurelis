@@ -6,7 +6,7 @@ and almost all of its design is about refusing to be a demonstration.
 
 **The rule that trades is the rule that was measured.** The design is
 reconstructed from the authoring attempt and checked against the digest the
-attempt recorded, then rendered through the same :func:`~aurelis.authoring.design.render`
+attempt recorded, then rendered through the same :func:`~aurelis.authoring.specs.render_spec`
 and evaluated through the same :meth:`~aurelis.engines.local.LocalEngine.weights`
 the backtest used. A driver that re-implemented the signal would measure the
 distance between two implementations and report it as the distance between a
@@ -42,7 +42,7 @@ from decimal import Decimal
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from aurelis.authoring.design import Design, render
+from aurelis.authoring.specs import render_spec
 from aurelis.authoring.tables import AuthoringAttempt
 from aurelis.core.errors import IntegrityViolation
 from aurelis.engines.local import LocalEngine
@@ -50,6 +50,7 @@ from aurelis.engines.spec import ExperimentSpec
 from aurelis.intel.snapshots import MarketSnapshot, SnapshotSource
 from aurelis.portfolio.tables import Allocation, Portfolio
 from aurelis.research.tables import Registration, Result
+from aurelis.rules.language import Program
 from aurelis.trading.brokers import PaperBroker
 from aurelis.trading.posttrade import Gap
 from aurelis.trading.states import OrderSide
@@ -190,13 +191,17 @@ class PaperWalk:
 # ---------------------------------------------------------- what is deployed
 
 
-def design_of(session: Session, version_ref: str) -> tuple[Design, AuthoringAttempt]:
-    """Rebuild the authored design, and prove it is the one that was measured.
+def rule_of(session: Session, version_ref: str) -> tuple[Program, AuthoringAttempt]:
+    """Rebuild the authored rule, and prove it is the one that was measured.
 
     The digest check is the whole point. Everything downstream — the weights,
     the intents, the gap — is a claim about *this* rule, and a reconstruction
-    that silently differed from the recorded design would produce a number
+    that silently differed from the recorded program would produce a number
     about a strategy the company never tested.
+
+    An attempt recorded before M26 holds a menu pick rather than a program.
+    Those cannot be traded any more and are refused with the reason: the menu
+    they were chosen from no longer exists.
     """
     attempt = session.execute(
         sa.select(AuthoringAttempt).where(AuthoringAttempt.version_ref == version_ref)
@@ -206,14 +211,21 @@ def design_of(session: Session, version_ref: str) -> tuple[Design, AuthoringAtte
             f"{version_ref} was not authored through a recorded attempt, so "
             "the rule it would trade cannot be reconstructed"
         )
-    design = Design(tuple((str(k), str(v)) for k, v in attempt.design.items()))
-    if design.digest() != attempt.design_digest:
+    payload = attempt.design.get("program") if isinstance(attempt.design, dict) else None
+    if not isinstance(payload, dict):
         raise IntegrityViolation(
-            f"{attempt.ref} recorded design digest {attempt.design_digest[:16]} "
-            f"and the design read back hashes to {design.digest()[:16]}. The "
+            f"{attempt.ref} was authored from a design menu that no longer "
+            "exists, so the rule it would trade cannot be reconstructed. Its "
+            "record stands; it cannot be deployed"
+        )
+    program = Program.from_payload(payload, source=str(attempt.design.get("rule", "")))
+    if program.digest != attempt.design_digest:
+        raise IntegrityViolation(
+            f"{attempt.ref} recorded rule digest {attempt.design_digest[:16]} "
+            f"and the program read back hashes to {program.digest[:16]}. The "
             "rule that would trade is not the rule that was measured"
         )
-    return design, attempt
+    return program, attempt
 
 
 def _research_bars(session: Session, attempt: AuthoringAttempt) -> int:
@@ -276,7 +288,7 @@ def deployments(
 
     out: list[Deployed] = []
     for allocation in rows:
-        design, attempt = design_of(session, allocation.version_ref)
+        program, attempt = rule_of(session, allocation.version_ref)
         locked = _locked_source(session, attempt)
         if snapshot.ref not in locked:
             raise IntegrityViolation(
@@ -286,8 +298,8 @@ def deployments(
                 "distance between the datasets"
             )
         research = _research_bars(session, attempt)
-        spec = render(
-            design,
+        spec = render_spec(
+            program,
             desk=attempt.desk,
             bars=research,
             interval=snapshot.interval,

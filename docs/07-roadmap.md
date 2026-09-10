@@ -1335,6 +1335,98 @@ See [ADR-0026](adr/0026-a-judgement-is-sealed-before-the-outcome-exists.md).
 
 ---
 
+## M26 — The menu is gone: a strategy is a rule the agent wrote ✅
+
+The brief's one hard instruction about the existing code: delete the 72-point
+design space, and do not replace it with a bigger menu. Done. What an agent
+authors now is a **rule it wrote**, in a small closed language the engine runs
+and the ledger hashes, through the same preregistration, selection correction
+and gate machinery as before.
+
+### The rule language
+
+Clauses read top to bottom, each a condition over features of the closes up to
+the current bar, each deciding long, short or flat. Eight features (`close`,
+`ret`, `sma`, `ema`, `vol`, `high`, `low`, `rsi`), windows to 720 bars, at
+most eight clauses, exact decimal arithmetic, no state, no loops, no I/O. It
+parses to a canonical structure that hashes the same however it was typed; a
+test changes the future and asserts the past does not move; the parser refuses
+rather than guesses. The engine gained one signal kind, `rule`, rebuilt from
+the registration's own payload so what runs is what was locked.
+
+The author is shown the desk, its costs, the budget, prior work and the
+language — never a measurement — and replies with the rule, a rationale and a
+weakness in one call. The rule's numbers are the agent's; the rationale may
+cite them and the material and nothing else. Two model calls per authoring
+where the menu took six.
+
+### One rule is one cell, and the correction had to get stricter
+
+There is no enumerable space behind a written rule, so each rule is one
+declared cell and a campaign's width is the number of rules it lets itself
+write. That is a floor, stated as one: whatever a model weighed before writing
+a rule down is uncounted, and the forward record (M25) is the check on that.
+
+Shrinking the width from 96 to 4 exposed a weakness that had been there since
+M16: `survives` was `surplus > 0`, and under the null the best of *n* draws
+lands above its own expectation about half the time. **The first four-rule
+campaign on a fixture survived.** A surplus must now clear the estimator's own
+standard error, one-sided at 95%, and the fixture campaign no longer does.
+
+### What a real model wrote, on 28,000 recorded BTC hours
+
+Sonnet, in the author's seat, standalone:
+
+```
+(close > sma(720) and close > sma(168)) -> long
+(close < sma(720) and close < sma(168)) -> short
+
+total_return  -0.92667759      hold  +1.52260758
+n_trades      1339             cost_drag  0.92620736
+```
+
+Its stated weakness was whipsaw in a range-bound regime, which is what
+happened: 1,339 round trips at 40 bps ate 93% of the sleeve. Then a campaign of
+three rules, each revised on the last one's result:
+
+```
+1  close < (low(168) * 1.01) -> flat | (close > (high(336) * 0.99) and close > sma(720)) -> long | ...
+   sharpe 0.00182321   total return  0.00939685
+2  close > sma(720) -> long | close < (sma(720) * 0.95) -> flat | else -> long
+   sharpe 0.00058198   total return -0.18800562
+3  ema(168) > (ema(720) * 1.01) -> long | ema(168) < (ema(720) * 0.98) -> flat | else -> long
+   sharpe 0.00790851   total return  0.98572211
+
+best observed          0.00790851
+expected best of 3     0.00509665
+surplus                0.00281186
+margin it must clear   0.00983108
+survives the search    no
+beat the baselines     no
+```
+
+Three rules the menu could not have expressed — a breakout with a floor, a
+trend gate with a stop band, an EMA ratio with hysteresis — and the third
+returned +99% against +152% for holding the asset, with a surplus over the
+search that is inside the estimator's noise. **The company reported that the
+campaign found nothing.** That is the seat working: the agent could write
+something new, and the measurement said what it was worth.
+
+### What this milestone did not do
+
+- The rule sees one instrument's closes. No volume, no cross-section, no
+  events, no entities: the mechanical-rule half of the two evidence regimes,
+  and not the scheme half.
+- No critic reads a rule before it is measured; no filter, sizing or exit
+  beyond the position the rule states.
+- The M25 CI acceptance check was wrong for a scaled company and is fixed
+  here: it counted views across two runs where it should have read the loop's
+  own exhaustion reason.
+
+See [ADR-0027](adr/0027-a-strategy-is-a-rule-the-agent-wrote.md).
+
+---
+
 ## Sequencing
 
 ```

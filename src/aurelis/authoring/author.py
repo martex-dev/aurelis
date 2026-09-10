@@ -1,163 +1,133 @@
-"""The author's seat: an agent picks the pieces, and the pieces are the strategy.
+"""The author's seat: an agent writes the rule, and the rule is the strategy.
 
-M8 built the surface — :func:`~aurelis.strategy.synthesis.Synthesis.author_component`
-and :func:`~aurelis.strategy.synthesis.Synthesis.compose` — and said in its own
-docstring what it was for: *agents write pieces, with stated reasoning and a
-cited origin, and a strategy is what those pieces make.* Until now the pieces
-were written by hand in a test fixture. This module is the agent doing it.
+M15 put an agent in this seat with a menu of 72 designs and called the pick a
+strategy. The brief for this stage says why a menu can never hold an idea only
+the agent would have had, and says the menu has to go. It is gone. What sits
+here now is an agent **writing a rule** in the company's rule language
+(:mod:`aurelis.rules`), in its own words, with a cited origin — and the
+company preregistering the rule before anything is measured.
 
-Every field the synthesis surface requires is answered by the agent, from a
-closed set, in its own words:
+One model call writes the rule; a second, closed question asks where it came
+from. Four refusals hold the seat shut.
 
-============================  ==========================================
-what the surface requires     where it comes from now
-============================  ==========================================
-the signal, and its shape     five design slots (:mod:`.design`)
-``rationale``                 the agent's ``BECAUSE`` for that slot
-``origin`` / ``origin_ref``   a closed provenance question
-``known_weaknesses``          a closed question, abstention refused
-``assumes``                   implied by the choice, not asserted
-============================  ==========================================
+**A rule that does not parse is not a rule.** The language is small and the
+parser refuses rather than guesses. A near-miss repaired by the software would
+put the software's rule on the agent's record.
 
-Three refusals hold the seat shut.
+**The rationale is figure-checked.** Every numeral in it must appear in the
+material or in the rule itself. The numbers inside the rule are the agent's to
+choose — choosing them is the job — and the rationale may cite them; what it
+may not do is reason from a number nobody gave it and it did not write.
 
-**A half-authored strategy is not a strategy.** If any turn is unreadable, or
-cites a figure nobody showed the agent, the whole authoring is refused and
-nothing is written. Composing around a missing answer would put the software's
-default into the agent's record and call it the agent's design.
+**A rule with no origin is not authored.** :class:`~aurelis.strategy.states.Origin`
+is the field the company's claim to have *created* anything rests on, and an
+uncited creation is unfalsifiable.
 
-**A component with no origin is not authored.** ``NOTHING`` is offered on every
-question because a decision surface without abstention produces an agent that
-always finds something — but abstaining on provenance is refused, because
-:class:`~aurelis.strategy.states.Origin` is the field the company's claim to
-have *created* anything rests on, and an uncited creation is unfalsifiable.
+**A rule whose author cannot name a weakness is refused**, which is M8's rule:
+every strategy has a regime it does not survive, and an author who cannot say
+which has not looked.
 
-**A composition whose author cannot name a weakness is refused**, which is M8's
-rule, now answered by the agent rather than by a fixture. Every strategy has a
-regime it does not survive; an agent that abstains has not looked.
-
-What sits behind the seat in this repository is a deterministic stand-in, not a
-model — the same caveat as M14, for the same reason, and it is repeated on
-every report.
+What the agent is shown is structure only — the desk, its costs, the budget
+in bars, prior work, and the language. Never a measurement of the data the
+rule will be scored on. An author shown this quarter's Sharpe for a few
+candidate rules would be selecting, not authoring.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from aurelis.agents.decide import Choice, Decision, Question, decide_as
-from aurelis.agents.interpret import UnsourcedFigures
-from aurelis.authoring.design import (
-    FAMILY,
-    Design,
-    Slot,
-    component_spec,
-    question_for,
-    render,
-    slots_for,
-    space_size,
+from aurelis.agents.interpret import (
+    FIGURE_RULE,
+    UnsourcedFigures,
+    allowed_figures,
+    render_material,
+    unsourced_numerals,
 )
+from aurelis.authoring.specs import render_spec
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.enums import ModelTier
 from aurelis.desks.calendars import calendar_for
 from aurelis.desks.costs import costs_for
 from aurelis.engines.spec import ExperimentSpec
 from aurelis.org.desks import DESKS, Desk
+from aurelis.platform.llm.routing import model_for
+from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
+from aurelis.rules.language import REFERENCE, Program, RuleSyntaxError, parse
 from aurelis.strategy.markets import Assumption
-from aurelis.strategy.states import Origin
+from aurelis.strategy.states import ComponentKind, Origin
 from aurelis.strategy.synthesis import Novelty, Synthesis
 from aurelis.strategy.tables import Component
 
 __all__ = [
     "MATERIAL_SECTIONS",
-    "WEAKNESSES",
+    "RULE_FORM",
+    "SYSTEM",
     "AuthorTurn",
     "AuthoredStrategy",
+    "Authoring",
     "AuthoringRefused",
     "Citations",
     "StrategyAuthor",
     "material_for",
     "origin_question",
-    "weakness_question",
+    "parse_authoring",
 ]
 
 SYSTEM = (
     "You are a strategy architect at a quantitative research company. You are "
-    "choosing one design from a fixed menu, for one market desk. The company "
-    "will then preregister your choice, measure it against criteria fixed "
-    "before the run, and refute it if the evidence says so.\n\n"
-    "Choosing a design is NOT a claim that it works. It is choosing what to "
-    "test next. The data available is described below and may be short or "
+    "writing one trading rule, in a small fixed language, for one market desk. "
+    "The company will then preregister your rule, measure it against criteria "
+    "fixed before the run, and refute it if the evidence says so.\n\n"
+    "Writing a rule is NOT a claim that it works. It is choosing what to test "
+    "next. The data available is described below and may be short or "
     "synthetic; that is a fact about this experiment, not a reason to decline "
-    "to design one. Reserve `nothing` for when no option could be tested at "
-    "all, not for when you are uncertain whether it will succeed.\n\n"
+    "to write one. Reserve `nothing` for when no rule could be tested at all, "
+    "not for when you are uncertain whether it will succeed.\n\n"
     "You do not choose the costs, the universe or the window; those belong to "
-    "the desk."
+    "the desk. Everything else about the rule is yours."
 )
-"""What the seat is, said plainly enough that a careful model will sit in it.
 
-The first version said "you are designing a strategy" and nothing else. A real
-model, shown honestly that the data is a fixture and only 2190 bars long,
-answered `nothing` **three times in five** -- and its reasons were sound: it was
-declining to claim an edge on synthetic data too short to support one.
-
-That is the right instinct pointed at the wrong question. The seat does not ask
-for a claim; it asks which design the company should test next, and the answer
-is measured and frequently refuted. Saying so is not coaxing the model into
-compliance, it is telling it the truth about what its answer will be used for --
-and the abstention rate went to zero without weakening a single guard.
-"""
-
-WEAKNESSES: tuple[Choice, ...] = (
-    Choice("trending", "a market that keeps going will run over a reversion rule"),
-    Choice("choppy", "a market with no direction pays the costs and earns nothing"),
-    Choice("cost_shock", "the edge is thin enough that wider spreads erase it"),
-    Choice("regime_break", "the relationship it trades on may simply stop holding"),
-    Choice("crowding", "the same rule is obvious enough that others may take it"),
+RULE_FORM = (
+    "Write one rule in the language described above. Reply in exactly this "
+    "form and nothing else:\n"
+    "RULE:\n"
+    "<one clause per line>\n"
+    "RATIONALE: <why this rule should earn its costs on this desk, one to "
+    "three sentences>\n"
+    "WEAKNESS: <the regime it will not survive, one sentence>\n\n"
+    "Or, if no rule could be tested at all: RULE: nothing\n\n"
+    "The numbers inside RULE are yours to choose. RATIONALE and WEAKNESS may "
+    f"cite them and the figures above, and nothing else. {FIGURE_RULE}"
 )
-"""What a strategy might not survive. Closed, and an abstention is refused.
+"""The reply form. Its digits are the material's digits, so appending it
+cannot widen what a rationale may cite."""
 
-Not a design choice — naming a weakness does not change what runs. It is
-required because :func:`~aurelis.strategy.synthesis.Synthesis.compose` refuses
-a version whose authors cannot name one, and that rule was written at M8 on the
-grounds that every composition has a regime it fails in and authors who cannot
-say which have not looked. The agent now answers it.
-"""
+MATERIAL_SECTIONS: tuple[str, ...] = ("desk", "costs", "budget", "prior_work", "the_language")
+"""Everything the author is shown, and nothing else. None of it is a result."""
 
-MATERIAL_SECTIONS: tuple[str, ...] = ("desk", "costs", "budget", "prior_work")
-"""Everything the author is shown, and nothing else.
-
-None of it is a result. The agent designs the strategy **before** anything has
-been run on the data it will be scored against, which is what makes the
-preregistration that follows worth locking: an author shown this quarter's
-Sharpe for each candidate would be selecting, not authoring, and the
-registration would be a record of a decision already made.
-"""
+_SECTION = re.compile(r"^\s*(RULE|RATIONALE|WEAKNESS)\s*:\s*(.*)$", re.I)
 
 
 @dataclass(frozen=True, slots=True)
 class Citations:
     """What the agent may claim its work came from.
 
-    Each entry is a reference that already exists in the company's record.
-    The agent chooses *which* provenance applies; it cannot write the citation
+    Each entry is a reference that already exists in the company's record. The
+    agent chooses *which* provenance applies; it cannot write the citation
     itself, because a free-text origin is exactly the unfalsifiable claim
     :mod:`aurelis.strategy.synthesis` refuses.
     """
 
     task_ref: str | None = None
-    """The task the authoring was done under. Supports ``INVENTED``."""
-
     failure_ref: str | None = None
-    """A hypothesis the company already killed. Supports
-    ``DERIVED_FROM_FAILURE``, and it is what a graveyard is for."""
-
     corpus_ref: str | None = None
-    """An inherited trial. Supports ``ADAPTED`` — an honest inheritance."""
 
     def available(self) -> tuple[tuple[Origin, str], ...]:
         pairs: list[tuple[Origin, str]] = []
@@ -171,14 +141,9 @@ class Citations:
 
 
 class AuthoringRefused(RuntimeError):
-    """The agent did not produce a design, so nothing was written.
+    """The agent did not produce a rule, so nothing was written."""
 
-    Carries the slot it failed on. A partial composition is not a lesser
-    strategy, it is a strategy the software finished — and that is the one
-    thing this seat exists to prevent.
-    """
-
-    def __init__(self, slot: str, cause: Exception) -> None:
+    def __init__(self, slot: str, cause: Exception | str) -> None:
         super().__init__(
             f"authoring refused at {slot!r}: {cause}. A half-authored strategy "
             "would be finished by the software and recorded as the agent's "
@@ -190,7 +155,7 @@ class AuthoringRefused(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class AuthorTurn:
-    """One question, and what came back."""
+    """One exchange with the seat, and what came back."""
 
     slot: str
     chosen: tuple[str, ...]
@@ -209,33 +174,86 @@ class AuthorTurn:
 
 
 @dataclass(frozen=True, slots=True)
+class Authoring:
+    """What the agent wrote, parsed and not interpreted."""
+
+    program: Program | None
+    rationale: str
+    weakness: str
+
+    @property
+    def declined(self) -> bool:
+        return self.program is None
+
+
+def parse_authoring(text: str, *, require_weakness: bool = True) -> Authoring:
+    """The three sections out of a reply, or a refusal that says which failed."""
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        match = _SECTION.match(line)
+        if match:
+            current = match.group(1).upper()
+            sections[current] = [match.group(2).strip()] if match.group(2).strip() else []
+        elif current is not None and line.strip():
+            sections[current].append(line.rstrip())
+    rule_lines = sections.get("RULE")
+    if rule_lines is None:
+        raise AuthoringRefused("rule", "the reply has no RULE section")
+    rule_text = "\n".join(rule_lines).strip()
+    if rule_text.lower() == "nothing":
+        return Authoring(None, "", "")
+    try:
+        program = parse(rule_text)
+    except RuleSyntaxError as error:
+        raise AuthoringRefused("rule", error) from error
+    rationale = " ".join(sections.get("RATIONALE", [])).strip()
+    weakness = " ".join(sections.get("WEAKNESS", [])).strip()
+    if len(rationale) <= 20:
+        raise AuthoringRefused(
+            "rationale", "a rationale of fewer than twenty characters is not one"
+        )
+    if require_weakness and len(weakness) <= 10:
+        raise AuthoringRefused(
+            "weakness",
+            "the agent named no weakness. Every rule has a regime it does not "
+            "survive, and one whose author cannot name it has not looked",
+        )
+    return Authoring(program, rationale, weakness)
+
+
+@dataclass(frozen=True, slots=True)
 class AuthoredStrategy:
-    """A strategy an agent designed, and the record of it designing it."""
+    """A rule an agent wrote, and the record of it writing it."""
 
     agent_ref: str
     desk: Desk
     strategy_ref: str
     version_ref: str
-    design: Design
+    program: Program
     spec: ExperimentSpec
     origin: Origin
     origin_ref: str
+    rationale: str
     weaknesses: tuple[str, ...]
     components: tuple[Component, ...] = field(default=())
     turns: tuple[AuthorTurn, ...] = field(default=())
     novelty: Novelty | None = None
 
     @property
-    def space(self) -> int:
-        """How many designs the agent chose between."""
-        return space_size()
+    def rule(self) -> str:
+        return self.program.text
 
     def describe(self) -> str:
         return (
-            f"{self.agent_ref} authored {self.version_ref} on "
-            f"{self.desk.value}: {self.design.describe()} "
-            f"(1 of {self.space} reachable designs)"
+            f"{self.agent_ref} authored {self.version_ref} on {self.desk.value}: "
+            f"{self.program.text.replace(chr(10), ' | ')}"
         )
+
+    def design_payload(self) -> dict[str, Any]:
+        """What the attempt row records. ``rule`` is the canonical text and
+        ``program`` the structure it hashes from."""
+        return {"rule": self.program.text, "program": self.program.payload}
 
     def as_payload(self) -> dict[str, Any]:
         return {
@@ -243,13 +261,12 @@ class AuthoredStrategy:
             "desk": self.desk.value,
             "strategy": self.strategy_ref,
             "version": self.version_ref,
-            "design": self.design.as_payload(),
-            "design_digest": self.design.digest(),
+            "rule": self.program.text,
+            "rule_digest": self.program.digest,
             "spec_digest": self.spec.digest(),
             "origin": self.origin.value,
             "origin_ref": self.origin_ref,
             "weaknesses": list(self.weaknesses),
-            "space": self.space,
             "turns": [turn.as_payload() for turn in self.turns],
         }
 
@@ -266,8 +283,8 @@ def material_for(
 
     No session, no engine, no artifact — deliberately, and the signature is the
     guarantee. There is nothing here that could carry a measurement of the data
-    the design will be scored on, so the design cannot have been chosen for
-    fitting it.
+    the rule will be scored on, so the rule cannot have been chosen for fitting
+    it.
     """
     the_desk = desk if isinstance(desk, Desk) else Desk(desk)
     costs = costs_for(the_desk)
@@ -286,16 +303,10 @@ def material_for(
         "desk": {
             "market": DESKS[the_desk].name,
             "calendar": calendar.name,
-            # Named, because this line was a flat "fixture, not live market
-            # data" and stayed that way when the seat was first pointed at a
-            # recording of a real market. An agent briefed with a false fact
-            # about its own data is being asked to reason about a different
-            # problem than the one it is scored on.
             "data": (
-                f"recorded market data: {source}"
-                if source
-                else "fixture, not live market data"
+                f"recorded market data: {source}" if source else "fixture, not live market data"
             ),
+            "instruments": "one instrument per run; the rule sees its closes only",
         },
         "costs": {
             "round trip": f"{costs.round_trip_bps} bps",
@@ -307,17 +318,15 @@ def material_for(
             "bars a year on this calendar": calendar.periods_per_year(interval),
         },
         "prior_work": prior,
+        "the_language": {
+            "reference": REFERENCE,
+            "example of the syntax": "ret(24) > 0.02 -> long",
+        },
     }
 
 
 def origin_question(citations: Citations) -> Question:
-    """Where did this come from? Closed, and abstention is refused.
-
-    The options are the citations that already exist in the record. An agent
-    cannot write its own, because the citation shape check in
-    :mod:`aurelis.strategy.synthesis` can only tell an invented component from
-    a copied one if the reference is real.
-    """
+    """Where did this come from? Closed, and abstention is refused."""
     describes = {
         Origin.DERIVED_FROM_FAILURE: "it answers a failure the company recorded",
         Origin.ADAPTED: "it is taken from inherited work and changed",
@@ -332,21 +341,11 @@ def origin_question(citations: Citations) -> Question:
             "no citation is available, so no origin can be claimed. An "
             "uncited origin makes 'we created this' unfalsifiable"
         )
-    return Question(
-        prompt="Where did this design come from?", options=options, multiple=False
-    )
-
-
-def weakness_question() -> Question:
-    return Question(
-        prompt="What will this strategy not survive?",
-        options=WEAKNESSES,
-        multiple=True,
-    )
+    return Question(prompt="Where did this rule come from?", options=options, multiple=False)
 
 
 class StrategyAuthor:
-    """Drives an agent through the design space and writes what it chose."""
+    """Drives an agent through writing a rule and records what it wrote."""
 
     __slots__ = ("_provider", "_synthesis", "_clock", "tier", "turns")
 
@@ -362,13 +361,78 @@ class StrategyAuthor:
         self._synthesis = synthesis
         self._clock = clock or SystemClock()
         self.tier = tier
-        """Which model answers. The **agent's own** tier, resolved from the
-        charters it covers, passed in by whoever seated it -- not a default
-        chosen by this signature. A Strategy Architect is a HIGH charter and
-        should not design with the model a source-reliability officer uses."""
         self.turns: list[AuthorTurn] = []
 
     # ------------------------------------------------------------- asking
+
+    def write_rule(
+        self,
+        session: Session,
+        *,
+        agent_ref: str,
+        material: dict[str, Any],
+        form: str = RULE_FORM,
+        task_ref: str | None = None,
+        require_weakness: bool = True,
+    ) -> Authoring:
+        """One call: the rule, the rationale, the weakness. Refuse anything else.
+
+        Public because a revision is the same seat writing a different rule,
+        and a campaign that reimplemented the ask would have its own parse, its
+        own figure check and its own idea of what a refusal is.
+        """
+        rendered = f"{render_material(material)}\n\n{form}"
+        model_id = model_for(self._provider.name, self.tier)
+        response = self._provider.complete(
+            session,
+            LlmRequest(
+                model=ModelRef(
+                    provider=self._provider.name, model=model_id, tier=self.tier, max_tokens=600
+                ),
+                system=SYSTEM,
+                messages=(Message("user", rendered),),
+                actor=agent_ref,
+                task_ref=task_ref,
+            ),
+        )
+        try:
+            authoring = parse_authoring(response.text, require_weakness=require_weakness)
+        except AuthoringRefused as error:
+            self.turns.append(
+                AuthorTurn(
+                    slot=error.slot, chosen=(), reasoning="", refused=True, error=str(error.cause)
+                )
+            )
+            raise
+        if authoring.declined:
+            self.turns.append(
+                AuthorTurn(slot="rule", chosen=(), reasoning="", refused=True, error="declined")
+            )
+            raise AuthoringRefused(
+                "rule",
+                "the agent declined to write a rule. A software default recorded "
+                "as the agent's rule would make the strategy the company's and "
+                "the record the agent's",
+            )
+        assert authoring.program is not None
+        permitted = allowed_figures(material, {"rule": authoring.program.source, "form": form})
+        invented = unsourced_numerals(f"{authoring.rationale}\n{authoring.weakness}", permitted)
+        if invented:
+            unsourced = UnsourcedFigures(invented, len(permitted))
+            self.turns.append(
+                AuthorTurn(
+                    slot="rationale", chosen=(), reasoning="", refused=True, error=str(unsourced)
+                )
+            )
+            raise AuthoringRefused("rationale", unsourced) from unsourced
+        self.turns.append(
+            AuthorTurn(
+                slot="rule",
+                chosen=(authoring.program.digest[:12],),
+                reasoning=authoring.rationale,
+            )
+        )
+        return authoring
 
     def _ask(
         self,
@@ -402,57 +466,12 @@ class StrategyAuthor:
                 )
             )
             raise AuthoringRefused(slot, error) from error
-
         self.turns.append(
             AuthorTurn(
-                slot=slot,
-                chosen=tuple(sorted(decision.chosen)),
-                reasoning=decision.reasoning,
+                slot=slot, chosen=tuple(sorted(decision.chosen)), reasoning=decision.reasoning
             )
         )
         return decision
-
-    def ask_one(
-        self,
-        session: Session,
-        *,
-        agent_ref: str,
-        slot: str,
-        question: Question,
-        material: dict[str, Any],
-        task_ref: str | None = None,
-    ) -> str:
-        """Ask one closed question and return the single key chosen.
-
-        Public because a revision is the same seat asking a different question,
-        and a campaign that reimplemented the ask would have its own parse, its
-        own figure check and its own idea of what a refusal is.
-        """
-        return self._one(
-            self._ask(
-                session,
-                agent_ref=agent_ref,
-                slot=slot,
-                question=question,
-                material=material,
-                task_ref=task_ref,
-            ),
-            slot,
-        )
-
-    @staticmethod
-    def _one(decision: Decision, slot: str) -> str:
-        if decision.abstained:
-            raise AuthoringRefused(
-                slot,
-                ValueError(
-                    f"the agent abstained on {slot}, which has no default. A "
-                    "software default recorded as the agent's choice would "
-                    "make the design partly the company's and wholly the "
-                    "agent's on the record"
-                ),
-            )
-        return next(iter(decision.chosen))
 
     # ------------------------------------------------------------ writing
 
@@ -469,53 +488,18 @@ class StrategyAuthor:
         task_ref: str | None = None,
         at: dt.datetime | None = None,
     ) -> AuthoredStrategy:
-        """Ask the agent for a whole strategy, and write down what it said.
-
-        Every turn is asked against the same material, so an answer cannot be
-        conditioned on a number that arrived halfway through. The order the
-        slots are asked in is the order the branch structure requires: the
-        family first, because the family decides which of the remaining slots
-        exist.
-        """
+        """Ask the agent for a rule, then where it came from, and write it down."""
         self.turns = []
         the_desk = desk if isinstance(desk, Desk) else Desk(desk)
         moment = at or self._clock.now()
         material = material_for(
-            the_desk,
-            bars=bars,
-            citations=citations,
-            interval=interval,
-            source=source,
+            the_desk, bars=bars, citations=citations, interval=interval, source=source
         )
 
-        family_slot = slots_for(None)[0]
-        family = self._one(
-            self._ask(
-                session,
-                agent_ref=agent_ref,
-                slot=FAMILY,
-                question=question_for(family_slot),
-                material=material,
-                task_ref=task_ref,
-            ),
-            FAMILY,
+        authoring = self.write_rule(
+            session, agent_ref=agent_ref, material=material, task_ref=task_ref
         )
-        picks: list[tuple[str, str]] = [(FAMILY, family)]
-        reasons: dict[str, str] = {FAMILY: self.turns[-1].reasoning}
-
-        for slot in slots_for(family):
-            if slot.name == FAMILY:
-                continue
-            decision = self._ask(
-                session,
-                agent_ref=agent_ref,
-                slot=slot.name,
-                question=question_for(slot),
-                material=material,
-                task_ref=task_ref,
-            )
-            picks.append((slot.name, self._one(decision, slot.name)))
-            reasons[slot.name] = decision.reasoning
+        assert authoring.program is not None
 
         origin_decision = self._ask(
             session,
@@ -525,52 +509,28 @@ class StrategyAuthor:
             material=material,
             task_ref=task_ref,
         )
-        origin = Origin(self._one(origin_decision, "origin"))
+        if origin_decision.abstained:
+            raise AuthoringRefused(
+                "origin",
+                "the agent abstained on provenance, which has no default; an "
+                "uncited origin makes the claim to have created this unfalsifiable",
+            )
+        origin = Origin(next(iter(origin_decision.chosen)))
         origin_ref = dict(citations.available())[origin]
 
-        weakness_decision = self._ask(
-            session,
-            agent_ref=agent_ref,
-            slot="weakness",
-            question=weakness_question(),
-            material=material,
-            task_ref=task_ref,
+        spec = render_spec(
+            authoring.program, desk=the_desk, bars=bars, interval=interval, source=source
         )
-        if weakness_decision.abstained:
-            raise AuthoringRefused(
-                "weakness",
-                ValueError(
-                    "the agent named no weakness. Every composition has a "
-                    "regime it does not survive, and one whose author cannot "
-                    "name it has not looked"
-                ),
-            )
-        described = {choice.key: choice.describes for choice in WEAKNESSES}
-        weaknesses = (
-            *(
-                f"{key}: {described[key]}"
-                for key in sorted(weakness_decision.chosen)
-            ),
-            # Once, not once per weakness. Repeating one justification against
-            # each of two answers reads as two reasons where the agent gave one.
-            f"the author's reasoning: {weakness_decision.reasoning}",
-        )
-
-        design = Design(tuple(picks))
-        spec = render(
-            design, desk=the_desk, bars=bars, interval=interval, source=source
-        )
-
         return self._write(
             session,
             agent_ref=agent_ref,
             desk=the_desk,
-            design=design,
+            program=authoring.program,
             spec=spec,
-            reasons=reasons,
+            rationale=authoring.rationale,
             origin=origin,
             origin_ref=origin_ref,
-            weaknesses=weaknesses,
+            weaknesses=(authoring.weakness,),
             at=moment,
         )
 
@@ -579,45 +539,33 @@ class StrategyAuthor:
         session: Session,
         *,
         previous: AuthoredStrategy,
-        design: Design,
-        slot_name: str,
-        key: str,
-        reason: str,
+        program: Program,
+        rationale: str,
         at: dt.datetime | None = None,
     ) -> AuthoredStrategy:
-        """Swap one component for another, producing a new version.
+        """Replace the rule with a new one, producing a new version.
 
         The replacement carries ``Origin.REFINED`` citing the component it
-        replaces, which is what that origin is for -- and it means the campaign
-        shows up in the novelty count as refinement rather than invention. A
-        revision recorded as newly invented would let the company inflate what
-        it created by changing one number five times.
-
-        Always a new version, never an edit. The lineage has to be able to say
-        how the company got here, and an edited version is a list of things
-        that are no longer true.
+        replaces, so the campaign shows in the novelty count as refinement
+        rather than invention. Always a new version, never an edit.
         """
         moment = at or self._clock.now()
-        slot = _slot(slot_name, previous.design.family)
         parent = next(
             component
             for component in previous.components
-            if component.spec.get("slot") == slot_name
+            if component.kind == ComponentKind.SIGNAL.value
         )
         replacement = self._synthesis.author_component(
             session,
-            kind=slot.kind,
-            name=f"{previous.desk.value}.{slot_name}.{key}",
-            spec=component_spec(slot, key),
-            rationale=(
-                f"Revised {slot_name} from {previous.design.get(slot_name)} to "
-                f"{key}: {reason.strip()}"
-            ),
+            kind=ComponentKind.SIGNAL,
+            name=f"{previous.desk.value}.rule.{program.digest[:8]}",
+            spec=_component_spec(program),
+            rationale=f"Revised the rule: {rationale.strip()}",
             origin=Origin.REFINED,
             origin_ref=parent.ref,
             author=previous.agent_ref,
             desk=previous.desk,
-            assumes=_assumes(slot_name, key),
+            assumes=_assumes(program),
             at=moment,
         )
         composition = self._synthesis.mutate(
@@ -626,7 +574,7 @@ class StrategyAuthor:
             replace=parent,
             with_component=replacement,
             author=previous.agent_ref,
-            reason=reason.strip() or "revised inside a declared campaign budget",
+            reason=rationale.strip() or "revised inside a declared campaign budget",
             at=moment,
         )
         components = self._synthesis.components_of(session, composition.version.ref)
@@ -635,15 +583,19 @@ class StrategyAuthor:
             desk=previous.desk,
             strategy_ref=previous.strategy_ref,
             version_ref=composition.version.ref,
-            design=design,
-            spec=render(
-                design,
+            program=program,
+            spec=render_spec(
+                program,
                 desk=previous.desk,
                 bars=previous.spec.data.bars,
                 interval=previous.spec.data.interval,
+                source=previous.spec.data.source
+                if not previous.spec.data.source.startswith("fixture:")
+                else "",
             ),
             origin=Origin.REFINED,
             origin_ref=parent.ref,
+            rationale=rationale,
             weaknesses=previous.weaknesses,
             components=components,
             turns=tuple(self.turns),
@@ -656,51 +608,34 @@ class StrategyAuthor:
         *,
         agent_ref: str,
         desk: Desk,
-        design: Design,
+        program: Program,
         spec: ExperimentSpec,
-        reasons: dict[str, str],
+        rationale: str,
         origin: Origin,
         origin_ref: str,
         weaknesses: tuple[str, ...],
         at: dt.datetime,
     ) -> AuthoredStrategy:
-        """Turn the answers into components and a version.
-
-        The rationale on every component is the agent's own ``BECAUSE`` for
-        that slot, padded with the choice it justifies so the sentence stands
-        alone when somebody reads the component years later without the
-        question in front of them.
-        """
-        components: list[Component] = []
-        for slot_name, key in design.picks:
-            slot = _slot(slot_name, design.family)
-            components.append(
-                self._synthesis.author_component(
-                    session,
-                    kind=slot.kind,
-                    name=f"{desk.value}.{slot_name}.{key}",
-                    spec=component_spec(slot, key),
-                    rationale=(
-                        f"Chose {key} for {slot_name}: "
-                        f"{reasons.get(slot_name, '').strip()}"
-                    ),
-                    origin=origin,
-                    origin_ref=origin_ref,
-                    author=agent_ref,
-                    desk=desk,
-                    assumes=_assumes(slot_name, key),
-                    at=at,
-                )
-            )
-
+        component = self._synthesis.author_component(
+            session,
+            kind=ComponentKind.SIGNAL,
+            name=f"{desk.value}.rule.{program.digest[:8]}",
+            spec=_component_spec(program),
+            rationale=rationale,
+            origin=origin,
+            origin_ref=origin_ref,
+            author=agent_ref,
+            desk=desk,
+            assumes=_assumes(program),
+            at=at,
+        )
         costs = costs_for(desk)
         strategy = self._synthesis.open_strategy(
             session,
-            name=f"{desk.value}-{design.family}-{design.digest()[:8]}",
+            name=f"{desk.value}-rule-{program.digest[:8]}",
             thesis=(
-                f"{reasons.get(FAMILY, '').strip()} "
-                f"Designed as {design.describe()} on the {desk.value} desk, "
-                f"paying {costs.round_trip_bps} bps a round trip."
+                f"{rationale.strip()} Rule: {program.text.replace(chr(10), ' | ')}. "
+                f"On the {desk.value} desk, paying {costs.round_trip_bps} bps a round trip."
             ),
             desk=desk,
             owner=agent_ref,
@@ -709,7 +644,7 @@ class StrategyAuthor:
         composition = self._synthesis.compose(
             session,
             strategy_ref=strategy.ref,
-            components=tuple(components),
+            components=(component,),
             universe={
                 "desk": desk.value,
                 "selection": spec.universe.selection,
@@ -726,45 +661,43 @@ class StrategyAuthor:
             constraints={"warmup_bars": spec.backtest.warmup_bars},
             risk_assumptions=(
                 "Sizing is whole-position; the engine holds one unit of "
-                "exposure or none. Leverage is not a choice this surface offers."
+                "exposure, its negative, or none. Leverage is not a choice this "
+                "surface offers."
             ),
-            change_reason="authored by an agent from the closed design space",
+            change_reason="authored by an agent as a rule in the company's rule language",
             at=at,
         )
-
         return AuthoredStrategy(
             agent_ref=agent_ref,
             desk=desk,
             strategy_ref=strategy.ref,
             version_ref=composition.version.ref,
-            design=design,
+            program=program,
             spec=spec,
             origin=origin,
             origin_ref=origin_ref,
+            rationale=rationale,
             weaknesses=weaknesses,
-            components=tuple(components),
+            components=(component,),
             turns=tuple(self.turns),
             novelty=self._synthesis.novelty(session, composition.version.ref),
         )
 
 
-def _slot(name: str, family: str) -> Slot:
-    for slot in slots_for(family):
-        if slot.name == name:
-            return slot
-    raise KeyError(f"{name} is not a slot on the {family} branch")
+def _component_spec(program: Program) -> dict[str, Any]:
+    """What the component records: the program, and what a reader needs to
+    know without holding the language module in their head."""
+    return {
+        "language": "aurelis.rules",
+        "program": program.payload,
+        "text": program.text,
+        "as_written": program.source,
+        "warmup": program.warmup,
+        "uses_short": program.uses_short,
+        "digest": program.digest,
+    }
 
 
-def _assumes(slot_name: str, key: str) -> tuple[str, ...]:
-    """What a choice quietly requires of a market.
-
-    Implied by the choice rather than asserted by the agent, because an
-    assumption is a fact about what the rule needs, not an opinion about it.
-    Taking the other side requires a market where the other side can be taken,
-    and declaring it here is what makes the portability matrix downgrade the
-    desks where it cannot.
-    """
-    if slot_name == "direction" and key == "long_short":
-        return (Assumption.SHORT_SELLING.value,)
-    return ()
-
+def _assumes(program: Program) -> tuple[str, ...]:
+    """What a rule quietly requires of a market. Implied, not asserted."""
+    return (Assumption.SHORT_SELLING.value,) if program.uses_short else ()

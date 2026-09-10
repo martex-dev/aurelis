@@ -29,7 +29,7 @@ import pytest
 import sqlalchemy as sa
 
 from aurelis.authoring.attempt import caveat_for, data_caveat, run_authoring
-from aurelis.authoring.design import Design, baseline_spec, render
+from aurelis.authoring.specs import baseline_spec, render_spec
 from aurelis.authoring.standin import scripted_author
 from aurelis.authoring.tables import AuthoringAttempt
 from aurelis.core.errors import IntegrityViolation
@@ -48,11 +48,11 @@ from aurelis.trading.execution import approved_quantity
 from aurelis.trading.paper import (
     HOLD_OUT,
     deployments,
-    design_of,
     held_out,
     intents_at,
     measure,
     realised,
+    rule_of,
     sleeve_curve,
     walk,
 )
@@ -634,20 +634,28 @@ def test_the_rule_that_trades_is_the_rule_that_was_measured(
 ) -> None:
     """M22 acceptance (c).
 
-    The design is rebuilt from the attempt and checked against the digest the
+    The rule is rebuilt from the attempt and checked against the digest the
     attempt recorded. A reconstruction that silently differed would produce a
     gap about a strategy the company never tested.
     """
+    from aurelis.rules import parse
+
     version_ref, _snap = _authored(company)
     with company.database.session() as session:
-        design, attempt = design_of(session, version_ref)
-        assert design.digest() == attempt.design_digest
+        program, attempt = rule_of(session, version_ref)
+        assert program.digest == attempt.design_digest
 
-        # And a design that does not match is refused rather than traded.
-        attempt.design = {**attempt.design, "lookback": "six_hours"}
+        # And a program that does not match is refused rather than traded.
+        attempt.design = {**attempt.design, "program": parse("ret(6) > 0 -> long").payload}
         session.flush()
         with pytest.raises(IntegrityViolation, match="not the rule that was measured"):
-            design_of(session, version_ref)
+            rule_of(session, version_ref)
+
+        # A pre-M26 attempt holds a menu pick and cannot be traded any more.
+        attempt.design = {"family": "momentum", "lookback": "one_day"}
+        session.flush()
+        with pytest.raises(IntegrityViolation, match="menu that no longer exists"):
+            rule_of(session, version_ref)
 
 
 def test_a_supplied_engine_must_be_the_engine_that_was_locked(
@@ -678,10 +686,10 @@ def test_a_baseline_reads_the_same_bars_as_the_design_it_references(
 ) -> None:
     """A reference measured on the fixture while the design ran on a market
     would be answering a different question in the same units."""
-    design = Design((("family", "momentum"), ("lookback", "one_day"),
-                     ("threshold", "any_move"), ("direction", "long_only")))
-    spec = render(
-        design, desk=Desk.CRYPTO, bars=200, source="coinbase:SNP-0001[:200]"
+    from aurelis.rules import parse
+
+    spec = render_spec(
+        parse("ret(24) > 0 -> long"), desk=Desk.CRYPTO, bars=200, source="coinbase:SNP-0001[:200]"
     )
     reference = baseline_spec("always_long", desk=Desk.CRYPTO, bars=200, like=spec)
 

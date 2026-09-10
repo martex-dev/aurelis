@@ -50,6 +50,7 @@ from typing import Any
 
 __all__ = [
     "EULER",
+    "MARGIN_Z",
     "SelectionCheck",
     "check_selection",
     "expected_best_of",
@@ -62,6 +63,20 @@ EULER = 0.5772156649015329
 Kept as a named constant rather than inlined because it is the only magic
 number in the file, and a reader should be able to find out what it is without
 recognising it.
+"""
+
+MARGIN_Z = Decimal("1.645")
+"""How far past the expected maximum a best result must reach, in standard
+errors, before it is said to survive. One-sided, at the 95% level.
+
+M16 asked only for a positive surplus. That is a *mean* correction: under the
+null the best of n draws lands above its own expectation about half the time,
+so "surplus > 0" was a coin toss dressed as a test, and it went unnoticed
+while the declared width was 96 and the expected maximum swamped everything.
+M26 removed the menu, the width of a campaign fell to the number of rules it
+wrote, and the first four-rule campaign on a *fixture* survived. The margin is
+what a searched result must clear beyond the search itself, and it is the
+estimator's own noise.
 """
 
 _Z = 1.96
@@ -123,14 +138,22 @@ class SelectionCheck:
         return self.observed - self.expected_by_chance
 
     @property
-    def survives(self) -> bool:
-        """Whether anything is left. Not a verdict — a subtraction.
+    def margin(self) -> Decimal | None:
+        """What the surplus must exceed: the estimator's noise, one-sided."""
+        if self.standard_error is None:
+            return None
+        return (MARGIN_Z * self.standard_error).quantize(Decimal("0.00000001"))
 
-        Deliberately not called ``passed``. Clearing the expected maximum is
-        the *minimum* a searched result must do, not evidence that it works: a
-        surplus this side of an interval is still one number.
+    @property
+    def survives(self) -> bool:
+        """Whether anything is left. Not a verdict — a subtraction and a margin.
+
+        Deliberately not called ``passed``. Clearing the expected maximum by
+        more than the estimator's own standard error is the *minimum* a
+        searched result must do, not evidence that it works: a surplus this
+        side of an interval is still one number.
         """
-        return self.standard_error is not None and self.surplus > 0
+        return self.margin is not None and self.surplus > self.margin
 
     @property
     def measurable(self) -> bool:
@@ -147,7 +170,8 @@ class SelectionCheck:
         return (
             f"the best of {self.n_trials} measured {self.observed} and {verb} "
             f"the {self.expected_by_chance} that searching {self.n_trials} "
-            f"times returns from noise alone (surplus {self.surplus})"
+            f"times returns from noise alone by the {self.margin} margin the "
+            f"estimator's noise demands (surplus {self.surplus})"
         )
 
     def as_payload(self) -> dict[str, Any]:
@@ -159,6 +183,7 @@ class SelectionCheck:
             "standard_error": (
                 str(self.standard_error) if self.standard_error is not None else None
             ),
+            "margin": str(self.margin) if self.margin is not None else None,
             "survives": self.survives,
             "assumption": (
                 "Draws are treated as independent and normal. Designs over one "

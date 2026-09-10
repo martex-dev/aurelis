@@ -1,12 +1,12 @@
-"""M15 — an agent authors a strategy, and the search it did is on the record.
+"""An agent writes a rule, and the company measures it.
 
-M14 seated an agent as a critic, judging work somebody else had specified. This
-is the seat the project was started for: the agent chooses the pieces of a
-strategy from a closed space, in its own words, with a cited origin — and the
-company preregisters the **whole space it chose from**, not the one design it
-picked, before anything is measured.
+M14 seated an agent as a critic, judging work somebody else had specified. M15
+seated one as an author with a menu of 72 designs; M26 took the menu away. The
+agent now writes the rule itself, in the company's rule language, in its own
+words, with a cited origin — and the company preregisters the rule before
+anything is measured, one declared cell per rule.
 
-The result on the crypto fixture is that the design does not beat holding the
+The result on the crypto fixture is that the rule does not beat holding the
 asset. That is reported as the headline, because a system that could not
 conclude this would not be worth the machinery around it.
 """
@@ -19,26 +19,25 @@ from aurelis.authoring.author import (
     StrategyAuthor,
 )
 from aurelis.authoring.campaign import CampaignOutcome, declared_width, run_campaign
-from aurelis.authoring.design import Design, Slot, enumerate_designs, space_size
 from aurelis.authoring.selection import SelectionCheck, check_selection
+from aurelis.authoring.specs import BASELINES, baseline_spec, render_spec
 from aurelis.authoring.standin import scripted_author
 
 __all__ = [
+    "BASELINES",
     "AuthoredStrategy",
     "AuthoringOutcome",
     "AuthoringRefused",
     "Baseline",
     "CampaignOutcome",
     "Citations",
-    "Design",
     "SelectionCheck",
-    "Slot",
     "StrategyAuthor",
+    "baseline_spec",
     "check_selection",
     "declared_width",
-    "enumerate_designs",
+    "render_spec",
     "run_authoring",
     "run_campaign",
     "scripted_author",
-    "space_size",
 ]

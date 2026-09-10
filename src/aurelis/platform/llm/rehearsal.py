@@ -25,6 +25,7 @@ M10 suite and the M16 correction are for.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -111,12 +112,24 @@ class Conformance:
         }
 
 
+Reader = Callable[[str], tuple[tuple[str, ...], str, str]]
+"""Parse a free-form reply into ``(chosen, reasoning, extra_material)``.
+
+For seats that do not answer in ``ANSWER:`` form. ``extra_material`` is text
+the reply itself makes citable -- a rule's own numbers -- and is added to the
+permitted figures before the reasoning is checked. Raise ``ValueError`` for an
+unreadable reply; return an empty ``chosen`` for an abstention.
+"""
+
+
 def rehearse(
     provider: Any,
     *,
-    question: Question,
     material: dict[str, Any],
     system: str,
+    question: Question | None = None,
+    form: str | None = None,
+    reader: Reader | None = None,
     tier: ModelTier = ModelTier.MID,
     samples: int = 5,
     max_tokens: int = 300,
@@ -128,12 +141,22 @@ def rehearse(
     response cache. Rehearsing against a cache would report one answer's
     conformance ``samples`` times, which is the one number this cannot afford
     to get wrong.
+
+    A closed seat passes ``question``; a free-form seat passes ``form`` (the
+    reply form rendered after the material) and ``reader`` (how the seat
+    itself parses a reply). Either way the classification is exactly the path
+    a real turn takes.
     """
     if samples < 1:
         raise ValueError("a rehearsal needs at least one sample")
+    if (question is None) == (form is None):
+        raise ValueError("rehearse takes a closed question or a reply form, not both")
+    if form is not None and reader is None:
+        raise ValueError("a free-form seat needs a reader")
 
-    rendered = f"{render_material(material)}\n\n{question.render()}"
-    permitted = allowed_figures(material, {"options": question.render()})
+    tail = question.render() if question is not None else str(form)
+    rendered = f"{render_material(material)}\n\n{tail}"
+    permitted = allowed_figures(material, {"options": tail})
     model = model_for(provider.name, tier)
     results: list[Sample] = []
 
@@ -148,9 +171,26 @@ def rehearse(
                 actor=actor,
             )
         )
-        results.append(_classify(response.text, question, permitted))
+        if question is not None:
+            results.append(_classify(response.text, question, permitted))
+        else:
+            assert reader is not None
+            results.append(_classify_free(response.text, reader, permitted))
 
     return Conformance(model=model, tier=tier, samples=tuple(results))
+
+
+def _classify_free(text: str, reader: Reader, permitted: set[str]) -> Sample:
+    try:
+        chosen, why, extra = reader(text)
+    except ValueError as error:
+        return Sample("unparseable", (), str(error)[:200])
+    if not chosen:
+        return Sample("abstained", (), why[:200])
+    invented = unsourced_numerals(why, permitted | allowed_figures({"reply": extra}))
+    if invented:
+        return Sample("unsourced", tuple(chosen), f"cited {sorted(invented)}")
+    return Sample("usable", tuple(chosen), why[:200])
 
 
 def _classify(text: str, question: Question, permitted: set[str]) -> Sample:

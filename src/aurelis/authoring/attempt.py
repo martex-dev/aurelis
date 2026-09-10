@@ -7,9 +7,9 @@ order:
 
     a task is opened and claimed          authoring is work
     the agent is shown the desk           costs, calendar, budget, prior work
-    the agent picks a design              1 of 72, from closed slots
-    components and a version are written  the agent's words, a cited origin
-    the design is preregistered           declaring the WHOLE SPACE as cells
+    the agent writes a rule               in the company's rule language
+    a component and a version are written the agent's words, a cited origin
+    the rule is preregistered             one rule, one declared cell
     the experiment runs                   the engine produces every number
     the verdict is derived                by rule, from criteria locked first
     the baselines run                     context, not a registered claim
@@ -18,37 +18,30 @@ The agent chooses **before** anything has been run on the data it will be
 scored on, so the preregistration is a genuine lock rather than a description
 of a decision already made.
 
-Why the whole space is declared
--------------------------------
+What a rule declares
+--------------------
 
-A grid search that runs seventy-two backtests and reports the best one is a
-false discovery machine, and the company already knows it: ``declared_cells``
-exists so that a search pays for its own width, and
-:meth:`~aurelis.research.lifecycle.Research.trial_count` sums it per family.
+M15 charged the multiple-testing denominator for the whole 72-point menu,
+because an agent shown the alternatives had implicitly weighed them and the
+record could not say which. A rule written in an open language has no menu to
+charge for: the space of rules is not enumerable, and pretending to count it
+would be a number with no measurement behind it. So each rule the company
+measures is **one declared cell**, and a campaign's width is the number of
+rules it lets itself write. That is a floor rather than a conservative
+estimate, and the docstring says so because nothing else can: whatever
+alternatives the model weighed inside its own reasoning are uncounted. The
+forward record (M25) is the check on that, not the denominator.
 
-An agent choosing one design out of seventy-two looks different — only one
-backtest is run — and it is *not*. The agent was shown the alternatives, it
-reasoned over them, and nothing in the record can establish which ones it
-implicitly weighed. The company therefore charges itself for the space rather
-than for the pick. That is the conservative direction, and conservative is the
-only defensible direction for a false-discovery denominator: understating it
-manufactures confidence out of arithmetic.
-
-Provenance is the exception. Which failure a component answers changes what the
-company may claim about having created it and changes no number, so the origin
-question is not part of the space. Charging for a choice that cannot move a
-result would inflate the denominator as dishonestly as the inert knob would
-have deflated it.
+Provenance changes what the company may claim about having created something
+and changes no number, so the origin question is asked but never charged.
 
 What this run actually found
 ----------------------------
 
 On the crypto desk's fixture, over a quarter of hourly bars, the stand-in's
-cost-aware design earns a negative Sharpe and **does not beat holding the
+cost-aware rule earns a negative Sharpe and **does not beat holding the
 asset**. That is the honest result, it is reported as the headline, and the
-system was built so that it could be. The baselines are what make it legible:
-a rule that cannot beat buying and holding has not found anything, and one that
-cannot beat doing nothing has found less.
+system was built so that it could be.
 
 **The reasoner is a deterministic stand-in, not a model** — see
 :mod:`aurelis.authoring.standin`. What is demonstrated is the machinery.
@@ -67,7 +60,7 @@ from aurelis.authoring.author import (
     Citations,
     StrategyAuthor,
 )
-from aurelis.authoring.design import BASELINES, baseline_spec, space_size
+from aurelis.authoring.specs import BASELINES, baseline_spec
 from aurelis.authoring.tables import AuthoringAttempt
 from aurelis.core.enums import Actor, EventKind
 from aurelis.core.ids import RefKind, uuid7
@@ -358,7 +351,7 @@ def run_authoring(
             session,
             kind="strategy.author",
             assignee=agent_ref,
-            payload={"desk": the_desk.value, "space": space_size()},
+            payload={"desk": the_desk.value, "language": "aurelis.rules"},
             actor=Actor.SYSTEM,
             at=moment,
         )
@@ -406,7 +399,7 @@ def run_authoring(
         task_ref=task_ref,
         bars=bars,
         power=power,
-        declared_cells=space_size() if declared_cells is None else declared_cells,
+        declared_cells=1 if declared_cells is None else declared_cells,
         campaign_ref=campaign_ref,
         source=source,
         at=moment,
@@ -450,9 +443,9 @@ def measure_attempt(
             primary_metric="sharpe",
             family=family,
             rationale=(
-                f"Designed by {authored.agent_ref} as {authored.design.describe()}, "
-                f"one of {space_size()} reachable designs, before any result on "
-                f"this data existed. Version {authored.version_ref}."
+                f"Written by {authored.agent_ref} as the rule "
+                f"{authored.program.text.replace(chr(10), ' | ')!r}, before any "
+                f"result on this data existed. Version {authored.version_ref}."
             ),
             desk=the_desk.value,
             at=moment,
@@ -470,10 +463,9 @@ def measure_attempt(
                 }
             ],
             registrar=_registrar(runtime, session),
-            # The space, not the pick. An agent that chose one of seventy-two
-            # after reasoning over all of them has searched seventy-two, and
-            # the record cannot say otherwise. A revision inside a declared
-            # campaign searched one slot, and says that instead.
+            # One rule, one cell. The language has no enumerable space to
+            # charge for, and a campaign declares the number of rules it will
+            # write before it writes the first.
             declared_cells=declared_cells,
             analysis_plan=(
                 "Per-bar Sharpe from the local engine with a block-bootstrap "
@@ -507,8 +499,8 @@ def measure_attempt(
             artifact=artifact,
             author=authored.agent_ref,
             interpretation=(
-                "Authored by an agent from the closed design space and "
-                "measured against criteria locked before the run. "
+                "Authored by an agent as a rule in the company's rule language "
+                "and measured against criteria locked before the run. "
                 f"{caveat_for(runtime.provider.name, _source_name(source))}"
             ),
             at=moment,
@@ -582,9 +574,9 @@ def _record(
                 agent_ref=authored.agent_ref,
                 desk=authored.desk.value,
                 task_ref=outcome.task_ref,
-                design=authored.design.as_payload(),
-                design_digest=authored.design.digest(),
-                space=space_size(),
+                design=authored.design_payload(),
+                design_digest=authored.program.digest,
+                space=1,
                 campaign_ref=outcome.campaign_ref,
                 origin=authored.origin.value,
                 origin_ref=authored.origin_ref,
@@ -618,8 +610,8 @@ def _record(
             payload={
                 "desk": authored.desk.value,
                 "version": authored.version_ref,
-                "design": authored.design.as_payload(),
-                "space": space_size(),
+                "rule": authored.program.text,
+                "rule_digest": authored.program.digest[:16],
                 "declared_cells": outcome.declared_cells,
                 "campaign": outcome.campaign_ref,
                 "verdict": outcome.verdict.value,

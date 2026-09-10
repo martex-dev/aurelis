@@ -170,7 +170,7 @@ def _authored(session: Session) -> tuple[bool, str]:
     count = session.execute(
         sa.text("SELECT count(*) FROM authoring_attempts")
     ).scalar_one()
-    return bool(count), f"{count} strategy design(s) authored by an agent"
+    return bool(count), f"{count} rule(s) written by an agent"
 
 
 def _survived_selection(session: Session) -> tuple[bool, str]:
@@ -318,7 +318,7 @@ STANDARD: tuple[Criterion, ...] = (
     ),
     Criterion(
         "authored",
-        "Did an agent design the strategy, rather than the corpus supplying it?",
+        "Did an agent write the strategy, rather than a menu or the corpus supplying it?",
         "The company exists to create an edge, not to sift for one. A strategy "
         "it did not author is somebody else's work with its name on it.",
         _authored,

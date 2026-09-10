@@ -412,8 +412,13 @@ lists them:
 - **The forward record is empty until a horizon passes.** Six views are sealed
   on the live workspace; the first five resolve on 2026-09-11 at 19:00Z. Run
   `aurelis thesis resolve --fetch --yes` after that.
-- **The 72-point design space is still in the tree.** It backs four mandate
-  conditions and the paper driver. Removing it is the next milestone.
+- **Agents write rules; the menu is gone.** `aurelis strategy author` seats
+  an agent to write a rule in the company's rule language (`aurelis.rules`),
+  one declared cell per rule. Attempts recorded before M26 hold a menu pick
+  and cannot be deployed; their rows stand.
+- **A campaign's declared width is a floor.** It is the number of rules the
+  campaign let itself write. What a model weighed before writing one down is
+  uncounted, and the forward record is the check on that.
 - **Real data does not make the research powered.** Four months of hourly bars
   against the fifteen years the power calculation says the claim needs.
 - **`aurelis trading readiness` says what stands in the way.** Seven promotion

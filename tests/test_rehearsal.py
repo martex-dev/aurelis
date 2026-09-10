@@ -232,20 +232,18 @@ def test_a_revision_is_shown_everything_the_campaign_has_measured() -> None:
     reverted -- correctly, and straight onto a design the campaign had already
     measured, spending a declared cell to re-learn a number it had been told.
     """
-    from aurelis.authoring.design import enumerate_designs
+    from aurelis.rules import parse
 
     material = revision_material(
         {"desk": {"market": "Crypto"}},
-        design=enumerate_designs()[0],
+        program=parse("ret(168) > 0.02 -> long"),
         metrics={"sharpe": "0.01"},
         baselines={"always_long": "0.24"},
         attempt=3,
         budget=5,
-        already_tried={"family=momentum, lookback=one_week": "sharpe 0.005"},
+        already_tried={"ret(168) > 0.02 -> long": "sharpe 0.005"},
     )
-    assert material["designs_already_measured"] == {
-        "family=momentum, lookback=one_week": "sharpe 0.005"
-    }
+    assert material["rules_already_measured"] == {"ret(168) > 0.02 -> long": "sharpe 0.005"}
 
 
 def test_a_quota_failure_reads_as_a_state_rather_than_a_crash() -> None:
@@ -270,42 +268,51 @@ def test_a_quota_failure_reads_as_a_state_rather_than_a_crash() -> None:
     assert "unaffected" in str(translated)
 
 
-def test_a_campaign_refuses_to_re_measure_a_design_it_has_already_tried(
-    settings, clock  # type: ignore[no-untyped-def]
-) -> None:
-    """Re-testing a known number costs a declared cell and returns nothing.
-
-    Driven here by a responder that reverts on purpose. A real model did the
-    same thing for a good reason -- it was told its revision had done worse and
-    went back -- which is why the history is now shown to it as well as guarded
-    against.
-    """
-    import re
-
-    from aurelis.authoring.campaign import run_campaign
-
-    def reverting(request):  # type: ignore[no-untyped-def]
-        prompt = request.messages[-1].content
-        if "Change exactly one thing" in prompt:
-            return "ANSWER: lookback\nBECAUSE: it is the slowest knob to move."
-        if "It is currently" in prompt:
-            if re.search(r"^\s+one_week:", prompt, re.MULTILINE):
-                return "ANSWER: one_week\nBECAUSE: back to the slowest setting."
-            return "ANSWER: six_hours\nBECAUSE: the fastest setting available."
-        return scripted_author(request)
-
-    built = Runtime.build(
-        settings, clock=clock, provider=MockProvider(responder=reverting)
+def test_the_author_seat_can_be_rehearsed_in_its_free_form() -> None:
+    """The author seat does not answer in ANSWER form; it writes a rule. The
+    rehearsal classifies its replies through the seat's own parser, so a
+    rehearsal measures the seat and not an approximation of it."""
+    from aurelis.authoring.author import (
+        RULE_FORM,
+        AuthoringRefused,
+        Citations,
+        material_for,
+        parse_authoring,
     )
-    built.initialise()
-    built.staff()
-    try:
-        outcome = run_campaign(built, span=Decimal("0.1"), budget=4)
-    finally:
-        built.close()
 
-    assert len(outcome.attempts) == 2, "it stopped when the third would repeat"
-    assert outcome.refusals
-    assert "already measured" in outcome.refusals[-1]
-    digests = [item.authored.design.digest() for item in outcome.attempts]
-    assert len(set(digests)) == len(digests), "nothing was measured twice"
+    def read(text: str) -> tuple[tuple[str, ...], str, str]:
+        try:
+            authoring = parse_authoring(text)
+        except AuthoringRefused as error:
+            raise ValueError(str(error.cause)) from error
+        if authoring.program is None:
+            return (), "declined", ""
+        return (authoring.program.digest[:12],), authoring.rationale, authoring.program.source
+
+    provider = _Provider(
+        [
+            "RULE:\nret(24) > 0.02 -> long\nRATIONALE: a 24 bar move above 0.02 pays the charge.\n"
+            "WEAKNESS: chop chop chop.",
+            "RULE: nothing",
+            "RULE:\nret(24) > 0.02 -> long\nRATIONALE: it made 0.31 last year on this.\n"
+            "WEAKNESS: chop chop chop.",
+            "RULE:\nvolume(3) > 1 -> long\nRATIONALE: volume leads price here.\n"
+            "WEAKNESS: chop chop.",
+        ]
+    )
+    result = rehearse(
+        provider,
+        form=RULE_FORM,
+        reader=read,
+        material=material_for("crypto", bars=2190, citations=Citations(task_ref="TSK-0001")),
+        system="be an author",
+        samples=4,
+    )
+    assert [sample.outcome for sample in result.samples] == [
+        "usable",
+        "abstained",
+        "unsourced",
+        "unparseable",
+    ]
+    with pytest.raises(ValueError, match="closed question or a reply form"):
+        rehearse(provider, material={}, system="x", samples=1)

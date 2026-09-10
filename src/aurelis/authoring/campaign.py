@@ -26,27 +26,17 @@ the first attempt and the final number pays for it. That trade is the entire
 content of the milestone: **learning from a result is allowed exactly to the
 extent that the learning was budgeted for.**
 
-What this run found
--------------------
+What a rule campaign declares
+-----------------------------
 
-Every design in the space was swept while building this, and the result is
-worth stating plainly because it is a fact about the company rather than about
-one campaign:
+With the menu gone there is no enumerable space to declare. A campaign's width
+is the number of rules it lets itself write, each a declared cell, and the
+correction is computed against that count. It is a floor: whatever
+alternatives a model weighed before writing a rule down are uncounted, and
+nothing here pretends otherwise. The forward record is the check on that.
 
-.. code-block:: text
-
-    best of all 72 designs      sharpe 0.0274
-    expected best of 72         sharpe 0.0516 from noise alone
-    surplus                     -0.0242
-
-**The best design the company can author is below what searching that wide
-returns by chance.** Six trials is already enough to eat it. That is not a
-disappointing campaign, it is the answer to "should we search harder?" -- and
-the answer is that searching harder raises the bar faster than it finds
-anything.
-
-**The reasoner is a deterministic stand-in, not a model**, and every desk runs
-on fixtures. What is demonstrated is the machinery.
+**The reasoner is a deterministic stand-in, not a model**, offline, and every
+desk runs on fixtures. What is demonstrated is the machinery.
 """
 
 from __future__ import annotations
@@ -67,15 +57,7 @@ from aurelis.authoring.attempt import (
     run_authoring,
 )
 from aurelis.authoring.author import AuthoringRefused, StrategyAuthor
-from aurelis.authoring.design import space_size
-from aurelis.authoring.revision import (
-    REVISABLE,
-    revised,
-    revision_material,
-    revision_space,
-    what_to_change_question,
-    which_slot_question,
-)
+from aurelis.authoring.revision import REVISION_FORM, revision_material
 from aurelis.authoring.selection import SelectionCheck, check_selection
 from aurelis.authoring.tables import Campaign
 from aurelis.core.canonical import sha256_of
@@ -112,17 +94,15 @@ CRITERION = (
 
 
 def declared_width(budget: int = BUDGET) -> int:
-    """How many designs a campaign of ``budget`` attempts searches between them.
+    """How many rules a campaign of ``budget`` attempts may measure.
 
-    The whole space for the first attempt, and the one-slot neighbourhood for
-    each revision. Not ``budget * space``: a revision is genuinely a narrower
-    search than an authoring, and being accurate is better than being
-    conservative when accuracy is available. The conservative rule at M15
-    applied to a quantity that could not be measured; this one can.
+    One per attempt. There is no enumerable space behind a written rule, so
+    the width is the count of rules the campaign lets itself write, declared
+    before the first exists. A floor, and stated as one.
     """
     if budget < 1:
         raise ValueError("a campaign makes at least one attempt")
-    return space_size() + (budget - 1) * REVISABLE
+    return budget
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,7 +250,7 @@ def run_campaign(
             desk=the_desk,
             agent_handle=agent_handle,
             span=span,
-            declared_cells=space_size(),
+            declared_cells=1,
             campaign_ref=campaign_ref,
             source=source,
             at=moment,
@@ -294,9 +274,7 @@ def run_campaign(
                     interval=interval,
                     source=source,
                     history={
-                        outcome.authored.design.describe(): (
-                            f"sharpe {outcome.sharpe}"
-                        )
+                        outcome.authored.program.text: f"sharpe {outcome.sharpe}"
                         for outcome in attempts
                     },
                     at=moment,
@@ -354,9 +332,9 @@ def _revise(
     source: Any | None = None,
     at: dt.datetime,
 ) -> AuthoringOutcome:
-    """Ask the agent to change one thing, and measure what it changed it to.
+    """Ask the agent for a revised rule, and measure it.
 
-    Refuses a design the campaign has already measured. Re-testing a known
+    Refuses a rule the campaign has already measured. Re-testing a known
     number costs a declared cell and returns nothing, and a budget spent that
     way is a budget the correction still charges for.
     """
@@ -370,7 +348,7 @@ def _revise(
     )
     material = revision_material(
         base,
-        design=authored.design,
+        program=authored.program,
         metrics=previous.metrics,
         baselines={base.kind: str(base.total_return) for base in previous.baselines},
         attempt=attempt,
@@ -385,29 +363,20 @@ def _revise(
             clock=runtime.clock,
             tier=runtime.roster.get(session, authored.agent_ref).authority.tier,
         )
-        which = author.ask_one(
+        rewritten = author.write_rule(
             session,
             agent_ref=authored.agent_ref,
-            slot="which_slot",
-            question=which_slot_question(authored.design),
             material=material,
+            form=REVISION_FORM,
             task_ref=previous.task_ref,
+            require_weakness=False,
         )
-        slot = _slot_named(authored.design.family, which)
-        what = author.ask_one(
-            session,
-            agent_ref=authored.agent_ref,
-            slot=slot.name,
-            question=what_to_change_question(authored.design, slot),
-            material=material,
-            task_ref=previous.task_ref,
-        )
-        design = revised(authored.design, slot.name, what)
-        if design.describe() in history:
+        assert rewritten.program is not None
+        if rewritten.program.text in history or rewritten.program.digest == authored.program.digest:
             raise AuthoringRefused(
-                "which_slot",
+                "rule",
                 ValueError(
-                    f"the agent revised back onto {design.describe()}, which "
+                    f"the agent revised back onto {rewritten.program.text!r}, which "
                     "this campaign has already measured. Re-testing a known "
                     "number costs a declared cell and returns nothing"
                 ),
@@ -415,10 +384,8 @@ def _revise(
         revision = author.revise(
             session,
             previous=authored,
-            design=design,
-            slot_name=slot.name,
-            key=what,
-            reason=author.turns[-1].reasoning,
+            program=rewritten.program,
+            rationale=rewritten.rationale,
             at=at,
         )
 
@@ -429,11 +396,9 @@ def _revise(
         bars=bars,
         power=power,
         source=source,
-        # One slot, not the whole space. The campaign already declared the sum
-        # of these, so charging the full space here would count the search
-        # twice -- and a denominator that is wrong upwards is as untrue as one
-        # that is wrong downwards.
-        declared_cells=revision_space(authored.design),
+        # One rule, one cell. The campaign declared its count of rules before
+        # the first was written.
+        declared_cells=1,
         campaign_ref=campaign_ref,
         at=at,
     )
@@ -462,15 +427,6 @@ def _structural(
         interval=interval,
         source=source,
     )
-
-
-def _slot_named(family: str, name: str) -> Any:
-    from aurelis.authoring.design import slots_for
-
-    for slot in slots_for(family):
-        if slot.name == name:
-            return slot
-    raise ValueError(f"{name} is not a slot on the {family} branch")
 
 
 def _bump(runtime: Any, campaign_ref: str, *, at: dt.datetime) -> None:

@@ -103,13 +103,15 @@ jobs:
           # An agent in the critic's seat, weighed by the same gate as the
           # procedure it would replace.
           aurelis training seat -w "$workspace"
-          # An agent in the author's seat: a whole strategy chosen from a
-          # closed space, the whole space preregistered, and the result
-          # reported whatever it is. On the fixture it loses to buy-and-hold.
+          # An agent in the author's seat: it writes a rule in the company's
+          # rule language, the rule is preregistered as one cell, and the
+          # result is reported whatever it is. On the fixture it loses to
+          # buy-and-hold.
           aurelis strategy author -w "$workspace"
-          # And the loop with its stopping rule: a budget frozen before the
-          # first design exists, then the best result corrected for how wide
-          # the search was. It beats buy-and-hold and still does not survive.
+          # And the loop with its stopping rule: a budget of rules frozen
+          # before the first is written, then the best result corrected for
+          # the width of the search and the estimator's own noise. It beats
+          # buy-and-hold and still does not survive.
           aurelis strategy campaign -w "$workspace" --budget 3
           # What stands between an authored version and a paper book, read
           # from the record: seven gates, each a number or a silence naming
@@ -185,12 +187,19 @@ jobs:
           aurelis thesis resolve -w "$workspace"
           aurelis thesis calibration -w "$workspace" --fixtures
           # The loop seats every judging agent on every recorded market, then
-          # stops: a second view on the same instrument before the first
-          # resolves is the same bet twice, and the loop fetches nothing.
+          # stops with the honest reason: a second view on the same instrument
+          # before the first resolves is the same bet twice, and the loop
+          # fetches nothing. The company was scaled above, so this takes many
+          # cycles -- the bound is generous and the check is the stop reason
+          # the loop itself prints, not a count somebody guessed.
           count_theses() {
             python -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM theses').fetchone()[0])" "$workspace/aurelis.db"
           }
-          aurelis run -w "$workspace" --cycles 20 --calls 60
+          aurelis run -w "$workspace" --cycles 120 --calls 400 | tee "${RUNNER_TEMP}/run-judge.txt"
+          if ! grep -q "sealed and waiting" "${RUNNER_TEMP}/run-judge.txt"; then
+            echo "the judge action did not exhaust itself with its reason" >&2
+            exit 1
+          fi
           sealed=$(count_theses)
           if [ "$sealed" -le 3 ]; then
             echo "the loop seated nobody: $sealed view(s)" >&2

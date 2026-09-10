@@ -267,9 +267,14 @@ def model_rehearse(
     figures it had derived rather than been shown. Both were fixed by saying
     what was meant, and this is how that was checked.
     """
+    from aurelis.authoring.author import (
+        RULE_FORM,
+        AuthoringRefused,
+        Citations,
+        material_for,
+        parse_authoring,
+    )
     from aurelis.authoring.author import SYSTEM as AUTHOR_SYSTEM
-    from aurelis.authoring.author import Citations, material_for
-    from aurelis.authoring.design import question_for, slots_for
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
     from aurelis.meetings.types import ObjectionType
@@ -291,8 +296,26 @@ def model_rehearse(
         console.print(f"[red]Not available.[/red] {escape(state.detail)}")
         raise typer.Exit(code=1)
 
+    question = None
+    form = None
+    reader = None
     if seat == "author":
-        question = question_for(slots_for(None)[0])
+
+        def read_rule(text: str) -> tuple[tuple[str, ...], str, str]:
+            try:
+                authoring = parse_authoring(text)
+            except AuthoringRefused as error:
+                raise ValueError(str(error.cause)) from error
+            if authoring.program is None:
+                return (), "declined", ""
+            return (
+                (authoring.program.digest[:12],),
+                f"{authoring.rationale} {authoring.weakness}",
+                authoring.program.source,
+            )
+
+        form = RULE_FORM
+        reader = read_rule
         material = material_for(
             "crypto", bars=2190, citations=Citations(task_ref="TSK-0001")
         )
@@ -344,6 +367,8 @@ def model_rehearse(
         result = rehearse(
             provider,
             question=question,
+            form=form,
+            reader=reader,
             material=material,
             system=system,
             tier=ModelTier(tier),

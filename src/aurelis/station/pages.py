@@ -922,7 +922,7 @@ def workshop_page(session: Session) -> str:
         else ""
     )
     table = _rows(
-        ["ref", "agent", "desk", "what it designed", "verdict", "beat the baselines", "searched"],
+        ["ref", "agent", "desk", "the rule", "verdict", "beat the baselines", "cells"],
         [
             [
                 escape_text(row["ref"]),
@@ -931,7 +931,7 @@ def workshop_page(session: Session) -> str:
                 escape_text(row["design"]),
                 _pill(row["verdict"]),
                 "yes" if row["beat"] else "<b>no</b>",
-                f"{row['cells']} of {row['space']}",
+                str(row["cells"]),
             ]
             for row in view.rows
         ],

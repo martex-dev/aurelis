@@ -63,9 +63,16 @@ _ZERO = Decimal("0")
 _QUANT = Decimal("0.00000001")
 
 SIGNALS: frozenset[str] = frozenset(
-    {"momentum", "mean_reversion", "rotation", "always_long", "never_trade"}
+    {"momentum", "mean_reversion", "rotation", "always_long", "never_trade", "rule"}
 )
 """The registered operations. A closed set, hand-written and unit-tested.
+
+``rule`` is the one an agent writes. Its parameters carry a program in the
+rule language (:mod:`aurelis.rules`), parsed from a canonical payload rather
+than from text so that what runs is provably what the registration hashed. The
+other four are the engine's own: the baselines every result must beat, and the
+hand-written signals the company's review and training machinery plant defects
+into. None of them is offered to an agent as a choice any more.
 
 ``never_trade`` and ``always_long`` are not filler: they are the baselines
 every result must beat. A rule that cannot beat holding the asset has not
@@ -241,6 +248,9 @@ class LocalEngine:
             )
 
         primary = symbols[0]
+        if spec.signal.kind == "rule":
+            return self._rule(spec, closes[primary], primary)
+
         weights: list[dict[str, Decimal]] = []
         for index in range(length):
             exposure = self._single(
@@ -253,6 +263,35 @@ class LocalEngine:
             )
             weights.append({primary: exposure} if exposure != _ZERO else {})
         return weights
+
+    @staticmethod
+    def _rule(
+        spec: ExperimentSpec, closes: list[Decimal], symbol: str
+    ) -> list[dict[str, Decimal]]:
+        """Run a program the agent wrote, through the same latency and costs.
+
+        The program is rebuilt from the canonical payload in the spec, never
+        from text, so the rule that runs is the rule whose hash the
+        registration locked. A short the spec forbids is flat, not refused: the
+        author sets ``allow_short`` from the program, and a program that shorts
+        under a spec that says it cannot has been tampered with somewhere
+        between authoring and running, which the digest check upstream exists
+        to catch.
+        """
+        from aurelis.rules.language import Program, RuleSyntaxError, evaluate
+
+        payload = spec.signal.parameters.get("program")
+        if not isinstance(payload, dict):
+            raise RuleSyntaxError("a rule signal carries its program in parameters['program']")
+        program = Program.from_payload(payload)
+        path = evaluate(program, closes)
+        out: list[dict[str, Decimal]] = []
+        for weight in path:
+            if weight == _ZERO or (weight < _ZERO and not spec.backtest.allow_short):
+                out.append({})
+            else:
+                out.append({symbol: weight})
+        return out
 
     @staticmethod
     def _single(

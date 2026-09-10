@@ -1,27 +1,22 @@
-"""A scripted designer, so the author's seat can be exercised without a model.
+"""A scripted author, so the author's seat can be exercised without a model.
 
 The same arrangement as :mod:`aurelis.training.standin`, and the same caveat:
 **this is not an agent.** Every model call in this repository runs against the
-mock provider — no credentials, no network, no cost — and a mock that echoes
-its input cannot answer a multiple-choice question. This is a deterministic
-function of the prompt, so the machinery around the seat can be run and scored:
-the closed slots, the parse, the figure check, the refusal path, the citation
-shape check, and the preregistration that follows.
+mock provider, and a mock that echoes its input cannot write a rule. This is a
+deterministic function of the prompt, so the machinery around the seat can be
+run and scored: the parse, the figure check, the refusal path, the
+preregistration, the campaign and its correction.
 
 It has **one policy, stated here rather than tuned**: *trade less when trading
-costs more.* It reads the desk's round-trip charge out of the material it was
-shown and, above a threshold, picks the slowest option in every slot — the
-longest lookback, the largest required move, no shorting, the most
-concentrated holding. Below it, the opposite.
+costs more.* It reads the desk's round-trip charge out of the material and,
+above a threshold, writes a slow, long-only trend rule; below it, a fast rule
+that takes both sides. Revising, it walks the other way one step at a time --
+a shorter window, then a lower threshold -- because the patient rule lost to
+holding the asset, and stops when it has nowhere left to go.
 
-That policy is a reasonable thing for a cost-aware designer to believe and it
-is **not known to be right**. The point of running it is to find out what the
-company's own measurement says about it, and the answer this repository gets is
-in :mod:`aurelis.authoring.attempt`: it does not beat holding the asset. A
-stand-in written to produce a winner would have taught nothing, and would have
-been the fake functionality the charter forbids.
-
-Point the runtime at a real provider and the same code path asks a real model.
+That policy is a reasonable thing for a cost-aware author to believe and it is
+**not known to be right**. A stand-in written to produce a winner would have
+taught nothing.
 """
 
 from __future__ import annotations
@@ -34,61 +29,14 @@ from aurelis.platform.llm.types import LlmRequest
 __all__ = ["EXPENSIVE", "scripted_author"]
 
 EXPENSIVE = Decimal("30")
-"""The round-trip charge, in basis points, above which the stand-in slows down.
-
-Every desk the company has opened charges more than this, so on the desks that
-exist the stand-in always takes the patient branch. The threshold is kept
-rather than hard-coded away because it is the whole content of the policy:
-remove it and the stand-in has no reason for anything it picks.
-"""
+"""The round-trip charge, in basis points, above which the stand-in slows down."""
 
 _ROUND_TRIP = re.compile(r"round trip:\s*(-?\d+(?:\.\d+)?)\s*bps", re.IGNORECASE)
+_PREVIOUS = re.compile(r"^\s*your previous rule:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+_RULE = re.compile(r"ret\((\d+)\) > (\d+(?:\.\d+)?) -> long")
 
-_SLOW: dict[str, str] = {
-    "family": "momentum",
-    "lookback": "one_week",
-    "threshold": "two_percent",
-    "direction": "long_only",
-    "breadth": "concentrated",
-}
-_FAST: dict[str, str] = {
-    "family": "rotation",
-    "lookback": "six_hours",
-    "threshold": "any_move",
-    "direction": "long_short",
-    "breadth": "paired",
-}
-
-_SLOTS: dict[str, tuple[str, ...]] = {
-    "family": ("momentum", "mean_reversion", "rotation"),
-    "lookback": ("six_hours", "one_day", "three_days", "one_week"),
-    "threshold": ("any_move", "half_percent", "two_percent"),
-    "direction": ("long_only", "long_short"),
-    "breadth": ("concentrated", "paired"),
-}
-
-_FASTER: dict[str, str] = {
-    "one_week": "three_days",
-    "three_days": "one_day",
-    "one_day": "six_hours",
-    "two_percent": "half_percent",
-    "half_percent": "any_move",
-    "long_only": "long_short",
-    "concentrated": "paired",
-}
-"""One step toward trading more, per choice.
-
-The revision policy, and it follows from the result rather than from a
-preference: the patient design lost to holding the asset, so the stand-in walks
-back the other way, one slot at a time. It is a coherent response to a
-measurement and it is **not known to be right** -- which is the point of
-measuring what it produces.
-"""
-
-_SLOT_ORDER = ("lookback", "threshold", "direction", "breadth")
-"""Which slot a revision moves first. Slowest-moving knob first, because a
-policy that changed the most sensitive thing first would confound "revising
-helped" with "that one knob is twitchy"."""
+_WINDOWS: tuple[int, ...] = (168, 72, 24, 6)
+_THRESHOLDS: tuple[str, ...] = ("0.02", "0.005", "0")
 
 _ORIGIN_ORDER = ("derived_from_failure", "adapted", "invented")
 _ORIGIN_BECAUSE: dict[str, str] = {
@@ -106,16 +54,10 @@ _ORIGIN_BECAUSE: dict[str, str] = {
         "reasoned out under the task and is cited as such."
     ),
 }
-"""One justification per origin, because a stand-in whose reasoning did not
-match its answer would pass the figure check while reading as confabulation --
-and it did, until a demonstration printed the two side by side."""
-
-_WEAKNESSES = ("choppy", "cost_shock")
 
 
-def _offered(prompt: str, keys: tuple[str, ...]) -> bool:
-    """Whether every key in a slot appears as an option in this prompt."""
-    return all(re.search(rf"^\s+{re.escape(key)}:", prompt, re.MULTILINE) for key in keys)
+def _offered(prompt: str, key: str) -> bool:
+    return re.search(rf"^\s+{re.escape(key)}:", prompt, re.MULTILINE) is not None
 
 
 def _round_trip(prompt: str) -> Decimal | None:
@@ -128,83 +70,64 @@ def _round_trip(prompt: str) -> Decimal | None:
         return None
 
 
-def _current(prompt: str, keys: tuple[str, ...]) -> str | None:
-    """Which key the prompt says is currently in place."""
-    match = re.search(r"It is currently ([a-z_]+)\.", prompt)
-    if match and match.group(1) in keys:
-        return match.group(1)
+def _next_step(window: int, threshold: str) -> tuple[int, str] | None:
+    """One step toward trading more: shorter window first, then lower bar."""
+    if window in _WINDOWS and _WINDOWS.index(window) < len(_WINDOWS) - 1:
+        return _WINDOWS[_WINDOWS.index(window) + 1], threshold
+    if threshold in _THRESHOLDS and _THRESHOLDS.index(threshold) < len(_THRESHOLDS) - 1:
+        return window, _THRESHOLDS[_THRESHOLDS.index(threshold) + 1]
     return None
 
 
-def _movable(prompt: str, slot: str) -> bool:
-    """Whether this slot still has somewhere to go under the policy."""
-    match = re.search(
-        rf"^\s+{re.escape(slot)}: currently ([a-z_]+)", prompt, re.MULTILINE
-    )
-    return match is not None and match.group(1) in _FASTER
-
-
 def scripted_author(request: LlmRequest) -> str:
-    """Answer one authoring question from the figures in the prompt.
-
-    Every justification cites the round-trip charge and nothing else, because
-    that is the only figure the policy actually uses — and citing a number it
-    did not use would be the confabulation the figure check exists to catch,
-    passing the check by luck.
-    """
     prompt = request.messages[-1].content
     charge = _round_trip(prompt)
-    patient = charge is None or charge > EXPENSIVE
-    because = (
-        f"At {charge} bps a round trip the design should trade as little as it can."
-        if charge is not None
-        else "No charge was shown, so the design assumes trading is expensive."
-    )
 
-    # A revision is asked in two turns: which slot, then what to change it to.
-    # The first is recognised by the slot names appearing as options with a
-    # "currently" gloss; the second by the previous design being in the prompt
-    # while only one slot's keys are offered.
-    if "Change exactly one thing" in prompt:
-        for slot in _SLOT_ORDER:
-            if _offered(prompt, (slot,)) and _movable(prompt, slot):
-                return (
-                    f"ANSWER: {slot}\n"
-                    f"BECAUSE: {because} The patient settings did not earn the "
-                    "charge back, so this one moves the other way."
-                )
-        # Everything is already at the fast end. Abstaining here is honest and
-        # the campaign records it as a refusal rather than inventing a change.
+    if "Your rule was measured" in prompt:
+        previous = _PREVIOUS.search(prompt)
+        found = _RULE.search(previous.group(1)) if previous else None
+        step = _next_step(int(found.group(1)), found.group(2)) if found else None
+        if step is None:
+            return (
+                "RULE: nothing\n"
+                "RATIONALE: every step this policy walks has been taken, so there "
+                "is nothing left for it to revise toward."
+            )
+        window, threshold = step
         return (
-            "ANSWER: nothing\n"
-            "BECAUSE: every choice is already at the end this policy walks "
-            "toward, so there is nothing left for it to revise."
+            "RULE:\n"
+            f"ret({window}) > {threshold} -> long\n"
+            f"RATIONALE: the previous rule did not earn its charge back, so this "
+            f"one trades sooner, on a {window} bar window above {threshold}."
         )
-
-    for keys in _SLOTS.values():
-        offered = tuple(key for key in keys if _offered(prompt, (key,)))
-        if len(offered) < len(keys) and len(offered) >= 1 and "currently" in prompt:
-            current = _current(prompt, keys)
-            step = _FASTER.get(current or "")
-            if step in offered:
-                return f"ANSWER: {step}\nBECAUSE: {because}"
-            if offered:
-                return f"ANSWER: {offered[-1]}\nBECAUSE: {because}"
 
     for origin in _ORIGIN_ORDER:
-        if _offered(prompt, (origin,)):
+        if _offered(prompt, origin):
             return f"ANSWER: {origin}\nBECAUSE: {_ORIGIN_BECAUSE[origin]}"
 
-    if _offered(prompt, _WEAKNESSES):
+    if "Write one rule" in prompt:
+        patient = charge is None or charge > EXPENSIVE
+        if patient:
+            because = (
+                f"At {charge} bps a round trip the rule should trade as little as it can, "
+                "so it waits for a move over a long window before taking a side."
+                if charge is not None
+                else "No charge was shown, so the rule assumes trading is expensive "
+                "and waits for a move over a long window."
+            )
+            return (
+                "RULE:\n"
+                "ret(168) > 0.02 -> long\n"
+                f"RATIONALE: {because}\n"
+                "WEAKNESS: a market with no direction pays the costs and earns nothing."
+            )
         return (
-            f"ANSWER: {', '.join(_WEAKNESSES)}\n"
-            f"BECAUSE: {because} A market with no direction pays the charge "
-            "and earns nothing, and a wider one erases what is left."
+            "RULE:\n"
+            "ret(6) > 0 -> long\n"
+            "ret(6) < 0 -> short\n"
+            f"RATIONALE: At {charge} bps a round trip the rule can afford to trade "
+            "often, so it takes both sides of the most recent move.\n"
+            "WEAKNESS: a market that keeps reversing pays the costs on every bar."
         )
 
-    for slot, keys in _SLOTS.items():
-        if _offered(prompt, keys):
-            table = _SLOW if patient else _FAST
-            return f"ANSWER: {table[slot]}\nBECAUSE: {because}"
-
-    return "ANSWER: nothing\nBECAUSE: none of these options were recognised."
+    return f"[stand-in] {prompt[:120]}"

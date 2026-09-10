@@ -1209,7 +1209,12 @@ def workshop_view(session: Session) -> WorkshopView:
                 "ref": row.ref,
                 "agent": row.agent_ref,
                 "desk": row.desk,
-                "design": ", ".join(f"{k}={v}" for k, v in sorted(row.design.items())),
+                "design": (
+                    str(row.design.get("rule"))
+                    if isinstance(row.design, dict) and "rule" in row.design
+                    else ", ".join(f"{k}={v}" for k, v in sorted(row.design.items()))
+                    + " (menu, pre-M26)"
+                ),
                 "verdict": row.verdict,
                 "beat": row.beat_baselines,
                 "space": row.space,

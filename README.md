@@ -11,14 +11,17 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M25 — agents pick their own market, state a view, and are scored
-on it.** A judgement cannot be backtested, so the evidence is forward: each
-view is sealed and hashed before the outcome exists, the database refuses to
-change it, and it is scored once when the horizon expires. Seven agents on a
-real model, three fresh recordings: six views sealed, one abstention, and
-every one of them said *down* — one opinion six times, which the record will
-score as six. Nothing is scored until 2026-09-11 19:00Z, and the station says
-so. No live trading, and every page says so. · 2026-09-10
+Status: **M26 — the menu is gone; a strategy is a rule the agent wrote.**
+The 72-point design space is deleted. An agent now writes its rule in a small
+closed language the engine runs and the ledger hashes, one declared cell per
+rule, through the same preregistration and selection machinery — which had to
+get stricter the day the menu went, because a positive surplus inside the
+noise had been passing as survival. On 28,000 recorded BTC hours a real model
+wrote three rules the menu could not express; the best returned +99% against
++152% for holding, and the company reported that the campaign found nothing.
+M25's forward record (views sealed before the outcome, scored after) is
+accumulating; the first resolves 2026-09-11 19:00Z. No live trading, and every
+page says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -38,7 +41,7 @@ aurelis orgdev develop     # the company reorganises itself, and grades it
 aurelis desk compare       # the same question on all seven desks
 aurelis orgdev scale       # staff the desks, on measured evidence
 aurelis training seat      # an agent in the critic's seat, weighed by the gate
-aurelis strategy author    # an agent designs a strategy, and it loses
+aurelis strategy author    # an agent writes a rule, and it loses
 aurelis strategy campaign  # it revises inside a budget, and still loses
 aurelis thesis seat        # an agent picks a market and seals a view, in advance
 aurelis thesis calibration # and is measured on what happened
@@ -923,7 +926,7 @@ automatically by the company, five milestones in.
 | **M12** ✅ | Multi-desk | seven clocks, seven cost models, comparable research |
 | **M13** ✅ | Scale & hardening | coverage per desk, staffed on evidence, a queue that counts |
 | **M14** ✅ | Agents that decide | a closed answer set, figure-checked, scored by the same gate |
-| **M15** ✅ | Agents that author | 72 designs, the search declared, the result negative |
+| **M15** ✅ | Agents that author | 72 designs, the search declared, the result negative (menu removed at M26) |
 | **M16** ✅ | Budgets and corrections | revise inside a frozen budget, then pay for the search |
 | **M17** ✅ | Model routing | the charter's tier picks the model, and NONE is refused |
 | **M18** ✅ | A real model in the seat | 0/5 usable, then 5/5, with no guard widened |
@@ -934,6 +937,7 @@ automatically by the company, five milestones in.
 | **M23** ✅ | A real model, a real market | it ran, it found nothing, and the seat had been reading the answer key |
 | **M24** ✅ | **It runs itself** | the mandate is the work queue, and a search is never repeated |
 | **M25** ✅ | **Judgement, sealed** | views hashed before the outcome, scored after it, calibration as the measure |
+| **M26** ✅ | **The menu is gone** | agents write rules in a closed language; one rule, one cell; the correction demands a margin |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 
