@@ -428,11 +428,12 @@ lists them:
   connection: research runs against the snapshot, because an experiment cannot
   be reproduced against a moving endpoint. `aurelis data snapshots` shows what
   is held and whether each still verifies.
-- **Six agents, one opinion.** The first seven agents seated on a real model
-  read the same twenty-four closes and all said *down*. Their identity is in
-  the prompt, which makes them distinguishable and does not make them
-  independent. Independence needs different evidence and an adversary, and
-  neither is built.
+- **Six agents, one opinion, now attacked.** The first seven agents seated
+  on a real model read the same twenty-four closes and all said *down*. Since
+  M28 a critic attacks every view before the seal and the author answers; the
+  first real attack moved a view from 0.55 to 0.52. The critic reads the same
+  evidence the author did, so this tests reasoning, not independence of
+  evidence.
 - **The forward record is empty until a horizon passes.** The live workspace
   holds sealed views; the first resolve on 2026-09-11 at 19:00Z. A running
   service settles them on its next wake; otherwise `aurelis thesis resolve

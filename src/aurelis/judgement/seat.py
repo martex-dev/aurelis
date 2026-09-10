@@ -56,12 +56,14 @@ from aurelis.core.enums import Actor, EventKind, ModelTier
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.intel.live import interval_seconds
 from aurelis.intel.snapshots import MarketSnapshot, SnapshotBar
+from aurelis.judgement.adversary import Adversary, respond
 from aurelis.judgement.tables import Thesis
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.llm.routing import model_for
 from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
 
 __all__ = [
+    "CRITIC_CHARTERS",
     "HORIZONS",
     "SYSTEM",
     "JudgementRefused",
@@ -331,6 +333,11 @@ class SealedThesis:
     is_live: bool
     model: str
     calls: int
+    critic_ref: str | None = None
+    attack_verdict: str | None = None
+    attack: str | None = None
+    confidence_stated: Decimal | None = None
+    response: str | None = None
 
     def describe(self) -> str:
         return (
@@ -377,6 +384,14 @@ def seal_of(row: Thesis) -> str:
             "wrong_if": row.wrong_if,
             "material": row.material_digest,
             "model": row.model,
+            "critic": row.critic_ref or "",
+            "attack_verdict": row.attack_verdict or "",
+            "attack": row.attack or "",
+            "confidence_stated": _money(row.confidence_stated)
+            if row.confidence_stated is not None
+            else "",
+            "response": row.response or "",
+            "response_because": row.response_because or "",
             "sealed_at": isoformat(row.sealed_at),
         }
     )
@@ -392,15 +407,25 @@ def verify_seal(row: Thesis) -> bool:
 class Seat:
     """Put one agent through the two questions and seal what it says."""
 
-    __slots__ = ("_artifacts", "_clock", "_ledger", "_provider")
+    __slots__ = ("_adversary", "_artifacts", "_clock", "_ledger", "_provider")
 
     def __init__(
-        self, provider: Any, artifacts: Any, ledger: Any, clock: Clock | None = None
+        self,
+        provider: Any,
+        artifacts: Any,
+        ledger: Any,
+        clock: Clock | None = None,
+        *,
+        adversary: Adversary | None = None,
     ) -> None:
         self._provider = provider
         self._artifacts = artifacts
         self._ledger = ledger
         self._clock = clock or SystemClock()
+        self._adversary = adversary
+        """Who attacks a view before it is sealed. ``None`` seals unattacked
+        and the row says so; a critic who is also the author is not an
+        adversary and is ignored."""
 
     def judge(
         self,
@@ -512,15 +537,72 @@ class Seat:
             )
             raise JudgementRefused("forward", cause)
 
+        # -------------------------------------------------- the attack
+        attack = None
+        answer = None
+        confidence = view.confidence
+        calls = 2
+        instrument = picked.snapshot.symbol
+        if self._adversary is not None and self._adversary.critic_ref != agent_ref:
+            attack = self._adversary.attack(
+                session, material=material, view=view, instrument=instrument, task_ref=task_ref
+            )
+            calls += 1
+            if not attack.unreadable:
+                answer = respond(
+                    self._provider,
+                    session,
+                    agent_ref=agent_ref,
+                    system=system,
+                    tier=tier,
+                    material=material,
+                    view=view,
+                    instrument=instrument,
+                    attack=attack,
+                    task_ref=task_ref,
+                )
+                calls += 1
+                if answer.kind == "withdraw":
+                    self._declined(
+                        session,
+                        agent_ref,
+                        instrument,
+                        answer.because,
+                        moment,
+                        extra={
+                            "withdrawn_after_attack": True,
+                            "critic": attack.critic_ref,
+                            "attack_verdict": attack.verdict,
+                            "attack": attack.text[:300],
+                            "confidence_stated": str(view.confidence),
+                        },
+                    )
+                    return None
+                if answer.confidence is not None:
+                    confidence = answer.confidence
+        probability_up = confidence if view.direction == "up" else Decimal(1) - confidence
+
         shown = self._artifacts.put_json(
             session,
-            {"choose": choose_material, "view": material, "reply": response.text},
+            {
+                "choose": choose_material,
+                "view": material,
+                "reply": response.text,
+                "attack": None if attack is None else attack.text,
+                "response": None if answer is None else answer.because,
+            },
             kind="judgement.material",
             produced_by=agent_ref,
             actor=agent_ref,
         )
         spend_tokens = chosen.spend.tokens + response.usage.total
         spend_usd = chosen.spend.usd + response.usd
+        if attack is not None:
+            spend_tokens += attack.tokens
+            spend_usd += attack.usd
+        if answer is not None:
+            spend_tokens += answer.tokens
+            spend_usd += answer.usd
         model_label = f"{self._provider.name}:{model_id}"
 
         ref = allocate_ref(session, RefKind.THESIS)
@@ -538,14 +620,20 @@ class Seat:
             resolves_at=resolves_at,
             is_live=bool(picked.snapshot.is_live),
             direction=view.direction,
-            confidence=view.confidence,
-            probability_up=view.probability_up,
+            confidence=confidence,
+            probability_up=probability_up,
             thesis=view.thesis,
             wrong_if=view.wrong_if,
             material_digest=shown.digest,
             model=model_label,
             tokens=spend_tokens,
             usd=spend_usd,
+            critic_ref=None if attack is None else attack.critic_ref,
+            attack_verdict=None if attack is None else attack.verdict,
+            attack=None if attack is None else attack.text,
+            confidence_stated=None if attack is None else view.confidence,
+            response=None if answer is None else answer.kind,
+            response_because=None if answer is None else answer.because,
             sealed_at=moment,
             seal="0" * 64,
         )
@@ -571,6 +659,12 @@ class Seat:
                 "material": shown.digest[:16],
                 "seal": row.seal[:16],
                 "model": model_label,
+                "attacked_by": row.critic_ref,
+                "attack_verdict": row.attack_verdict,
+                "confidence_stated": None
+                if row.confidence_stated is None
+                else str(row.confidence_stated),
+                "response": row.response,
             },
             at=moment,
         )
@@ -590,18 +684,29 @@ class Seat:
             wrong_if=row.wrong_if,
             is_live=row.is_live,
             model=model_label,
-            calls=2,
+            calls=calls,
+            critic_ref=row.critic_ref,
+            attack_verdict=row.attack_verdict,
+            attack=row.attack,
+            confidence_stated=row.confidence_stated,
+            response=row.response,
         )
 
     def _declined(
-        self, session: Session, agent_ref: str, at_stage: str, why: str, moment: dt.datetime
+        self,
+        session: Session,
+        agent_ref: str,
+        at_stage: str,
+        why: str,
+        moment: dt.datetime,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         self._ledger.append(
             session,
             kind=EventKind.THESIS_DECLINED,
             actor=agent_ref,
             subject=agent_ref,
-            payload={"stage": at_stage, "reasoning": why[:300]},
+            payload={"stage": at_stage, "reasoning": why[:300], **(extra or {})},
             at=moment,
         )
 
@@ -702,7 +807,26 @@ def seat_agent(
         )
         claimed = runtime.queue.claim(session, worker=seated.ref, at=moment)
         task_ref = claimed.ref if claimed is not None else task.ref
-        seat = Seat(runtime.provider, runtime.artifacts, runtime.ledger, clock=runtime.clock)
+        critic = critic_for(runtime, session, author_ref=seated.ref)
+        adversary = (
+            None
+            if critic is None
+            else Adversary(
+                runtime.provider,
+                critic_ref=critic.ref,
+                identity=identity_of(critic),
+                tier=critic.authority.tier
+                if critic.authority.tier is not ModelTier.NONE
+                else ModelTier.MID,
+            )
+        )
+        seat = Seat(
+            runtime.provider,
+            runtime.artifacts,
+            runtime.ledger,
+            clock=runtime.clock,
+            adversary=adversary,
+        )
         refusal: JudgementRefused | None = None
         try:
             sealed = seat.judge(
@@ -744,6 +868,28 @@ def seat_agent(
             )
         raise refusal
     return sealed
+
+
+CRITIC_CHARTERS: tuple[str, ...] = ("strategy.critic", "strategy.adversarial")
+
+
+def critic_for(runtime: Any, session: Session, *, author_ref: str) -> Any | None:
+    """The agent who attacks this author's view: a critic who is not the author.
+
+    First active holder of a critic or adversarial charter by ref. ``None``
+    when nobody qualifies, in which case the view is sealed unattacked and the
+    row says so rather than pretending a review happened.
+    """
+    from aurelis.agents.tables import AgentState
+
+    for agent in runtime.roster.all(session):
+        if agent.ref == author_ref:
+            continue
+        if agent.state not in (AgentState.ACTIVE, AgentState.WORKING):
+            continue
+        if any(held in CRITIC_CHARTERS for held in agent.coverage):
+            return agent
+    return None
 
 
 def identity_of(seated: Any) -> str:

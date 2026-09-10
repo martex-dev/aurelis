@@ -38,9 +38,12 @@ __all__ = [
     "COIN_TOSS",
     "AgentCalibration",
     "Band",
+    "CriticRecord",
     "agent_calibration",
     "calibration_over",
     "company_calibration",
+    "critic_record",
+    "critics_over",
 ]
 
 COIN_TOSS = Decimal("0.25")
@@ -193,6 +196,78 @@ def calibration_over(label: str, rows: Iterable[Thesis]) -> AgentCalibration:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CriticRecord:
+    """A critic's record: did its verdicts predict failure?"""
+
+    label: str
+    attacks: int
+    scored: int
+    broken: int
+    caught: int
+    """``broken`` on a view that turned out wrong."""
+
+    false_alarms: int
+    """``broken`` on a view that turned out right."""
+
+    missed: int
+    """``stands`` on a view that turned out wrong."""
+
+    moved: int
+    """Views whose author revised after the attack. Withdrawals never become
+    rows and are counted on the ledger, not here."""
+
+    @property
+    def precision(self) -> Decimal | None:
+        """Of the views it called broken, how many were."""
+        scored_broken = self.caught + self.false_alarms
+        if not scored_broken:
+            return None
+        return (Decimal(self.caught) / Decimal(scored_broken)).quantize(_Q)
+
+    @property
+    def catch_rate(self) -> Decimal | None:
+        """Of the views that turned out wrong, how many it called broken."""
+        wrong = self.caught + self.missed
+        if not wrong:
+            return None
+        return (Decimal(self.caught) / Decimal(wrong)).quantize(_Q)
+
+    def describe(self) -> str:
+        if not self.scored:
+            return f"{self.label}: {self.attacks} attack(s), none scored yet"
+        return (
+            f"{self.label}: {self.attacks} attack(s), {self.broken} broken; of the scored, "
+            f"caught {self.caught}, false alarms {self.false_alarms}, missed {self.missed} "
+            f"(precision {self.precision}, catch rate {self.catch_rate}); moved {self.moved}"
+        )
+
+
+def critics_over(label: str, rows: Iterable[Thesis]) -> CriticRecord:
+    theses = [t for t in rows if t.critic_ref is not None and t.attack_verdict != "unreadable"]
+    scored = [t for t in theses if t.scored_at is not None]
+    hit = {t.ref: bool(t.outcome) == (t.direction == "up") for t in scored}
+    caught = sum(1 for t in scored if t.attack_verdict == "broken" and not hit[t.ref])
+    alarms = sum(1 for t in scored if t.attack_verdict == "broken" and hit[t.ref])
+    missed = sum(1 for t in scored if t.attack_verdict == "stands" and not hit[t.ref])
+    return CriticRecord(
+        label=label,
+        attacks=len(theses),
+        scored=len(scored),
+        broken=sum(1 for t in theses if t.attack_verdict == "broken"),
+        caught=caught,
+        false_alarms=alarms,
+        missed=missed,
+        moved=sum(1 for t in theses if t.response == "revise"),
+    )
+
+
+def critic_record(session: Session, critic_ref: str, *, live_only: bool = True) -> CriticRecord:
+    return critics_over(
+        critic_ref, _rows(session, Thesis.critic_ref == critic_ref, live_only=live_only)
+    )
+
+
 def _rows(session: Session, *where: sa.ColumnElement[bool], live_only: bool) -> list[Thesis]:
     query = sa.select(Thesis)
     for clause in where:
@@ -222,7 +297,12 @@ def company_calibration(
         by_agent.setdefault(row.agent_ref, []).append(row)
         by_instrument.setdefault(row.instrument, []).append(row)
         by_horizon.setdefault(f"{row.horizon_hours}h", []).append(row)
+    by_critic: dict[str, list[Thesis]] = {}
+    for row in rows:
+        if row.critic_ref is not None:
+            by_critic.setdefault(row.critic_ref, []).append(row)
     return {
+        "critics": [critics_over(k, v) for k, v in sorted(by_critic.items())],  # type: ignore[misc]
         "overall": [calibration_over("company", rows)],
         "by_agent": [calibration_over(k, v) for k, v in sorted(by_agent.items())],
         "by_instrument": [calibration_over(k, v) for k, v in sorted(by_instrument.items())],

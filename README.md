@@ -11,17 +11,15 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M27 — the company runs for days, and records what broke.** A
-person records a data grant once, on the ledger, and `aurelis service start`
-then wakes on an interval: fetch under the grant, settle every view a
-recording covers, seat the judges, write a row — with a vendor outage or a
-model out of allowance as an incident on the record, not a crash. Two real
-wakes on a real model seated seven agents; eight views now stand on the live
-workspace, all *down*, the first resolving 2026-09-11 19:00Z. Before it: M26
-deleted the 72-point menu (agents write rules in a closed language; a
-real-model campaign found nothing) and M25 made the evidence forward (views
-sealed before the outcome, scored after). No live trading, and every page
-says so. · 2026-09-10
+Status: **M28 — a view is attacked before it is sealed, and the attacker is
+scored.** A critic who is never the author sees every proposed view and the
+strongest reason it is wrong goes into the seal with the author's response;
+when the horizon expires the critic is scored on catches, false alarms and
+misses. On the live workspace a real critic called a real 6-hour ETH short
+*weakened*, citing the tape, and the author revised to 0.52 — "barely
+distinguishable from a toss." Behind it: M27 runs the company for days under
+a grant a person recorded; M26 deleted the 72-point menu; M25 made the
+evidence forward. No live trading, and every page says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -940,6 +938,7 @@ automatically by the company, five milestones in.
 | **M25** ✅ | **Judgement, sealed** | views hashed before the outcome, scored after it, calibration as the measure |
 | **M26** ✅ | **The menu is gone** | agents write rules in a closed language; one rule, one cell; the correction demands a margin |
 | **M27** ✅ | **It runs for days** | a grant a person recorded, a wake every interval, and what broke on the record |
+| **M28** ✅ | **Disagreement** | a critic attacks every view before the seal, and is scored on catches and false alarms |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

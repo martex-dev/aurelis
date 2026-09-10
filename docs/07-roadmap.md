@@ -1503,6 +1503,78 @@ See [ADR-0028](adr/0028-the-service-wakes-under-a-grant-and-records-what-broke.m
 
 ---
 
+## M28 — A view is attacked before it is sealed, and the attacker is scored ✅
+
+M25's first seven views on a real model all said *down*. Seven agents read
+the same closes and wrote the same conclusion in different words; putting
+their identity in the prompt made them distinguishable and not independent.
+A thesis nobody attacked has not been tested.
+
+### The adversary in the loop
+
+After the author's view is parsed, figure-checked and found forward, and
+before anything is written, an agent holding the critic or adversarial
+charter — never the author — is shown the same material and the proposed view
+and replies with a verdict (`stands`, `weakened`, `broken`) and the strongest
+reason the view is wrong. The author sees the attack and replies `hold`,
+`revise` with a new confidence, or `withdraw`. All of it is sealed together
+and covered by the immutability trigger; a withdrawal is a decline on the
+ledger carrying the attack; the Brier score is computed on the confidence
+*after*. An unreadable attack does not block the seal — it is recorded
+against the critic and the view stands as stated.
+
+### The critic is scored
+
+When the horizon expires: `broken` on a wrong view is a catch, `broken` on a
+right view is a false alarm, `stands` on a wrong view is a miss. Precision and
+catch rate sit on the critic's agent page beside the author's calibration. Say
+`broken` to everything and the false alarms say what that is worth.
+
+### A real attack on a real view
+
+STRAT, on the live workspace, proposed ETH-USD *down* over 6 hours at 0.55,
+on a bounce off a flush low that had "already stalled twice near 2467.51".
+CRITIC's verdict: **weakened**.
+
+> The "stalled twice" claim rests on 2465.59 and 2467.51 — a gap no larger
+> than ordinary hourly chop elsewhere in the series (e.g. 2477.41 to 2481.28,
+> or 2472.22 to 2467.92), so calling it a defended supply zone reads noise as
+> structure. Meanwhile the bars since the flush low of 2413.9 trace a steady
+> grind of higher levels rather than a clean rejection, and the 6-bar change
+> is +0.85%, i.e. the freshest momentum contradicts the fade thesis.
+
+STRAT's response: **revise** to 0.52.
+
+> The attack is right that two touches near 2465.59 and 2467.51 do not
+> establish a defended supply zone and that the bars off 2413.9 grind higher
+> rather than reject, so my structural claim was thinner than stated. What
+> survives is only the weak prior that a fast retrace inside a mildly negative
+> multi-day drift gives back part of the move, which leaves this barely
+> distinguishable from a toss.
+
+Every figure in both is in the material; the seal covers both; the view
+resolves at 02:00Z. Whether the critic was right is on the record from then.
+
+### A migration, found the same way
+
+`create_all` creates tables that do not exist and leaves existing ones alone,
+so the live workspace crashed on the first query that named an attack column.
+Missing nullable columns are now added on init, the fact goes on the ledger
+as `schema.migrated`, and the judgement triggers are dropped and recreated so
+they cover the new columns rather than kept from before them.
+
+### What this milestone did not do
+
+- The attack reads the same twenty-four closes the author did. It can attack
+  the reasoning, not the evidence.
+- Nothing yet gives more budget to a critic with a good record or retires one
+  with a bad one; the record that would justify it starts here.
+- Four model calls per view where there were two.
+
+See [ADR-0029](adr/0029-a-view-is-attacked-before-it-is-sealed.md).
+
+---
+
 ## Sequencing
 
 ```

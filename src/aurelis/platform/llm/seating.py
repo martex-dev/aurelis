@@ -64,7 +64,15 @@ def standins() -> Callable[[LlmRequest], str]:
 
     def respond(request: LlmRequest) -> str:
         prompt = request.messages[-1].content
-        if "Which market do you want" in prompt or "State your view on" in prompt:
+        if any(
+            marker in prompt
+            for marker in (
+                "Which market do you want",
+                "State your view on",
+                "Attack this view",
+                "Respond to the attack",
+            )
+        ):
             return scripted_judge(request)
         return scripted_author(request)
 

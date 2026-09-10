@@ -343,10 +343,11 @@ AGENDA: tuple[Action, ...] = (
         condition="calibrated",
         intent=(
             "settle any view whose horizon a recording already covers, then "
-            "seat one agent to choose a market and state a sealed view on it"
+            "seat one agent to choose a market and state a view, have a critic "
+            "attack it, and seal what survives"
         ),
         exhausted=_nothing_to_judge,
-        estimated_calls=2,
+        estimated_calls=4,
     ),
     Action(
         key="author",

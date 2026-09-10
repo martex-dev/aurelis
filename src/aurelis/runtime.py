@@ -267,6 +267,17 @@ class Runtime:
                     *install_service_invariants(connection),
                 )
         with self.database.session() as session:
+            if self.database.added_columns:
+                self.ledger.append(
+                    session,
+                    kind=EventKind.SCHEMA_MIGRATED,
+                    actor=Actor.OPERATOR,
+                    subject=COMPANY_SCOPE_ID,
+                    payload={
+                        "aurelis_version": __version__,
+                        "added_columns": list(self.database.added_columns),
+                    },
+                )
             first_run = self.ledger.count(session) == 0
             if first_run:
                 self.ledger.append(

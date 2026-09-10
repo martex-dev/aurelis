@@ -51,9 +51,11 @@ def create_engine(url: str, *, echo: bool = False) -> sa.Engine:
 class Database:
     """Owns the engine and hands out sessions."""
 
-    __slots__ = ("_engine", "_sessionmaker", "settings")
+    __slots__ = ("_engine", "_sessionmaker", "added_columns", "settings")
 
     def __init__(self, settings: Settings, *, echo: bool = False) -> None:
+        self.added_columns: tuple[str, ...] = ()
+        """What the last :meth:`create_all` added to existing tables."""
         self.settings = settings
         url = settings.resolved_database_url
         if url.startswith("sqlite") and ":memory:" not in url:
@@ -73,10 +75,12 @@ class Database:
         return self._engine.dialect.name
 
     def create_all(self, *, install_triggers: bool = True) -> tuple[str, ...]:
-        """Create the schema and install the invariant triggers.
+        """Create the schema, add missing columns, install the invariant triggers.
 
         Returns the trigger names installed. Idempotent: safe to run against a
-        live workspace.
+        live workspace. Columns a newer version added to an existing table are
+        added here (see :meth:`migrate`); the names are kept on
+        :attr:`added_columns` so the caller can put the fact on the ledger.
         """
         # Importing the schema module registers every table. Without it,
         # `create_all` would build whatever happened to be imported first,
@@ -85,10 +89,50 @@ class Database:
         import aurelis.schema  # noqa: F401
 
         Base.metadata.create_all(self._engine)
+        self.added_columns = self.migrate()
         if not install_triggers:
             return ()
         with self._engine.begin() as connection:
             return install_invariants(connection)
+
+    def migrate(self) -> tuple[str, ...]:
+        """Add columns the code declares and the database lacks. Additive only.
+
+        ``create_all`` creates tables that do not exist and leaves existing
+        ones alone, so a workspace made before a column was added would keep
+        running on the old shape until the first query that named the new
+        column crashed -- which is how this was found, on the live workspace,
+        the day the judgement table gained its attack columns.
+
+        Only a nullable column, or one with a server default, can be added to
+        rows that already exist without inventing a value for them. Anything
+        else is refused with the table and column named: a required column on
+        an existing table is a decision about what the old rows mean, and
+        that is not something a startup routine gets to decide.
+        """
+        inspector = sa.inspect(self._engine)
+        existing_tables = set(inspector.get_table_names())
+        added: list[str] = []
+        with self._engine.begin() as connection:
+            for table in Base.metadata.sorted_tables:
+                if table.name not in existing_tables:
+                    continue
+                present = {column["name"] for column in inspector.get_columns(table.name)}
+                for column in table.columns:
+                    if column.name in present:
+                        continue
+                    if not column.nullable and column.server_default is None:
+                        raise RuntimeError(
+                            f"{table.name}.{column.name} is required and the table "
+                            "already has rows with no value for it. Adding it needs a "
+                            "decision about what those rows mean, not a startup routine."
+                        )
+                    kind = column.type.compile(dialect=self._engine.dialect)
+                    connection.execute(
+                        sa.text(f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {kind}')
+                    )
+                    added.append(f"{table.name}.{column.name}")
+        return tuple(added)
 
     @contextmanager
     def session(self) -> Iterator[Session]:

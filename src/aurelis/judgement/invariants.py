@@ -49,6 +49,11 @@ _SEALED_CHANGED = (
     "OR NEW.probability_up <> OLD.probability_up "
     "OR NEW.thesis <> OLD.thesis OR NEW.wrong_if <> OLD.wrong_if "
     "OR NEW.material_digest <> OLD.material_digest OR NEW.model <> OLD.model "
+    "OR NEW.critic_ref IS NOT OLD.critic_ref "
+    "OR NEW.attack_verdict IS NOT OLD.attack_verdict OR NEW.attack IS NOT OLD.attack "
+    "OR NEW.confidence_stated IS NOT OLD.confidence_stated "
+    "OR NEW.response IS NOT OLD.response "
+    "OR NEW.response_because IS NOT OLD.response_because "
     "OR NEW.sealed_at <> OLD.sealed_at OR NEW.seal <> OLD.seal"
 )
 
@@ -64,20 +69,25 @@ _DELETED = "Aurelis: a thesis is never deleted. The ones that were wrong are the
 
 
 def _sqlite_statements() -> Iterator[str]:
+    # Dropped and recreated rather than IF NOT EXISTS: the immutable column
+    # list grew at M28, and a trigger kept from before that would have left
+    # the new columns editable on every workspace made earlier.
+    for name in JUDGEMENT_TRIGGERS:
+        yield f"DROP TRIGGER IF EXISTS {name}"
     yield (
-        "CREATE TRIGGER IF NOT EXISTS aurelis_thesis_seal_is_immutable "
+        "CREATE TRIGGER aurelis_thesis_seal_is_immutable "
         "BEFORE UPDATE ON theses FOR EACH ROW "
         f"WHEN ({_SEALED_CHANGED}) "
         f"BEGIN SELECT RAISE(ABORT, '{_SEALED}'); END"
     )
     yield (
-        "CREATE TRIGGER IF NOT EXISTS aurelis_thesis_is_scored_once "
+        "CREATE TRIGGER aurelis_thesis_is_scored_once "
         "BEFORE UPDATE ON theses FOR EACH ROW "
         "WHEN OLD.scored_at IS NOT NULL "
         f"BEGIN SELECT RAISE(ABORT, '{_SCORED}'); END"
     )
     yield (
-        "CREATE TRIGGER IF NOT EXISTS aurelis_thesis_is_never_deleted "
+        "CREATE TRIGGER aurelis_thesis_is_never_deleted "
         "BEFORE DELETE ON theses FOR EACH ROW "
         f"BEGIN SELECT RAISE(ABORT, '{_DELETED}'); END"
     )

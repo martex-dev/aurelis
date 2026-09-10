@@ -57,6 +57,10 @@ __all__ = [
 ]
 
 _STATE_TONE = {
+    "stands": "ok",
+    "weakened": "warn",
+    "broken": "bad",
+    "unreadable": "dim",
     "confirmed": "ok",
     "refuted": "bad",
     "inconclusive": "warn",
@@ -266,6 +270,21 @@ def agent_page(session: Session, ref: str) -> str | None:
         "when the horizon expired. Brier: (p - outcome)^2, lower is better, 0.25 "
         "is always saying 50%. Market recordings only; views on fixtures are "
         "counted beside, never in. See <a href='/theses'>theses</a>.</p>"
+        "<h2>As the adversary</h2>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("views attacked", figure_span(view.attacks)),
+                ("caught", figure_span(view.attacks_caught)),
+                ("false alarms", figure_span(view.attacks_false_alarms)),
+                ("missed", figure_span(view.attacks_missed)),
+            ]
+        )
+        + "</div>"
+        "<p class='mono'>A critic is scored on whether its verdicts predicted "
+        "failure: a broken on a view that turned out wrong is a catch, on one that "
+        "turned out right a false alarm, and a stands on a view that turned out "
+        "wrong a miss. Say broken to everything and the false alarms say so.</p>"
         "<h2>Training record</h2>"
         "<div class='panel'>"
         + _kv(
@@ -855,6 +874,19 @@ def thesis_page(session: Session, ref: str) -> str | None:
                      else "<span class='pill bad'>BROKEN</span>"
                  )),
     ]
+    if row.critic_ref is not None:
+        pairs += [
+            (
+                "attacked by",
+                f"<a href='/agent/{escape_text(row.critic_ref)}'>{escape_text(row.critic_ref)}</a>",
+            ),
+            ("verdict", _pill(row.attack_verdict or "—")),
+            ("attack", escape_text(row.attack or "")),
+            ("confidence stated", escape_text(str(row.confidence_stated))),
+            ("response", escape_text(f"{row.response}: {row.response_because or ''}")),
+        ]
+    else:
+        pairs.append(("attacked by", "nobody — no critic was available"))
     if settled:
         pairs += [
             (

@@ -636,7 +636,7 @@ def test_the_loop_seats_judges_until_every_market_has_a_view_then_says_why(
         ).scalar_one()
     expected = judges * 2  # two recorded markets
 
-    outcome = run_autonomy(company, cycles=expected + 4, calls=(expected + 4) * 2)
+    outcome = run_autonomy(company, cycles=expected + 12, calls=(expected + 12) * 4)
     judged = [c for c in outcome.acted if c.action == "judge"]
     assert len(judged) == expected, [c.describe() for c in outcome.cycles]
     assert all(c.outcome == "acted" for c in judged)
@@ -687,7 +687,7 @@ def test_one_agents_refusal_does_not_stop_the_others_being_seated(
                 )
             )
         ).scalar_one()
-    outcome = run_autonomy(built, cycles=judges + 3, calls=(judges + 3) * 2)
+    outcome = run_autonomy(built, cycles=judges + 3, calls=(judges + 3) * 4)
     outcomes = [c.outcome for c in outcome.cycles if c.action == "judge"]
     assert outcomes.count("refused") == 1, [c.describe() for c in outcome.cycles]
     assert "failed" not in outcomes
@@ -696,7 +696,7 @@ def test_one_agents_refusal_does_not_stop_the_others_being_seated(
 
     # And the refused agent is not asked again on the same recordings; a new
     # recording makes it seatable again.
-    again = run_autonomy(built, cycles=4, calls=8)
+    again = run_autonomy(built, cycles=4, calls=16)
     assert "judge" not in {c.action for c in again.acted}
     with built.database.session() as session:
         built.snapshots.ingest(
@@ -706,7 +706,7 @@ def test_one_agents_refusal_does_not_stop_the_others_being_seated(
             symbol="BTC-USD",
             bars=200,
         )
-    fresh = run_autonomy(built, cycles=4, calls=8)
+    fresh = run_autonomy(built, cycles=4, calls=16)
     assert [c.outcome for c in fresh.cycles if c.action == "judge"] == ["refused"]
     built.close()
 
@@ -774,3 +774,187 @@ def test_the_judge_seat_is_answered_by_the_stand_in_only_offline(settings: Setti
     assert seat_provider(settings, scripted_judge) is not None
     live = settings.model_copy(update={"provider": "agent_sdk"})
     assert seat_provider(live, scripted_judge) is None
+
+
+# ------------------------------------------------ a workspace from before
+
+
+def test_a_workspace_made_before_the_attack_columns_is_migrated_on_init(
+    settings: Settings, clock: FrozenClock
+) -> None:
+    """Found on the live workspace: create_all leaves an existing table alone,
+    so the first query naming a new column crashed. Missing nullable columns
+    are now added on init, the fact goes on the ledger, and the seal trigger
+    is recreated so it covers them."""
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=standins()))
+    built.initialise()
+    with built.database.session() as session:
+        # A pre-M28 workspace: the seal trigger did not name these columns.
+        for name in (
+            "aurelis_thesis_seal_is_immutable",
+            "aurelis_thesis_is_scored_once",
+            "aurelis_thesis_is_never_deleted",
+        ):
+            session.execute(sa.text(f"DROP TRIGGER {name}"))
+        session.execute(sa.text("ALTER TABLE theses DROP COLUMN attack"))
+        session.execute(sa.text("ALTER TABLE theses DROP COLUMN response_because"))
+    built.initialise()
+    assert set(built.database.added_columns) == {"theses.attack", "theses.response_because"}
+    with built.database.session() as session:
+        migrated = session.execute(
+            sa.text("SELECT payload FROM events WHERE kind = 'schema.migrated'")
+        ).scalar_one()
+        columns = {c["name"] for c in sa.inspect(built.database.engine).get_columns("theses")}
+    assert "theses.attack" in str(migrated)
+    assert {"attack", "response_because"} <= columns
+    built.staff()
+    with built.database.session() as session:
+        built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(200)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=200,
+        )
+    sealed = seat_agent(built, agent_handle="INTEL")
+    assert sealed is not None and sealed.attack is not None
+    with (
+        built.database.session() as session,
+        pytest.raises(IntegrityError, match="cannot be changed"),
+    ):
+        session.execute(
+            sa.text("UPDATE theses SET attack = 'edited' WHERE ref = :ref"), {"ref": sealed.ref}
+        )
+    built.close()
+
+
+# ------------------------------------------------ the adversary
+
+
+def test_every_sealed_view_was_attacked_by_a_different_agent(company: Runtime) -> None:
+    """A thesis nobody attacked has not been tested. The stand-in critic calls
+    anything above 0.6 broken and the stand-in author revises to 0.55; the seal
+    covers both the attack and the confidence before it."""
+    from aurelis.judgement.adversary import VERDICTS
+
+    sealed = seat_agent(company, agent_handle="INTEL")
+    assert sealed is not None
+    assert sealed.critic_ref is not None and sealed.critic_ref != sealed.agent_ref
+    assert sealed.attack_verdict in VERDICTS
+    assert sealed.attack_verdict == "broken"
+    assert sealed.confidence_stated == Decimal("0.85")
+    assert sealed.confidence == Decimal("0.55")
+    assert sealed.response == "revise"
+    assert sealed.calls == 4
+    row = _theses(company)[0]
+    assert verify_seal(row)
+    assert row.attack and row.critic_ref == sealed.critic_ref
+    assert row.probability_up == Decimal("0.55"), "the Brier is scored on the confidence after"
+    with (
+        company.database.session() as session,
+        pytest.raises(IntegrityError, match="cannot be changed"),
+    ):
+        session.execute(
+            sa.text("UPDATE theses SET attack_verdict = 'stands' WHERE ref = :ref"),
+            {"ref": sealed.ref},
+        )
+
+
+def test_a_view_withdrawn_after_an_attack_is_declined_with_the_attack_on_the_record(
+    settings: Settings, clock: FrozenClock
+) -> None:
+    def withdrawing(request: LlmRequest) -> str:
+        if "Respond to the attack" in request.messages[-1].content:
+            return "RESPONSE: withdraw\nBECAUSE: the attack is right and the view is withdrawn."
+        return standins()(request)
+
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=withdrawing))
+    built.initialise()
+    built.staff()
+    with built.database.session() as session:
+        built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(200)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=200,
+        )
+    assert seat_agent(built, agent_handle="INTEL") is None
+    assert _theses(built) == []
+    with built.database.session() as session:
+        payload = session.execute(
+            sa.text("SELECT payload FROM events WHERE kind = 'judgement.thesis_declined'")
+        ).scalar_one()
+    built.close()
+    assert "withdrawn_after_attack" in str(payload) and "broken" in str(payload)
+
+
+def test_an_unreadable_attack_does_not_block_the_seal(
+    settings: Settings, clock: FrozenClock
+) -> None:
+    def mumbling(request: LlmRequest) -> str:
+        if "Attack this view" in request.messages[-1].content:
+            return "I would rather not attack a colleague."
+        return standins()(request)
+
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=mumbling))
+    built.initialise()
+    built.staff()
+    with built.database.session() as session:
+        built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(200)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=200,
+        )
+    sealed = seat_agent(built, agent_handle="INTEL")
+    built.close()
+    assert sealed is not None
+    assert sealed.attack_verdict == "unreadable"
+    assert sealed.confidence == sealed.confidence_stated == Decimal("0.85")
+    assert sealed.response is None and sealed.calls == 3
+
+
+def test_the_critic_is_scored_when_the_view_resolves(company: Runtime) -> None:
+    """BTC rises one a bar; the author says up; the critic says broken; the
+    view turns out right. That is a false alarm on the critic's record."""
+    from aurelis.judgement.calibration import company_calibration, critic_record
+    from aurelis.station.app import station_app
+
+    sealed = seat_agent(company, agent_handle="INTEL")
+    assert sealed is not None and sealed.attack_verdict == "broken"
+    company.clock.advance(hours=25)
+    with company.database.session() as session:
+        company.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Recorded(_closes(230)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=230,
+        )
+        resolve_due(session, ledger=company.ledger, clock=company.clock)
+        record = critic_record(session, sealed.critic_ref or "")
+        critics = company_calibration(session)["critics"]
+    assert record.attacks == 1 and record.scored == 1
+    assert record.false_alarms == 1 and record.caught == 0 and record.missed == 0
+    assert record.precision == Decimal("0")
+    assert record.moved == 1
+    assert [c.label for c in critics] == [sealed.critic_ref]
+    page = station_app(company).handle(f"/agent/{sealed.critic_ref}", {}).body.decode()
+    assert "As the adversary" in page
+    one = station_app(company).handle(f"/thesis/{sealed.ref}", {}).body.decode()
+    assert "BROKEN" in one and "revise" in one
+
+
+def test_the_critic_is_never_the_author(company: Runtime) -> None:
+    """The one agent holding the critic charter cannot attack its own view; it
+    is sealed unattacked and the page says nobody was available."""
+    from aurelis.station.app import station_app
+
+    sealed = seat_agent(company, agent_handle="CRITIC")
+    assert sealed is not None
+    assert sealed.critic_ref != sealed.agent_ref
+    if sealed.critic_ref is None:
+        page = station_app(company).handle(f"/thesis/{sealed.ref}", {}).body.decode()
+        assert "no critic was available" in page

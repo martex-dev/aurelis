@@ -35,7 +35,12 @@ from sqlalchemy.orm import Session
 from aurelis.agents.tables import Agent, AgentState, ToolCall
 from aurelis.alerts.tables import Alert
 from aurelis.authoring.tables import AuthoringAttempt, Campaign
-from aurelis.judgement.calibration import AgentCalibration, agent_calibration, calibration_over
+from aurelis.judgement.calibration import (
+    AgentCalibration,
+    agent_calibration,
+    calibration_over,
+    critic_record,
+)
 from aurelis.judgement.tables import Thesis
 from aurelis.meetings.tables import (
     Decision,
@@ -420,6 +425,13 @@ class AgentView:
     """Views this agent sealed on fixture recordings. Reported so that a
     stand-in exercised offline is visibly not a track record."""
 
+    attacks: Figure
+    """Views this agent attacked before they were sealed, as the adversary."""
+
+    attacks_caught: Figure
+    attacks_false_alarms: Figure
+    attacks_missed: Figure
+
     scenario_verdict: str
     """``passed`` | ``failed`` | ``not_scored`` | ``untested``. Shown beside
     the live record and never merged with it: a score on planted effects is
@@ -513,6 +525,9 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
         if band.n
     ]
 
+    critic = critic_record(session, ref, live_only=True)
+    critic_source = Source.table("theses", f"critic = {ref}, is_live = 1")
+
     spent = session.execute(
         sa.select(sa.func.sum(CostEntry.usd)).where(CostEntry.actor == ref)
     ).scalar()
@@ -592,6 +607,10 @@ def agent_view(session: Session, ref: str) -> AgentView | None:
             sa.and_(Thesis.agent_ref == ref, Thesis.is_live.is_(False)),
             detail=f"agent = {ref}, is_live = 0",
         ),
+        attacks=Figure(critic.attacks, critic_source),
+        attacks_caught=Figure(critic.caught, critic_source),
+        attacks_false_alarms=Figure(critic.false_alarms, critic_source),
+        attacks_missed=Figure(critic.missed, critic_source),
         scenario_verdict=scenario_verdict,
         scenario_catch_rate=catch,
         scenario_false_alarms=alarms,
@@ -1119,6 +1138,8 @@ def theses_view(session: Session, *, now: dt.datetime, limit: int = 200) -> Thes
             "thesis": row.thesis,
             "wrong_if": row.wrong_if,
             "seal": row.seal,
+            "attacked": row.critic_ref is not None,
+            "verdict": row.attack_verdict or "—",
         }
 
     open_rows = []

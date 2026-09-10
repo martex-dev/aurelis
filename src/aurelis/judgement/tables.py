@@ -80,6 +80,24 @@ class Thesis(Base):
     tokens: Mapped[int] = mapped_column(default=0)
     usd: Mapped[Decimal] = mapped_column(default=Decimal("0"))
 
+    # ------------------------------------------------ the attack, if any
+    critic_ref: Mapped[str | None] = mapped_column(sa.String(24), index=True)
+    """Who attacked the view before it was sealed. Null means nobody could:
+    no agent holding the critic charter was available, and the row says so."""
+
+    attack_verdict: Mapped[str | None] = mapped_column(sa.String(16))
+    """``stands``, ``weakened``, ``broken``, or ``unreadable`` when the critic
+    answered in a form the seat could not use."""
+
+    attack: Mapped[str | None] = mapped_column(sa.Text)
+    confidence_stated: Mapped[Decimal | None] = mapped_column()
+    """What the author said before the attack. ``confidence`` is after."""
+
+    response: Mapped[str | None] = mapped_column(sa.String(16))
+    """``hold`` or ``revise``. A withdrawal never becomes a row."""
+
+    response_because: Mapped[str | None] = mapped_column(sa.Text)
+
     sealed_at: Mapped[dt.datetime] = mapped_column(index=True)
     seal: Mapped[str] = mapped_column(sa.String(64))
     """SHA-256 over every field above. Recomputed by :func:`verify_seal`."""
@@ -109,4 +127,12 @@ class Thesis(Base):
         sa.CheckConstraint("length(thesis) > 20", name="ck_thesis_has_a_thesis"),
         sa.CheckConstraint("length(wrong_if) > 10", name="ck_thesis_names_a_falsifier"),
         sa.CheckConstraint("resolves_at > sealed_at", name="ck_thesis_is_forward"),
+        sa.CheckConstraint(
+            "attack_verdict IS NULL OR attack_verdict IN "
+            "('stands','weakened','broken','unreadable')",
+            name="ck_thesis_attack_verdict",
+        ),
+        sa.CheckConstraint(
+            "response IS NULL OR response IN ('hold','revise')", name="ck_thesis_response"
+        ),
     )

@@ -31,6 +31,7 @@ _CHANGE_IN_OPTION = re.compile(
 _CHANGE_24 = re.compile(r"over 24 bars: (-?\d+\.\d+)%")
 _REFERENCE = re.compile(r"reference close: (\S+)")
 _SYMBOL = re.compile(r"symbol: (\S+)")
+_CONFIDENCE = re.compile(r"^\s*confidence: (\d+\.\d+)$", re.MULTILINE)
 
 
 def scripted_judge(request: LlmRequest) -> str:
@@ -74,6 +75,34 @@ def scripted_judge(request: LlmRequest) -> str:
             "the most recent move and expects the close at the horizon to be on "
             "the same side.\n"
             "WRONG_IF: the move over the last 24 bars reverses before the horizon.\n"
+        )
+
+    if "Attack this view" in prompt:
+        stated = _CONFIDENCE.search(prompt)
+        confidence = Decimal(stated.group(1)) if stated else Decimal("0.5")
+        if confidence > Decimal("0.6"):
+            return (
+                "VERDICT: broken\n"
+                f"ATTACK: a confidence of {confidence} on a move over 24 bars is more "
+                "than the tape supports; a move that size reverses as often as it "
+                "continues before the horizon."
+            )
+        return (
+            "VERDICT: stands\n"
+            "ATTACK: the view is modest and the tape offers nothing that argues "
+            "the other way over the horizon."
+        )
+
+    if "Respond to the attack" in prompt:
+        if "verdict: broken" in prompt:
+            return (
+                "RESPONSE: revise\n"
+                "CONFIDENCE: 0.55\n"
+                "BECAUSE: the attack is fair and the view is kept at a lower confidence."
+            )
+        return (
+            "RESPONSE: hold\n"
+            "BECAUSE: the attack does not change the reading of the tape."
         )
 
     return f"[stand-in] {prompt[:120]}"
