@@ -38,6 +38,7 @@ from aurelis.service import tables as _service
 from aurelis.strategy import tables as _strategy
 from aurelis.trading import tables as _trading
 from aurelis.training import tables as _training
+from aurelis.world import tables as _world
 
 __all__ = ["Base", "TABLE_MODULES"]
 
@@ -65,6 +66,7 @@ TABLE_MODULES = (
     _mandate,
     _judgement,
     _service,
+    _world,
 )
 """Every module that defines tables, in dependency order.
 

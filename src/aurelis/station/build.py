@@ -79,6 +79,7 @@ def build_sealed(runtime: Runtime, out: Path, *, at: dt.datetime | None = None) 
             ("graveyard", "The Graveyard", pages.graveyard_page(session)),
             ("theses", "Theses", pages.theses_page(session, now=moment)),
             ("service", "The Service", pages.service_page(session)),
+            ("world", "The World", pages.world_page(session)),
             ("workshop", "The Workshop", pages.workshop_page(session)),
             ("meetings", "Meetings", pages.meetings_page(session)),
             ("missions", "Missions", pages.missions_page(session)),

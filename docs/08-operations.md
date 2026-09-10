@@ -440,6 +440,11 @@ lists them:
   --fetch --yes`.
 - **The service wakes on a clock only.** Not on a market event, not on
   another agent's finding. Those are the next things the brief asks for.
+- **The world model holds the venue and what recordings imply, nothing
+  off-venue.** `aurelis world sync --yes` reads the public catalogue;
+  `world derive` adds volume spikes and range breaks from a recording; the
+  service does both every wake. No social, on-chain or filing source exists
+  yet. `world cooccur` lists conjunctions and says they are not discoveries.
 - **Agents write rules; the menu is gone.** `aurelis strategy author` seats
   an agent to write a rule in the company's rule language (`aurelis.rules`),
   one declared cell per rule. Attempts recorded before M26 hold a menu pick

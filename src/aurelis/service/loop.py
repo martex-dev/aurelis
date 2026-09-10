@@ -32,8 +32,10 @@ from aurelis.core.errors import ProviderUnavailable
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.intel.live import FeedUnavailable
 from aurelis.platform.db.refs import allocate_ref
-from aurelis.service.grants import Grants, feed_for
+from aurelis.service.grants import Grants, catalogue_for, feed_for
 from aurelis.service.tables import DataGrant, ServiceCycle
+from aurelis.world.derive import derive_price_events
+from aurelis.world.sources import sync_catalogue
 
 __all__ = ["DEFAULT_CALLS_PER_DAY", "Service", "ServiceOutcome", "Wake", "cycle_once", "serve"]
 
@@ -101,12 +103,14 @@ class Service:
         calls_per_day: int = DEFAULT_CALLS_PER_DAY,
         cycles_per_wake: int = 40,
         feeds: Callable[[DataGrant], Any] | None = None,
+        catalogues: Callable[[DataGrant], Any] | None = None,
         research_source: Any | None = None,
     ) -> None:
         self.runtime = runtime
         self.calls_per_day = calls_per_day
         self.cycles_per_wake = cycles_per_wake
         self._feeds = feeds or (lambda grant: feed_for(grant, clock=runtime.clock))
+        self._catalogue = catalogues or catalogue_for
         self._research_source = research_source
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -119,11 +123,39 @@ class Service:
         incidents: list[str] = []
         fetched: list[str] = []
         failures = 0
+        derived = 0
         notes: list[str] = []
 
         with runtime.database.session() as session:
             ref = allocate_ref(session, RefKind.SERVICE_CYCLE)
             grants = self.grants.active(session)
+
+        # 0. the catalogue, once per live vendor per wake: listings, halts,
+        #    delistings become events before any bar is fetched
+        catalogue_done: set[str] = set()
+        for grant in grants:
+            if not grant.is_live or grant.source in catalogue_done:
+                continue
+            catalogue_done.add(grant.source)
+            try:
+                feed = self._catalogue(grant)
+                with runtime.database.session() as session:
+                    synced = sync_catalogue(
+                        session, runtime.world, feed, clock=runtime.clock, at=moment
+                    )
+                notes.append(f"catalogue {grant.source}: {synced.describe()}")
+            except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                incidents.append(
+                    self._incident(
+                        severity=Severity.WARNING,
+                        source="service.catalogue",
+                        subject=grant.source,
+                        desk=grant.desk,
+                        message=f"catalogue from {grant.source}: {type(error).__name__}: {error}",
+                        action="Nothing was recorded. The next wake retries.",
+                        at=moment,
+                    )
+                )
 
         # 1. fetch, under the grants a person recorded
         if not grants:
@@ -145,6 +177,9 @@ class Service:
                             at=moment,
                         )
                         fetched.append(snapshot.ref)
+                        derived += derive_price_events(
+                            session, runtime.world, snapshot, at=moment
+                        )
                 except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                     failures += 1
                     incidents.append(
@@ -215,6 +250,9 @@ class Service:
                     )
                 )
         left_after = max(0, left - calls)
+
+        if derived:
+            notes.append(f"{derived} price event(s) derived")
 
         # 4. write it down, whatever it was
         note = "; ".join(notes)

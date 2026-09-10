@@ -73,6 +73,7 @@ from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.station.figures import Figure, Source
 from aurelis.strategy.tables import Strategy
 from aurelis.training.tables import TrainingRun
+from aurelis.world.tables import Entity, Relation, WorldEvent
 
 __all__ = [
     "AgentView",
@@ -87,6 +88,7 @@ __all__ = [
     "RoomStatus",
     "ServiceView",
     "ThesesView",
+    "WorldView",
     "TimelineEntry",
     "agent_view",
     "company_status",
@@ -101,6 +103,7 @@ __all__ = [
     "service_view",
     "theses_view",
     "timeline",
+    "world_view",
 ]
 
 _NOT_YET: dict[str, str] = {}
@@ -1282,6 +1285,44 @@ def service_view(session: Session, *, limit: int = 40) -> ServiceView:
             sa.and_(Alert.source.like("service.%"), Alert.resolved_at.is_(None)),
             detail="source like service.%, unresolved",
         ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class WorldView:
+    """What the company knows about the world beyond a price series."""
+
+    entities: Figure
+    events: Figure
+    relations: Figure
+    by_kind: list[dict[str, Any]]
+    recent: list[dict[str, Any]]
+
+
+def world_view(session: Session, *, limit: int = 60) -> WorldView:
+    kinds = session.execute(
+        sa.select(WorldEvent.kind, sa.func.count())
+        .group_by(WorldEvent.kind)
+        .order_by(WorldEvent.kind)
+    ).all()
+    recent = list(
+        session.execute(sa.select(WorldEvent).order_by(WorldEvent.at.desc()).limit(limit)).scalars()
+    )
+    return WorldView(
+        entities=_count(session, Entity),
+        events=_count(session, WorldEvent),
+        relations=_count(session, Relation),
+        by_kind=[{"kind": str(k), "count": int(n)} for k, n in kinds],
+        recent=[
+            {
+                "kind": e.kind,
+                "at": e.at,
+                "entity": f"{e.entity_kind}:{e.entity_key}",
+                "payload": ", ".join(f"{k} {v}" for k, v in sorted(e.payload.items())),
+                "source": e.source,
+            }
+            for e in recent
+        ],
     )
 
 

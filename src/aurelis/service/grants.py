@@ -16,7 +16,7 @@ from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
 from aurelis.service.tables import DataGrant
 
-__all__ = ["KNOWN_SOURCES", "Grants", "feed_for"]
+__all__ = ["KNOWN_SOURCES", "Grants", "catalogue_for", "feed_for"]
 
 KNOWN_SOURCES: tuple[str, ...] = ("coinbase",)
 """Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``."""
@@ -118,6 +118,15 @@ class Grants:
     @staticmethod
     def all(session: Session) -> list[DataGrant]:
         return list(session.execute(sa.select(DataGrant).order_by(DataGrant.ref)).scalars())
+
+
+def catalogue_for(grant: DataGrant) -> Any:
+    """The vendor's product catalogue, for the same source a grant names."""
+    if grant.source == "coinbase":
+        from aurelis.world.sources import CoinbaseProducts
+
+        return CoinbaseProducts()
+    raise IntegrityViolation(f"no catalogue for source {grant.source!r}")
 
 
 def feed_for(grant: DataGrant, *, clock: Clock | None = None) -> Any:

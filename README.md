@@ -11,15 +11,18 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M28 — a view is attacked before it is sealed, and the attacker is
-scored.** A critic who is never the author sees every proposed view and the
-strongest reason it is wrong goes into the seal with the author's response;
-when the horizon expires the critic is scored on catches, false alarms and
-misses. On the live workspace a real critic called a real 6-hour ETH short
-*weakened*, citing the tape, and the author revised to 0.52 — "barely
-distinguishable from a toss." Behind it: M27 runs the company for days under
-a grant a person recorded; M26 deleted the 72-point menu; M25 made the
-evidence forward. No live trading, and every page says so. · 2026-09-10
+Status: **M29 — the world is entities, events and relations, and price is
+one event type.** The company's ontology was a price series; the schemes it
+is meant to find are patterns over entities and events inside time windows.
+There is now an immutable typed event stream, a relation graph, the venue's
+own catalogue as the first non-price source (837 products on the live
+workspace, statuses and all), notable-price events derived from recordings,
+and window queries — including co-occurrence, whose footer says a
+conjunction is not a discovery. Judges see the events for the market they
+chose. Behind it: M28 attacks every view before the seal and scores the
+critic; M27 runs the company for days under a grant; M26 deleted the menu;
+M25 made the evidence forward. No live trading, and every page says so. ·
+2026-09-11
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -44,6 +47,7 @@ aurelis strategy campaign  # it revises inside a budget, and still loses
 aurelis thesis seat        # an agent picks a market and seals a view, in advance
 aurelis thesis calibration # and is measured on what happened
 aurelis service start      # and the company runs on its own, under a grant you recorded
+aurelis world events       # what it knows that is not a price
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -939,6 +943,7 @@ automatically by the company, five milestones in.
 | **M26** ✅ | **The menu is gone** | agents write rules in a closed language; one rule, one cell; the correction demands a margin |
 | **M27** ✅ | **It runs for days** | a grant a person recorded, a wake every interval, and what broke on the record |
 | **M28** ✅ | **Disagreement** | a critic attacks every view before the seal, and is scored on catches and false alarms |
+| **M29** ✅ | **The world model** | entities, an immutable event stream, relations; the catalogue as the first non-price source |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

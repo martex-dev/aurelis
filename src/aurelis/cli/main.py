@@ -43,6 +43,7 @@ from aurelis.cli.strategy import strategy_app
 from aurelis.cli.thesis import thesis_app
 from aurelis.cli.trading import trading_app
 from aurelis.cli.training import training_app
+from aurelis.cli.world import world_app
 from aurelis.core.config import load_settings
 from aurelis.runtime import Runtime
 
@@ -74,6 +75,7 @@ app.add_typer(data_app, name="data")
 app.add_typer(run_app, name="run")
 app.add_typer(thesis_app, name="thesis")
 app.add_typer(service_app, name="service")
+app.add_typer(world_app, name="world")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

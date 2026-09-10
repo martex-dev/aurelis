@@ -494,7 +494,7 @@ class Seat:
         picked = next(r for r in candidates if r.key in chosen.chosen)
 
         # -------------------------------------------------- the view itself
-        material = _view_material(picked, moment, record)
+        material = _view_material(picked, moment, record, session=session)
         rendered = f"{render_material(material)}\n\n{view_question(picked.snapshot.symbol)}"
         model_id = model_for(self._provider.name, tier)
         response = self._provider.complete(
@@ -742,10 +742,32 @@ def _hit(row: Thesis) -> bool:
     return bool(row.outcome) == (row.direction == "up")
 
 
+def _recent_events(session: Session, instrument: str, *, limit: int = 8) -> list[str]:
+    """What the world model knows happened to this instrument lately.
+
+    Listings, halts, volume spikes, range breaks: the first material a judge
+    sees that is not a close. Rendered as lines with the payload's figures in
+    them, so a view may cite them.
+    """
+    from aurelis.world.store import World
+
+    rows = World.events_for(session, entity_kind="instrument", entity_key=instrument, limit=limit)
+    out: list[str] = []
+    for row in rows:
+        detail = ", ".join(f"{k} {v}" for k, v in sorted(row.payload.items()) if k != "first_sync")
+        out.append(f"{isoformat(row.at)} {row.kind}: {detail}")
+    return out
+
+
 def _view_material(
-    picked: Resolvable, moment: dt.datetime, record: dict[str, Any]
+    picked: Resolvable,
+    moment: dt.datetime,
+    record: dict[str, Any],
+    *,
+    session: Session | None = None,
 ) -> dict[str, Any]:
     step = interval_seconds(picked.snapshot.interval)
+    events = _recent_events(session, picked.snapshot.symbol) if session is not None else []
     return {
         "instrument": {
             "symbol": picked.snapshot.symbol,
@@ -771,6 +793,7 @@ def _view_material(
             for bars in _LOOKBACKS
             if (change := picked.change_over(bars)) is not None
         },
+        "recent_events": events or ["none recorded for this instrument"],
         "your_record": record,
     }
 

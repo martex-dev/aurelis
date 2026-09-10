@@ -155,6 +155,10 @@ class EventKind(StrEnum):
     did nothing: a run that decided there was nothing worth doing is the
     outcome the loop exists to be able to reach."""
 
+    WORLD_EVENT_RECORDED = "world.event_recorded"
+    """A typed event about an entity entered the world model: a listing seen,
+    a status change, a volume spike derived from a recording."""
+
     DATA_GRANTED = "service.data_granted"
     """A person recorded which vendor and instruments the service may fetch."""
 

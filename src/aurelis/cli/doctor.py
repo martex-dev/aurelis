@@ -49,6 +49,7 @@ from aurelis.research.triggers import (
 from aurelis.runtime import Runtime
 from aurelis.service.invariants import SERVICE_TRIGGERS, verify_service_invariants
 from aurelis.training.triggers import TRAINING_TRIGGERS, verify_training_invariants
+from aurelis.world.invariants import WORLD_TRIGGERS, verify_world_invariants
 
 __all__ = ["Check", "Status", "run_checks"]
 
@@ -349,6 +350,22 @@ def _check_database(runtime: Runtime) -> list[Check]:
                 "could be widened without a person, until repaired."
                 if absent_grant
                 else " — a data grant cannot be widened, only revoked"
+            ),
+        )
+    )
+    with runtime.database.engine.connect() as connection:
+        absent_world = verify_world_invariants(connection)
+    checks.append(
+        Check(
+            "database",
+            "world events",
+            Status.OK if not absent_world else Status.PROBLEM,
+            f"{len(WORLD_TRIGGERS) - len(absent_world)}/{len(WORLD_TRIGGERS)} installed"
+            + (
+                f" — MISSING: {', '.join(absent_world)}. A recorded event could "
+                "be edited or a relation denied, until repaired."
+                if absent_world
+                else " — an event is immutable and a relation is append-only"
             ),
         )
     )

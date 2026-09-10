@@ -1575,6 +1575,72 @@ See [ADR-0029](adr/0029-a-view-is-attacked-before-it-is-sealed.md).
 
 ---
 
+## M29 — The world is entities, events and relations ✅
+
+The deepest change in the brief, and the easiest to miss: the company's
+entire ontology was a price series. The schemes it is supposed to find are
+patterns over entities, events and relations inside time windows, and nothing
+that shape could be represented, stored, mined or tested. Now it can.
+
+### The layer
+
+Entities with a kind, a key, attributes and a source. Events, typed,
+timestamped twice (happened, learned), about one entity, hashed over what
+happened so the same fact learned twice is one row — immutable by trigger.
+Relations as typed edges, append-only. Queries: the events for an entity
+since a moment, events of a kind between two moments, and the co-occurrence
+of two kinds on the same entity inside a window.
+
+Price is one event type among many. The bars stay in their recordings; what
+enters the stream is derived from them deterministically with the recording
+as the source — a volume spike at three times the prior 168-bar median, a
+range break above the prior high or below the prior low.
+
+### The first non-price source
+
+The venue's own product catalogue, public and unauthenticated. Read on every
+wake and diffed against what the company holds, it is a stream of the events
+two of the brief's named mechanisms need: a product seen for the first time,
+a status change, a halt, a disappearance.
+
+```
+aurelis world sync --yes          # the catalogue, once
+aurelis world derive              # notable-price events from the newest recording
+aurelis world events --entity BTC-USD
+aurelis world cooccur --first price.volume_spike --second price.range_break --hours 24
+```
+
+The judges now see the recent events for the instrument they chose — the
+first material a judge has been shown that is not a close.
+
+### On the live workspace
+
+```
+837 product(s); 837 new, 0 status change(s), 0 gone
+SNP-0002: 32 new event(s)   SNP-0003: 22   SNP-0004: 6
+price.volume_spike then price.range_break within 24h: 37 pair(s)
+```
+
+Every product on the venue is an entity with its status — several already
+`delisted` — and its base and quote assets as relations. Thirty-seven pairs
+of a spike followed by a break on BTC-USD inside a day. **Every one is a
+conjunction and none is a scheme.** The command says so under the table: a
+mined pattern becomes a discovery only when an agent states a mechanism that
+predicts something else, and that is tested separately. That machinery is
+the next thing to build; the data it needs is now here.
+
+### What this milestone did not do
+
+- Nothing off-venue is in the stream: no social posts, no on-chain flows, no
+  filings. Each is an adapter, a grant and a recording discipline of its own.
+- No agent mines the stream or states a mechanism over it yet.
+- A co-occurrence query is O(events) and in Python. Fine at thousands, not at
+  millions.
+
+See [ADR-0030](adr/0030-the-world-is-entities-events-and-relations.md).
+
+---
+
 ## Sequencing
 
 ```

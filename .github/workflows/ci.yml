@@ -218,6 +218,13 @@ jobs:
           aurelis service grant -w "$workspace" --source fixture:crypto --instrument BTC/USDT --reason "CI rehearsal of the service"
           aurelis service start -w "$workspace" --once --calls-per-day 60
           aurelis service status -w "$workspace"
+          # M29: the world model. Notable-price events derived from the
+          # fixture recording, listed, and a co-occurrence query whose footer
+          # says a conjunction is not a discovery. The catalogue sync reaches
+          # a vendor and is not run here.
+          aurelis world derive -w "$workspace"
+          aurelis world events -w "$workspace" --limit 5
+          aurelis world cooccur -w "$workspace" --hours 24
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

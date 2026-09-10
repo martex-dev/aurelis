@@ -54,6 +54,7 @@ __all__ = [
     "theses_page",
     "thesis_page",
     "timeline_page",
+    "world_page",
 ]
 
 _STATE_TONE = {
@@ -1001,6 +1002,45 @@ def service_page(session: Session) -> str:
         f"<h2>Grants</h2>{grants}"
         f"<h2>Wakes</h2>{wakes}"
         f"<h2>Incidents</h2>{incidents}"
+    )
+
+
+def world_page(session: Session) -> str:
+    view = proj.world_view(session)
+    kinds = _rows(
+        ["kind", "events"], [[escape_text(k["kind"]), str(k["count"])] for k in view.by_kind]
+    )
+    recent = _rows(
+        ["at", "kind", "entity", "payload", "source"],
+        [
+            [
+                _when(e["at"]),
+                escape_text(e["kind"]),
+                escape_text(e["entity"]),
+                escape_text(e["payload"][:160]),
+                escape_text(e["source"][:60]),
+            ]
+            for e in view.recent
+        ],
+    )
+    return (
+        "<h1>The World</h1>"
+        "<p class='mono'>Entities, a typed immutable event stream, and relations "
+        "between them. Price is one event type among many and only its notable "
+        "moments enter here; the bars stay in their recordings. What is in the "
+        "stream is what the company could legitimately reach: the venue's own "
+        "catalogue, and what can be derived deterministically from a recording.</p>"
+        "<div class='panel'>"
+        + _kv(
+            [
+                ("entities", figure_span(view.entities)),
+                ("events", figure_span(view.events)),
+                ("relations", figure_span(view.relations)),
+            ]
+        )
+        + "</div>"
+        f"<h2>By kind</h2>{kinds}"
+        f"<h2>Recent</h2>{recent}"
     )
 
 

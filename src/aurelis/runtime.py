@@ -67,6 +67,8 @@ from aurelis.trading.triggers import install_trading_invariants
 from aurelis.training.onboarding import Onboarding
 from aurelis.training.suite import TrainingSuite
 from aurelis.training.triggers import install_training_invariants
+from aurelis.world.invariants import install_world_invariants
+from aurelis.world.store import World
 
 __all__ = ["Runtime", "COMPANY_SCOPE_ID"]
 
@@ -117,6 +119,7 @@ class Runtime:
     org_experiments: OrgExperiments
     worker: AgentWorker
     grants: Grants
+    world: World
 
     @classmethod
     def build(
@@ -191,6 +194,7 @@ class Runtime:
         handover = Handover(comms, ledger, the_clock)
         orgdev = OrgDevelopment(handover, ledger, the_clock)
         grants = Grants(ledger, the_clock)
+        world = World(ledger, the_clock)
         org_experiments = OrgExperiments(training, ledger, the_clock)
         worker = AgentWorker(
             roster=roster,
@@ -243,6 +247,7 @@ class Runtime:
             org_experiments=org_experiments,
             worker=worker,
             grants=grants,
+            world=world,
         )
 
     def initialise(self) -> tuple[str, ...]:
@@ -265,6 +270,7 @@ class Runtime:
                     *install_authoring_invariants(connection),
                     *install_judgement_invariants(connection),
                     *install_service_invariants(connection),
+                    *install_world_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:
