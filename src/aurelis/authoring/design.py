@@ -276,6 +276,7 @@ def render(
     bars: int,
     interval: str = "1h",
     seed: int = 0,
+    source: str = "",
 ) -> ExperimentSpec:
     """Turn a design into the experiment that measures it.
 
@@ -283,6 +284,12 @@ def render(
     the agent may not choose — the desk's costs, a point-in-time universe, the
     warm-up that keeps the priming window untraded — is set here from the desk,
     identically for every design in the space.
+
+    ``source`` names the data, and defaults to the desk's fixture. It is part
+    of the specification and therefore part of the digest that gets locked, so
+    a registration cannot be honoured by a run against different bars — which
+    is what makes a later backtest-against-paper comparison a comparison at
+    all rather than a difference between two datasets.
     """
     the_desk = desk if isinstance(desk, Desk) else Desk(desk)
     family = design.family
@@ -305,7 +312,9 @@ def render(
             selection="point_in_time",
         ),
         data=DataSpec(
-            source=f"fixture:{the_desk.value}", bars=bars, interval=interval
+            source=source or f"fixture:{the_desk.value}",
+            bars=bars,
+            interval=interval,
         ),
         signal=SignalSpec(
             kind=family,
@@ -358,7 +367,10 @@ def baseline_spec(
             selection="point_in_time",
         ),
         data=DataSpec(
-            source=f"fixture:{the_desk.value}",
+            # The reference reads the same bars as the design it references.
+            # A baseline measured on the fixture while the design ran on a
+            # market would be answering a different question in the same units.
+            source=like.data.source,
             bars=bars,
             interval=like.data.interval,
         ),

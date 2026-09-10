@@ -229,6 +229,12 @@ def strategy_author(
     workspace: WorkspaceOption = None,
     desk: Annotated[str, typer.Option(help="Which desk to author for.")] = "crypto",
     agent: Annotated[str, typer.Option(help="Which agent takes the seat.")] = "STRAT",
+    snapshot: Annotated[
+        str,
+        typer.Option(
+            help="Measure on a recorded market snapshot instead of the fixture."
+        ),
+    ] = "",
 ) -> None:
     """Put an agent in the author's seat and measure what it designs.
 
@@ -237,15 +243,17 @@ def strategy_author(
     the company preregisters the **whole space it chose from**, not the one
     design it picked.
 
-    The reasoner behind the seat in this repository is a deterministic stand-in,
-    not a model, and every desk runs on fixtures rather than market data. What
-    this exercises is the machinery.
+    ``--snapshot`` measures the design on recorded market bars rather than the
+    desk fixture, and reserves the snapshot's tail: the research window stops
+    short so that a forward paper walk has bars the design never read.
     """
     from aurelis.authoring.attempt import run_authoring
     from aurelis.authoring.design import space_size
     from aurelis.authoring.standin import scripted_author
     from aurelis.core.config import load_settings
+    from aurelis.intel.snapshots import MarketSnapshot, SnapshotSource
     from aurelis.platform.llm.seating import seat_provider
+    from aurelis.trading.paper import held_out
 
     settings = load_settings(home=workspace) if workspace else load_settings()
     runtime = Runtime.build(
@@ -254,7 +262,24 @@ def strategy_author(
     try:
         runtime.initialise()
         runtime.staff()
-        outcome = run_authoring(runtime, desk=Desk(desk), agent_handle=agent)
+        source = None
+        if snapshot:
+            with runtime.database.session() as session:
+                row = session.execute(
+                    sa.select(MarketSnapshot).where(MarketSnapshot.ref == snapshot)
+                ).scalar_one_or_none()
+                if row is None:
+                    console.print(f"[red]no snapshot {escape(snapshot)}[/red]")
+                    raise typer.Exit(2)
+                research = held_out(row.bars)
+                source = SnapshotSource(session, row, upto=research)
+            console.print(
+                f"[dim]measuring on {escape(row.ref)}: {research} of {row.bars} "
+                f"bars, {row.bars - research} held back for a forward walk[/dim]"
+            )
+        outcome = run_authoring(
+            runtime, desk=Desk(desk), agent_handle=agent, source=source
+        )
         with runtime.database.session() as session:
             verification = runtime.ledger.verify(session)
     finally:

@@ -184,7 +184,7 @@ class LocalEngine:
             {symbol: [b.as_dict() for b in bars] for symbol, bars in series.items()}
         )
 
-        weights = self._weights(spec, series)
+        weights = self.weights(spec, series)
         curve, trades, costs = self._simulate(spec, series, weights)
         metrics = self._measure(spec, curve, weights, trades, costs)
 
@@ -214,10 +214,16 @@ class LocalEngine:
 
     # -------------------------------------------------------------- signals
 
-    def _weights(
+    def weights(
         self, spec: ExperimentSpec, series: dict[str, list[Any]]
     ) -> list[dict[str, Decimal]]:
         """Target weight per symbol per bar, from bars up to and including t.
+
+        Public because paper trading has to ask the same question. The book a
+        deployed rule wants today is ``weights(spec, series)[-1]``, and a paper
+        driver that computed it separately would be measuring the gap between
+        two implementations of the signal rather than between a claim and an
+        execution.
 
         A pure function of past closes. The latency that stops it from being
         look-ahead is applied once, in :meth:`_simulate`, rather than trusted
@@ -396,8 +402,8 @@ class LocalEngine:
         total_return = (end / start - Decimal(1)) if start else _ZERO
         mean = sum(returns, _ZERO) / Decimal(len(returns)) if returns else _ZERO
 
-        sharpe, sharpe_low, sharpe_high = self._sharpe_with_interval(returns)
-        drawdown = self._max_drawdown(curve)
+        sharpe, sharpe_low, sharpe_high = self.sharpe_with_interval(returns)
+        drawdown = self.max_drawdown(curve)
         in_market = (
             Decimal(sum(1 for book in exposures if book)) / Decimal(len(exposures))
             if exposures
@@ -471,7 +477,7 @@ class LocalEngine:
         )
 
     @staticmethod
-    def _sharpe_with_interval(
+    def sharpe_with_interval(
         returns: list[Decimal],
     ) -> tuple[Decimal, Decimal | None, Decimal | None]:
         """Per-bar Sharpe with a normal-approximation confidence interval.
@@ -569,7 +575,7 @@ class LocalEngine:
         return Decimal(str(round(low, 8))), Decimal(str(round(high, 8)))
 
     @staticmethod
-    def _max_drawdown(curve: list[Decimal]) -> Decimal:
+    def max_drawdown(curve: list[Decimal]) -> Decimal:
         peak = _ZERO
         worst = _ZERO
         for value in curve:

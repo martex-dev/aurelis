@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -39,7 +39,23 @@ from aurelis.trading.brokers import BrokerAdapter, ExecutionRequest
 from aurelis.trading.states import OrderSide, OrderStatus
 from aurelis.trading.tables import Fill, Order, Position
 
-__all__ = ["Execution", "Executed"]
+__all__ = ["Executed", "Execution", "approved_quantity"]
+
+
+def approved_quantity(final_target: Decimal, price: Decimal) -> Decimal:
+    """Size an order so that it cannot exceed what Risk approved.
+
+    Rounded **down**, and shared so there is one answer. The paper cycle sized
+    orders with :meth:`Decimal.quantize`'s default half-even rule, which rounds
+    *up* about half the time — and a notional a hundred-millionth over the
+    approval is refused outright by :meth:`Execution.submit` and by the CHECK
+    behind it. An approval is a ceiling; the only safe direction is down.
+    """
+    if price <= 0:
+        raise IntegrityViolation("an order cannot be sized against a zero price")
+    return (final_target / price).quantize(
+        Decimal("0.00000001"), rounding=ROUND_DOWN
+    )
 
 
 @dataclass(frozen=True, slots=True)

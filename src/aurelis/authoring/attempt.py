@@ -80,6 +80,7 @@ from aurelis.research.states import RegistrationKind, Verdict
 __all__ = [
     "CAVEAT",
     "caveat_for",
+    "data_caveat",
     "CLAIM",
     "SPAN_YEARS",
     "AuthoringOutcome",
@@ -125,19 +126,47 @@ reader trusts to tell them what they are looking at.
 """
 
 
-def caveat_for(provider_name: str) -> str:
-    """What is actually sitting in the seat, for this run.
+def caveat_for(provider_name: str, source_name: str = "") -> str:
+    """What is actually sitting in the seat and behind the numbers, for this run.
 
-    Takes the provider name rather than the provider, so a report can be
-    rendered from a stored payload without reconstructing the runtime.
+    Takes names rather than objects, so a report can be rendered from a stored
+    payload without reconstructing the runtime.
+
+    Both halves are conditional now, and for the same reason. M18 found this
+    report still saying a stand-in had answered while a real model was
+    answering; M22 found it still saying the data was a fixture while the run
+    was measuring three thousand hours of BTC-USD. A caveat is the sentence a
+    reader trusts to tell them what they are looking at, and one that survives
+    the condition it described is worse than none.
     """
     from aurelis.platform.llm.seating import stands_in
 
-    if stands_in(provider_name):
-        return CAVEAT
+    seat = (
+        "The designer behind this seat is a deterministic stand-in, not a model."
+        if stands_in(provider_name)
+        else (
+            f"A real model answered through {provider_name}; the reasoning in "
+            "this report is the model's own."
+        )
+    )
+    return f"{seat} {data_caveat(source_name)}"
+
+
+def data_caveat(source_name: str = "") -> str:
+    """What the numbers were measured on.
+
+    A source name that is empty or names a fixture gets the fixture sentence.
+    Anything else is a recording of a market, and the caveat that replaces it
+    is narrower rather than absent: a snapshot is still one window of one
+    instrument, and it stopped at the moment it was fetched.
+    """
+    if not source_name or source_name.startswith("fixture:"):
+        return _FIXTURE
     return (
-        f"A real model answered through {provider_name}; the reasoning in this "
-        "report is the model's own. " + _FIXTURE
+        f"The numbers were measured on {source_name}, a recording of a real "
+        "market. It is one window of one instrument and it stopped at the "
+        "moment it was fetched, so nothing here is a claim about what the "
+        "market is doing now."
     )
 
 
@@ -279,6 +308,7 @@ def run_authoring(
     span: Decimal = SPAN_YEARS,
     declared_cells: int | None = None,
     campaign_ref: str | None = None,
+    source: Any | None = None,
     at: dt.datetime | None = None,
 ) -> AuthoringOutcome:
     """Put an agent in the author's seat and take the result, whatever it is.
@@ -287,6 +317,12 @@ def run_authoring(
     standalone attempt searched. A campaign passes its own accounting, because
     a revision inside a declared budget searched one slot rather than all of
     them (:mod:`aurelis.authoring.campaign`).
+
+    ``source`` is the data the design will be measured on, and defaults to the
+    desk fixture. Passing a recorded market snapshot puts the same agent, the
+    same closed space and the same preregistration in front of real bars -- and
+    caps the window at what the snapshot actually holds, because a span the
+    data cannot cover is a claim about bars that do not exist.
 
     Raises :class:`~aurelis.authoring.author.AuthoringRefused` if the agent
     fails to produce a whole design; nothing is written in that case, and the
@@ -297,6 +333,10 @@ def run_authoring(
     moment = at or runtime.clock.now()
     interval = "1h"
     bars = bars_for_span(the_desk.value, years=span, interval=interval)
+    if source is not None:
+        available = len(source.bars(source.symbols()[0], limit=0))
+        bars = min(bars, available)
+        interval = getattr(getattr(source, "snapshot", None), "interval", interval)
     power = required_observations(
         the_desk.value,
         annualised_claim=CLAIM,
@@ -341,6 +381,7 @@ def run_authoring(
                 bars=bars,
                 citations=citations,
                 interval=interval,
+                source="" if source is None else source.name,
                 task_ref=task_ref,
                 at=moment,
             )
@@ -361,6 +402,7 @@ def run_authoring(
         power=power,
         declared_cells=space_size() if declared_cells is None else declared_cells,
         campaign_ref=campaign_ref,
+        source=source,
         at=moment,
     )
 
@@ -374,6 +416,7 @@ def measure_attempt(
     power: Any,
     declared_cells: int,
     campaign_ref: str | None = None,
+    source: Any | None = None,
     at: dt.datetime | None = None,
 ) -> AuthoringOutcome:
     """Preregister an authored design, run it, and record what came back.
@@ -443,7 +486,14 @@ def measure_attempt(
             at=moment,
         )
         run, artifact = runtime.research.execute(
-            session, experiment_ref=experiment.ref, at=moment
+            session,
+            experiment_ref=experiment.ref,
+            engine=(
+                None
+                if source is None
+                else LocalEngine(source=source, desk=the_desk.value)
+            ),
+            at=moment,
         )
         outcome = runtime.research.conclude(
             session,
@@ -453,7 +503,7 @@ def measure_attempt(
             interpretation=(
                 "Authored by an agent from the closed design space and "
                 "measured against criteria locked before the run. "
-                f"{caveat_for(runtime.provider.name)}"
+                f"{caveat_for(runtime.provider.name, _source_name(source))}"
             ),
             at=moment,
         )
@@ -466,7 +516,7 @@ def measure_attempt(
     sharpe_low, sharpe_high = sharpe_metric.low, sharpe_metric.high
 
     # ------------------------------------------------------- the references
-    engine = LocalEngine()
+    engine = LocalEngine(source=source, desk=the_desk.value)
     baselines = tuple(
         _measure(engine, kind, desk=the_desk, bars=bars, like=authored.spec)
         for kind in BASELINES
@@ -489,11 +539,16 @@ def measure_attempt(
         bars_required=power.bars_required,
         years_required=power.years_required,
         campaign_ref=campaign_ref,
-        caveat=caveat_for(runtime.provider.name),
+        caveat=caveat_for(runtime.provider.name, _source_name(source)),
         sharpe_low=sharpe_low,
         sharpe_high=sharpe_high,
     )
     return _record(runtime, result, at=moment)
+
+
+def _source_name(source: Any | None) -> str:
+    """The source's own name, or empty when the desk fixture is in use."""
+    return "" if source is None else str(source.name)
 
 
 def _measure(

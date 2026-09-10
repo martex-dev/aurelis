@@ -944,6 +944,120 @@ See [ADR-0022](adr/0022-live-data-is-a-recording-and-a-replication-must-vary.md)
 
 ---
 
+## M22 — The paper cycle gets a driver, and the gates get read ✅
+
+M20 said `risk_cleared` and `paper_gap_measured` had working machinery and no
+command to drive it. Building the command showed that framing was wrong.
+Nothing was missing a switch: a version reaches a paper book only through the
+promotion gates, and **the seven gates had criteria since M8 whose observables
+had never been fetched from anywhere.** Every test that promoted a version
+typed the numbers in by hand.
+
+### A gate is a reader
+
+`aurelis trading readiness` fetches seven observables out of the company's own
+record — a deflated Sharpe from the attempt and the family's trial count, an
+excess over `always_long`, correlation against the book, objections against the
+version's chain, replications that held, sealed queries released, and capacity
+from a snapshot's own median bar volume.
+
+Every reader either finds its number or returns **silence with a sentence
+saying what is absent**. A silence is not a zero, and the difference runs in
+exactly the direction that matters: a default of zero promotes strategies.
+
+```
+A  deflated_sharpe                     gte 0.95   0.0           FAIL
+B  excess_sharpe_over_benchmark        gt 0       -0.00773818   FAIL
+C  max_correlation_with_deployed       lt 0.5     0             PASS
+D  open_critical_objections            eq 0       —             SILENT
+E  surviving_replications              gte 1      0             FAIL
+F  sealed_queries_used                 lte 1      —             SILENT
+G  capacity_over_intended_allocation   gte 1      5.2362        PASS
+```
+
+Gate G is real data doing work: a median BTC-USD hour traded about 13.1m, one
+per cent of which is five times the 25,000 the sleeve intended.
+
+### Paper trades bars the research never read
+
+A walk over the window the backtest ran on is the backtest again, paying
+different fees. So `strategy author --snapshot` measures on a snapshot's early
+window, 30% is reserved, and the walk starts where the research stopped. The
+rule that trades is checked against the digest the attempt recorded; the claim
+and the book must be on the same data; and the equity curve is rebuilt from the
+fills after the walk rather than accumulated during it.
+
+### Two conditions did not move, and that is the answer
+
+`risk_cleared` and `paper_gap_measured` are downstream of promotion. A command
+that produced a risk assessment for a version the gates rejected would be
+manufacturing exactly the evidence the mandate asks for. What changed is that
+the operator can now see *why*, computed gate by gate, instead of reading
+"0 risk assessments".
+
+### What the first walk actually said
+
+The walk itself needs a version the gates cleared, which none of these have.
+Forced past them once, on the same snapshot, purely to check the driver end to
+end:
+
+```
+900 bars of SNP-0001 walked from bar 2100; the rule wanted
+something on 44 of them, 44 orders filled, 0 refused
+
+metric         backtest      paper        gap
+total_return   -0.12340197   0.03209137   +0.15549334   held
+sharpe         -0.03269854   0.01264270   +0.04534124   held
+max_drawdown    0.16812606   0.11165526   -0.05647080   held
+n_trades       52            44
+turnover        0.02476190   0.04888889   +0.02412699
+cost_drag       0.09872439   0.09502559   -0.00369880   held
+```
+
+**None of that is the strategy being good.** The held-out window is a different
+stretch of market from the one the backtest read, so the gap mixes how wrong
+the claim was with how different the two periods were. Telling those apart
+takes many deployments, which is exactly why the mean gap is tracked as a
+company competence rather than read off one run — and the command says so under
+the table.
+
+### Six bugs the first runs found
+
+**The driver was running a different strategy.** The first walk traded on all
+275 bars where the backtest traded 52 times in 2,100. The intent compared the
+target notional against the position's *market value*, which drifts with the
+price every bar, so a rule holding one position for a week rebalanced seven
+times. An intent now fires when the rule changes its mind.
+
+**The report was lying about its data.** `caveat_for` hard-coded "the data is a
+fixture rather than a market", so the first run against 3,000 hours of BTC-USD
+printed a false caveat. Same defect as M18's, same sentence, found the same way.
+
+**An approval is a ceiling and the size rounded half-even.** `PaperCycle` sized
+orders with `quantize`'s default, which rounds *up* about half the time — and a
+notional a hundred-millionth over the approval is refused outright.
+
+**`cost_drag` was comparing two different quantities.** The paper figure
+counted only the explicit broker fee while the engine charges its whole cost
+model — fees, spread and slippage — so paper looked half as expensive as the
+backtest assumed (0.042 against 0.099). Charging the slippage as well puts them
+within four thousandths of each other, which is a finding rather than an
+artefact: the cost model was about right.
+
+**Deploying twice walked the strategy backwards.** The second `deploy` tried
+to move a paper-trading strategy to `candidate`, which the state machine refuses
+— correctly, and with a traceback at whoever typed the command twice. A version
+already allocated is now reported as already allocated, kept apart from
+"deployed" so a re-run cannot read as a decision.
+
+**A sourced engine claimed the wrong desk.** `LocalEngine(source=...)` defaults
+its desk to `synthetic`, so the first snapshot-backed run was refused as "local
+does not cover the crypto desk".
+
+See [ADR-0023](adr/0023-a-gate-is-a-reader-and-paper-trades-what-research-never-saw.md).
+
+---
+
 ## Sequencing
 
 ```

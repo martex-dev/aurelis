@@ -35,7 +35,7 @@ from aurelis.portfolio.construction import Book
 from aurelis.risk.authority import Risk
 from aurelis.risk.tables import TradeProposal
 from aurelis.trading.brokers import BrokerAdapter
-from aurelis.trading.execution import Execution
+from aurelis.trading.execution import Execution, approved_quantity
 from aurelis.trading.posttrade import Gap, PostTrade
 from aurelis.trading.states import OrderSide
 from aurelis.trading.tables import Order
@@ -188,7 +188,7 @@ class PaperCycle:
             approval = self._risk.approve(
                 session, proposal_ref=proposal.ref, approver=approver, at=moment
             )
-            quantity = (approval.final_target / price).quantize(Decimal("0.00000001"))
+            quantity = approved_quantity(approval.final_target, price)
             if quantity <= 0:
                 refused.append(proposal.ref)
                 notes.append(f"{proposal.ref}: approved size rounds to zero at {price}")

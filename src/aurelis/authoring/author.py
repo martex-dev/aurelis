@@ -451,6 +451,7 @@ class StrategyAuthor:
         bars: int,
         citations: Citations,
         interval: str = "1h",
+        source: str = "",
         task_ref: str | None = None,
         at: dt.datetime | None = None,
     ) -> AuthoredStrategy:
@@ -536,7 +537,9 @@ class StrategyAuthor:
         )
 
         design = Design(tuple(picks))
-        spec = render(design, desk=the_desk, bars=bars, interval=interval)
+        spec = render(
+            design, desk=the_desk, bars=bars, interval=interval, source=source
+        )
 
         return self._write(
             session,

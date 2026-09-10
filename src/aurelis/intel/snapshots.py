@@ -287,12 +287,33 @@ class SnapshotSource:
     a claim that survivorship cannot bite real data — it is the honest state of
     a single-instrument snapshot, where there is no cross-section to select
     from and therefore nothing for a hindsight universe to quietly drop.
+
+    ``upto`` truncates the source to the snapshot's first *n* bars, and it is
+    what makes an out-of-sample window possible at all. The engine reads the
+    **last** ``spec.data.bars`` of whatever a source offers, so a research run
+    against an untruncated snapshot consumes the most recent data and leaves
+    only the oldest behind — which is a held-out set the wrong way round. A
+    source cut at ``upto`` gives research the early window and leaves the tail
+    genuinely unseen. The name says so, so an artifact cannot hide it.
     """
 
-    def __init__(self, session: Session, snapshot: MarketSnapshot) -> None:
-        self._bars = Snapshots.bars_of(session, snapshot.ref)
+    def __init__(
+        self, session: Session, snapshot: MarketSnapshot, *, upto: int | None = None
+    ) -> None:
+        stored = Snapshots.bars_of(session, snapshot.ref)
+        if upto is not None and not 0 < upto <= len(stored):
+            raise IntegrityViolation(
+                f"{snapshot.ref} holds {len(stored)} bars; a window of {upto} "
+                "is not inside it"
+            )
+        self._bars = stored if upto is None else stored[:upto]
         self.snapshot = snapshot
-        self.name = f"{snapshot.source}:{snapshot.ref}"
+        self.upto = upto
+        self.name = (
+            f"{snapshot.source}:{snapshot.ref}"
+            if upto is None
+            else f"{snapshot.source}:{snapshot.ref}[:{upto}]"
+        )
 
     def bars(self, symbol: str, *, limit: int = 120) -> list[Bar]:
         if symbol not in (self.snapshot.symbol, ""):

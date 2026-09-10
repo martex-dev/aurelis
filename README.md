@@ -11,11 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M21 — the company has seen a market.** 3000 hourly BTC-USD bars,
-fetched once and frozen into a hashed snapshot, because an experiment cannot be
-reproduced against a moving endpoint. Both conditions the mandate called
-*blocked* are now built, so every one it still misses is the company's own
-problem. No live trading, and every page says so. · 2026-09-08
+Status: **M22 — the company can say exactly what stops it.** Seven promotion
+gates, read from its own record rather than typed in, each answered with a
+number or with a silence naming what is absent. Three fail, two cannot be
+asked, and the paper book stays empty — which is the promotion machinery
+working. No live trading, and every page says so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -706,6 +706,8 @@ Look around:
 | `aurelis mandate standard` · `mandate assess` | what it must show before asking to trade, and whether it can |
 | `aurelis data fetch` · `data snapshots` | the one command that reaches a market, and what it recorded |
 | `aurelis research replicate REG-0001` | re-test a locked result under one declared variation |
+| `aurelis trading readiness` · `trading deploy` | what stands between an authored version and a paper book |
+| `aurelis trading paper` | walk the snapshot's held-out tail and measure the gap |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
 
@@ -921,7 +923,8 @@ automatically by the company, five milestones in.
 | **M18** ✅ | A real model in the seat | 0/5 usable, then 5/5, with no guard widened |
 | **M19** ✅ | Self-improvement, measured | 25 overtiered charters, six splits, and what it did not fix |
 | **M20** ✅ | The mandate | ten hashed conditions, four met, and nobody interrupted |
-| **M21** ✅ | **Real data, real replication** | a market recorded and hashed; a variation that must vary |
+| **M21** ✅ | Real data, real replication | a market recorded and hashed; a variation that must vary |
+| **M22** ✅ | **The gates get read** | seven observables from the record, and a silence that is not a zero |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

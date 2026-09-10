@@ -111,6 +111,19 @@ jobs:
           # first design exists, then the best result corrected for how wide
           # the search was. It beats buy-and-hold and still does not survive.
           aurelis strategy campaign -w "$workspace" --budget 3
+          # What stands between an authored version and a paper book, read
+          # from the record: seven gates, each a number or a silence naming
+          # what is absent. On fixtures gate G is silent (capacity is a claim
+          # about traded volume) and the deployment is refused.
+          aurelis trading readiness -w "$workspace"
+          aurelis trading deploy -w "$workspace"
+          # And the refusal must bite. Offline there is no recorded market and
+          # nothing was deployed, so a walk that ran anyway would be trading a
+          # rule the gates rejected, on bars nobody fetched.
+          if aurelis trading paper -w "$workspace"; then
+            echo "the paper walk ran with nothing deployed" >&2
+            exit 1
+          fi
           # Model routing. The tier every charter declares now picks a real
           # model; offline that is still the mock, and `model check` proves the
           # whole path end to end without credentials.

@@ -337,6 +337,7 @@ class Research:
         session: Session,
         *,
         experiment_ref: str,
+        engine: Any | None = None,
         at: dt.datetime | None = None,
     ) -> tuple[Run, RunArtifact]:
         """Run the experiment. The engine produces every number.
@@ -345,6 +346,13 @@ class Research:
         which the table's CHECK constraint is the only accepted value for
         besides the Custodian. There is no path by which an agent's opinion
         becomes a measurement.
+
+        ``engine`` lets a caller supply the instance rather than take the
+        registered one, which is how a run reads a recorded market snapshot
+        instead of the desk fixture. It widens *which bars*, never *which
+        numbers*: the artifact still carries the source's own name and the
+        fingerprint of the data it actually read, and a supplied engine whose
+        name disagrees with the locked specification is refused below.
         """
         moment = at or self._clock.now()
         experiment = self.experiment(session, experiment_ref)
@@ -357,9 +365,15 @@ class Research:
 
         ref = allocate_ref(session, RefKind.RUN)
         started = time.perf_counter()
+        if engine is not None and engine.name != spec.engine:
+            raise IntegrityViolation(
+                f"{experiment_ref} locked {spec.engine!r} and the supplied "
+                f"engine is {engine.name!r}. Which engine ran a registration "
+                "is part of what was registered"
+            )
         try:
-            engine = engine_for(spec)
-            artifact = engine.run(spec)
+            running = engine if engine is not None else engine_for(spec)
+            artifact = running.run(spec)
         except Exception as error:
             # A scientific failure is a research object, not a retry. Recorded
             # with its reason, and the hypothesis does not silently continue.

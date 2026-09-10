@@ -68,7 +68,7 @@ _Z = 1.96
 """The multiplier the engine's Sharpe interval was built with.
 
 Recovering the standard error from the interval means undoing exactly what
-:meth:`~aurelis.engines.local.LocalEngine._sharpe_with_interval` did. If that
+:meth:`~aurelis.engines.local.LocalEngine.sharpe_with_interval` did. If that
 method ever changes its multiplier, this must change with it — which is why the
 recovery lives in one function and not at three call sites.
 """

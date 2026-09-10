@@ -24,6 +24,7 @@ also why the M8 acceptance criterion names it specifically.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -40,7 +41,7 @@ from aurelis.platform.ledger.ledger import Ledger
 from aurelis.strategy.states import Gate
 from aurelis.strategy.tables import PromotionGate
 
-__all__ = ["GATE_OWNERS", "GateOutcome", "GateReport", "Gates"]
+__all__ = ["COMPARISONS", "GATE_OWNERS", "GateOutcome", "GateReport", "Gates"]
 
 GATE_OWNERS: dict[Gate, str] = {
     Gate.A_STATISTICAL: "research.statistical",
@@ -58,7 +59,10 @@ later, and so a gate evaluated by the wrong role is visible rather than
 indistinguishable.
 """
 
-_COMPARISONS = {
+COMPARISONS: dict[str, Callable[[Decimal, Decimal], bool]] = {
+    # Public because a gate's bar is worth showing an operator before
+    # anything is written. A caller that had to re-implement "gte" to preview
+    # a promotion would eventually disagree with the one that decides it.
     "gt": lambda a, b: a > b,
     "gte": lambda a, b: a >= b,
     "lt": lambda a, b: a < b,
@@ -132,7 +136,7 @@ class Gates:
         at: dt.datetime | None = None,
     ) -> PromotionGate:
         """Fix a criterion. Once written it is what the gate means."""
-        if comparison not in _COMPARISONS:
+        if comparison not in COMPARISONS:
             raise IntegrityViolation(
                 f"unknown comparison {comparison!r}; a gate must state a "
                 "check that can actually be run"
@@ -223,7 +227,7 @@ class Gates:
         except InvalidOperation as error:  # pragma: no cover - CHECK-guarded
             raise IntegrityViolation(f"gate {gate.value} has no numeric bound") from error
 
-        passed = bool(_COMPARISONS[comparison](observed, bound))
+        passed = bool(COMPARISONS[comparison](observed, bound))
         row.evaluated_at = moment
         row.evaluated_by = evaluated_by
         row.passed = passed

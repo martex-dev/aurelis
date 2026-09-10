@@ -302,10 +302,21 @@ lists them:
   is held and whether each still verifies.
 - **Real data does not make the research powered.** Four months of hourly bars
   against the fifteen years the power calculation says the claim needs.
-- **Two conditions have machinery but no operator command.** `risk_cleared` and
-  `paper_gap_measured` are satisfiable — the paper cycle is built and tested —
-  but nothing in the CLI drives it, so an operator cannot produce those rows.
-  A gap in the operator surface, not in the standard.
+- **`aurelis trading readiness` says what stands in the way.** Seven promotion
+  gates, each answered from the record with a number or with a silence naming
+  what is absent. A silence is not a zero: two gates today cannot be asked at
+  all, and a gate nobody can answer cannot be passed.
+- **`aurelis trading deploy` refuses, and the refusal is the product.** The
+  authored designs do not clear their own gates. `risk_cleared` and
+  `paper_gap_measured` are downstream of promotion, so they stay unmet — a
+  command that produced a risk assessment for a version the gates rejected
+  would be manufacturing exactly the evidence the mandate asks for. What
+  changed at M22 is that an operator can see *why*, gate by gate, instead of
+  reading "0 risk assessments".
+- **There is no sealed-query mechanism.** Gate F's criterion counts queries and
+  is satisfied by zero, but its own note requires that one happened and passed.
+  The reader returns silence rather than the zero it would accept, and the hole
+  is named here rather than closed quietly.
 - **Token counts on the subscription path are estimates.** The SDK does not
   always report usage, so the provider counts characters. `Usage.estimated`
   carries it and `aurelis model check` prints it — a budget enforced there is
