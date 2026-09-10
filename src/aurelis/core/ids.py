@@ -103,6 +103,11 @@ class RefKind(StrEnum):
     experiment run on it cites it, and a citation has to name something that
     cannot change."""
 
+    AUTONOMY_RUN = "RUN-A"
+    """One invocation of the company working on itself unattended. Its own
+    prefix because a run that decided to do nothing is as much a record as one
+    that did something, and both outlive the session that started them."""
+
     MANDATE = "MDT"
     """One time the company checked itself against the standard it must meet
     before asking to trade real money. Its own prefix because the refusals

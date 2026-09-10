@@ -110,7 +110,30 @@ full of dangling citations, and `db verify` will say so.
 
 ---
 
-## 4. Running work
+## 4. Letting it run itself
+
+```bash
+aurelis run -w live --snapshot SNP-0001 --cycles 10
+```
+
+Each cycle: assess the mandate, take the first action aimed at something unmet,
+check whether it moved. It stops when every action that could help has been
+taken, and prints a reason for each condition it gave up on.
+
+**It will not repeat a search.** A second campaign widens the declared space,
+which raises the surplus the best design has to clear — faster than searching
+finds anything. This is the property the whole layer exists for, and it is why
+a run that does almost nothing is often the correct outcome.
+
+Two bounds beyond that: `--cycles` caps decisions, `--calls` caps model calls
+and stops *before* the limit rather than through it.
+
+It cannot fetch data — that reaches outside the company and needs a person —
+and it cannot trade, because no live adapter exists.
+
+---
+
+## 5. Running work
 
 ### Multi-worker execution
 
@@ -153,7 +176,7 @@ it.
 
 ---
 
-## 5. Growing the company
+## 6. Growing the company
 
 The company hires on measured evidence, not on a plan.
 
@@ -178,7 +201,7 @@ recorded as `no_change`.
 
 ---
 
-## 6. Deployment
+## 7. Deployment
 
 ### SQLite (default)
 
@@ -212,7 +235,7 @@ Do not bind it to a public interface.
 
 ---
 
-## 7. When something is wrong
+## 8. When something is wrong
 
 | Symptom | Where to look |
 |---|---|
@@ -231,7 +254,7 @@ rests on. A broken chain means either corruption (restore) or tampering
 
 ---
 
-## 8. Running it on a real model
+## 9. Running it on a real model
 
 The whole system runs offline for free, and that stays the default. To put real
 models in the seats on a Claude subscription:
@@ -279,7 +302,7 @@ a 0/5 before.
 
 ---
 
-## 9. Cost
+## 10. Cost
 
 Everything in CI runs against the mock provider: no credentials,
 no network, zero cost. Switching to a real provider is a configuration change,
@@ -292,7 +315,7 @@ the Mission Control station shows spend per agent and per department.
 
 ---
 
-## 10. What is on the other side of M13
+## 11. What is on the other side of M13
 
 Stated plainly, because a system that hides its gaps is worse than one that
 lists them:

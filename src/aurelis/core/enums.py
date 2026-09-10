@@ -150,6 +150,11 @@ class EventKind(StrEnum):
     the hash of every bar, because an experiment cannot be reproduced against a
     moving endpoint and the snapshot is what makes it reproducible."""
 
+    AUTONOMY_RUN_FINISHED = "gov.autonomy_run_finished"
+    """The company stopped working on itself, and why. Recorded even when it
+    did nothing: a run that decided there was nothing worth doing is the
+    outcome the loop exists to be able to reach."""
+
     MANDATE_ASSESSED = "gov.mandate_assessed"
     """The company measured itself against the conditions it must meet before
     asking a human for a live account. Carries the standard digest, so a bar

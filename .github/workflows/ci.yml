@@ -155,6 +155,24 @@ jobs:
           # the table existed from M5 with nothing ever filling it.
           aurelis research replicate REG-0001 -w "$workspace" --variation seed
           aurelis data snapshots -w "$workspace"
+          # The company decides its own next action. On a fresh workspace it
+          # authors, searches once, holds a review that refutes a confirmed
+          # claim, replicates, and stops -- naming a reason for everything it
+          # gave up on. A run that kept searching would be the bug.
+          aurelis run -w "$workspace" --cycles 12
+          # And the stopping rule must bite: a second run must not start a
+          # second campaign, because widening a declared search raises the bar
+          # the best design has to clear faster than searching finds anything.
+          count_campaigns() {
+            python -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM authoring_campaigns').fetchone()[0])" "$workspace/aurelis.db"
+          }
+          before=$(count_campaigns)
+          aurelis run -w "$workspace" --cycles 12
+          after=$(count_campaigns)
+          if [ "$before" != "$after" ]; then
+            echo "the loop ran a second campaign: $before -> $after" >&2
+            exit 1
+          fi
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

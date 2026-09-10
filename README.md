@@ -11,12 +11,13 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M23 — it runs on a real model, over a real market, and found
-nothing.** 40,000 hours of BTC-USD, Opus in the author's seat, five attempts
-inside a declared budget: every design lost, and the best sat below what a
-search that wide returns from noise. Building it found the seat reading this
-repository for answers — see [ADR-0024](docs/adr/0024-a-seat-has-no-tools.md).
-No live trading, and every page says so. · 2026-09-10
+Status: **M24 — it decides its own next action, and stops when searching
+harder would only raise the bar.** `aurelis run`: the company asks its own
+mandate what it is missing, acts, and refuses to repeat a search that found
+nothing. On a real model over real BTC it ran a campaign, held a review that
+**refuted a confirmed claim on survivorship**, replicated, and stopped — naming
+a reason for everything it gave up on. No live trading, and every page says
+so. · 2026-09-10
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -711,6 +712,7 @@ Look around:
 | `aurelis trading paper` | walk the snapshot's held-out tail and measure the gap |
 | `aurelis research defects` | every market defect and how it is settled |
 | `aurelis tick` · `aurelis doctor` | advance the working day; check the workspace |
+| `aurelis run` | the company picks its own next action from its own mandate, and stops |
 
 ---
 
@@ -926,7 +928,8 @@ automatically by the company, five milestones in.
 | **M20** ✅ | The mandate | ten hashed conditions, four met, and nobody interrupted |
 | **M21** ✅ | Real data, real replication | a market recorded and hashed; a variation that must vary |
 | **M22** ✅ | The gates get read | seven observables from the record, and a silence that is not a zero |
-| **M23** ✅ | **A real model, a real market** | it ran, it found nothing, and the seat had been reading the answer key |
+| **M23** ✅ | A real model, a real market | it ran, it found nothing, and the seat had been reading the answer key |
+| **M24** ✅ | **It runs itself** | the mandate is the work queue, and a search is never repeated |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

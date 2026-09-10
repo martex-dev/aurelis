@@ -1150,6 +1150,77 @@ concluded honestly that it had not found an edge.
 
 ---
 
+## M24 — The company decides its own next action, and knows when to stop
+
+`aurelis tick` has run the working day since M2. What it could not do is decide
+what the day was *for* — every level above it was an operator typing the next
+command. `aurelis run` is that decision, and almost all of it is about
+stopping.
+
+### The mandate is the work queue
+
+No plan is carried in the loop. Each cycle it assesses its own standard, takes
+the first action aimed at something unmet, and checks whether it moved. Every
+action names exactly one condition; one that claimed several would keep looking
+useful after the one it served was met.
+
+### Repeating a search is not progress
+
+The rule the layer exists for. A second campaign does not improve the odds of
+the first — it widens the declared space, which raises the surplus the best
+design must clear, faster than searching finds anything. **An unattended loop
+that kept searching until something passed would be a machine for manufacturing
+false discoveries, with the company's own preregistration machinery producing
+the paperwork.**
+
+So every action declares when it is exhausted, and returns a reason rather than
+a boolean: *"we already did this and it did not work"* is the most important
+sentence an autonomous loop can produce.
+
+### What it did, on a real model, on a real market
+
+```
+1. campaign  acted  no change  CPN-0001: best -0.01146313, expected best of 96
+                               is 0.01503796, surplus -0.02650109, survives: no
+2. review    acted  MOVED      max_drawdown 0.12364208 -> 0.64507263 once 3
+                               delisted name(s) are restored; confirmed -> refuted
+3. replicate acted  no change  RPL-0001: seed -> nothing_to_replicate
+4. —         stopped           every action that could move an unmet condition
+                               is exhausted
+```
+
+18 model calls, under four minutes, nobody intervening. The review is the part
+worth reading: the critic raised survivorship, the generated test ran, and a
+**confirmed claim was refuted**. `reviewed` went MET and the mandate moved from
+3 of 10 to 4.
+
+Nothing else moved, and the loop named a reason for each: the campaign has run
+and a second is not the answer; every replication found nothing to replicate;
+no version has cleared its gates, and deployment refuses on evidence rather
+than on anything a retry could change.
+
+### Three bugs the first runs found
+
+**It replicated five times and learned nothing five times.** Five different
+registrations, each returning `nothing_to_replicate` because each original was
+underpowered. By the letter not repetition — every registration was new. In
+effect exactly repetition. The rule now reads the company's own record.
+
+**A failed action was retried forever.** The exhaustion rules read persistent
+state, and a failure usually leaves none: a refused authoring writes nothing at
+all, on purpose, so the rule kept counting zero and the loop re-ran it every
+cycle. Six identical failures, six times. An action that failed is now
+exhausted for the run.
+
+**Counting a table by name crashed the second cycle.** The rules counted
+`campaigns`; the table is `authoring_campaigns`, and nothing checked the string.
+They take mapped classes now, so the same mistake is an ImportError in the
+suite rather than an OperationalError in an unattended run.
+
+See [ADR-0025](adr/0025-the-mandate-is-the-work-queue-and-a-search-is-never-repeated.md).
+
+---
+
 ## Sequencing
 
 ```
