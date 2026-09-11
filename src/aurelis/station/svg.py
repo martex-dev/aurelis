@@ -158,6 +158,7 @@ class Drawing:
             f'<svg viewBox="0 0 {self.width} {self.height}" '
             f'width="{self.width}" height="{self.height}" '
             'xmlns="http://www.w3.org/2000/svg" class="facility" '
+            'shape-rendering="crispEdges" '
             'font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">'
             + "".join(self.parts)
             + "</svg>"

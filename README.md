@@ -11,12 +11,17 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M36 — Mission Control shows the hunt.** Every mechanism has a
-page: the causal statement, what its author was shown with the in-sample
-figures labelled as such, the record against the unconditional base rate,
-every prediction with its outcome, the paper trades, and the other agents
-who were shown the same trigger and declined, with their reasons. Before it,
-M35: the leverage the agents keep citing enters the stream.** Both live
+Status: **M37 — the facility in pixels.** The station is the brief's
+pixel-art research complex under one rule: a pixel carries identity (every
+agent's deterministic avatar), measured state (a room's LED blinks and its
+sprites move only when it is working; a gathering mechanism's bar is
+`scored / 20` with the numbers beside it), or nothing. Before it, M36:
+Mission Control shows the hunt.** Every mechanism has a page: the causal
+statement, what its author was shown with the in-sample figures labelled as
+such, the record against the unconditional base rate, every prediction with
+its outcome, the paper trades, and the other agents who were shown the same
+trigger and declined, with their reasons. M35: the leverage the agents keep
+citing enters the stream.** Both live
 mechanisms are stories about liquidation cascades; the company held no
 funding rate and no open interest. Under its own grant the service now reads
 each instrument's perpetual every wake, records funding and open interest as
@@ -978,6 +983,7 @@ automatically by the company, five milestones in.
 | **M34** ✅ | **The universe** | a grant drawn from the venue's liquidity ranking by dollar notional, pegs excluded by measurement; a mechanism is tested wherever its trigger fires |
 | **M35** ✅ | **Leverage** | funding and open interest from the perpetual, as events on the spot instrument; extreme funding and OI surges derived; a mechanism can fire on them |
 | **M36** ✅ | **The hunt, on the station** | a page per mechanism: statement, evidence shown, predictions and outcomes, paper trades, and who declined the trigger and why |
+| **M37** ✅ | **The facility in pixels** | deterministic agent avatars, LEDs and sprites that move only when a room works, progress bars of the record; generated, no assets |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

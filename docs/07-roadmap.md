@@ -1972,6 +1972,23 @@ See [ADR-0037](adr/0037-mission-control-shows-the-hunt.md).
 
 ---
 
+## M37 — The facility in pixels ✅
+
+The brief's pixel-art research complex, under one rule: a pixel carries
+identity, measured state, or nothing.
+
+Every agent has a deterministic eight-by-eight avatar drawn from the hash of
+its reference, lit by its state, worn on its page and on the mechanisms it
+stated. A room's LED blinks and its staff sprites move only when the room is
+working. A gathering mechanism shows a bar of `scored / 20` with the numbers
+beside it. Crisp edges, floor tiles, a scanline shell, a blocky mark: all
+generated, no assets, the sealed build still one file. The overlap check and
+the no-placeholder tests hold.
+
+See [ADR-0038](adr/0038-the-facility-in-pixels.md).
+
+---
+
 ## Sequencing
 
 ```

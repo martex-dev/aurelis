@@ -30,6 +30,7 @@ from aurelis.org.desks import DESKS, Desk
 from aurelis.research.tables import Hypothesis
 from aurelis.station import projections as proj
 from aurelis.station.layout import Facility
+from aurelis.station.pixels import avatar_svg, progress_bar
 from aurelis.station.render import facility_svg, figure_span
 from aurelis.station.svg import escape_text
 
@@ -219,8 +220,10 @@ def agent_page(session: Session, ref: str) -> str | None:
         f"{escape_text(c['title'])}</li>"
         for c in view.charters
     )
+    lit = "var(--ok)" if str(view.state).lower() in ("working", "in_meeting") else "var(--dim)"
+    portrait = avatar_svg(view.ref, tone=lit, size=40, title=f"{view.ref} {view.handle}")
     return (
-        f"<h1>{escape_text(view.ref)} · {escape_text(view.handle)}</h1>"
+        f"<h1>{portrait}{escape_text(view.ref)} · {escape_text(view.handle)}</h1>"
         f"<p>{escape_text(view.department)} · desk {escape_text(view.desk)} · "
         f"{escape_text(view.seniority)} · tier {escape_text(view.tier)} · "
         f"{_pill(view.state)}</p>"
@@ -1008,6 +1011,8 @@ def service_page(session: Session) -> str:
 
 
 def mechanisms_page(session: Session) -> str:
+    from aurelis.mechanism.library import MIN_SCORED_PREDICTIONS
+
     view = proj.mechanisms_view(session)
     rows = _rows(
         [
@@ -1040,7 +1045,8 @@ def mechanisms_page(session: Session) -> str:
                     if r["is_scheme"]
                     else "<span class='pill bad'>RETIRED</span>"
                     if r["retired"]
-                    else f"<span class='pill warn'>{escape_text(r['verdict']).upper()}</span>"
+                    else f"<span class='pill warn'>{escape_text(r['verdict']).upper()}</span> "
+                    + progress_bar(int(r["scored"]), MIN_SCORED_PREDICTIONS)
                 ),
             ]
             for r in view.rows
@@ -1097,18 +1103,24 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
     view = proj.mechanism_detail(session, ref, artifacts=artifacts)
     if view is None:
         return None
+    from aurelis.mechanism.library import MIN_SCORED_PREDICTIONS
+
+    tone = "ok" if view.is_scheme else "bad" if view.retired else "warn"
     verdict = (
         "<span class='pill ok'>SCHEME</span>"
         if view.is_scheme
         else "<span class='pill bad'>RETIRED</span>"
         if view.retired
-        else f"<span class='pill warn'>{escape_text(view.verdict).upper()}</span>"
+        else f"<span class='pill warn'>{escape_text(view.verdict).upper()}</span> "
+        + progress_bar(view.scored, MIN_SCORED_PREDICTIONS)
     )
+    portrait = avatar_svg(view.agent, tone=f"var(--{tone})", size=24, title=view.agent)
     statement = _kv(
         [
             (
                 "stated by",
-                f"<a href='/agent/{escape_text(view.agent)}'>{escape_text(view.agent)}</a>",
+                f"{portrait}<a href='/agent/{escape_text(view.agent)}'>"
+                f"{escape_text(view.agent)}</a>",
             ),
             ("trigger", escape_text(view.trigger)),
             (

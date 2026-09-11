@@ -86,8 +86,13 @@ def _draw_room(
     drawing.add(rect(room.x, room.y, room.w, room.h, stroke=colours.edge, width=1))
 
     # The lit strip along the ceiling is the only thing that carries status, so
-    # a glance across the building reads as occupancy rather than as decor.
-    drawing.add(rect(room.x + 1, room.y + 1, room.w - 2, 4, fill=tone))
+    # a glance across the building reads as occupancy rather than as decor. It
+    # blinks only when the room is working: the animation is the status.
+    lit = "led on" if (status is not None and status.busy and not sealed) else "led"
+    drawing.add(
+        f'<rect class="{lit}" x="{room.x + 1}" y="{room.y + 1}" width="{room.w - 2}" '
+        f'height="4" fill="{tone}"/>'
+    )
 
     drawing.label(
         Label(
@@ -159,6 +164,10 @@ def _draw_staff(
     shown = min(headcount, 8)
     step = (room.w - 44) // max(1, shown)
 
+    # Busy staff move, in two frames, the way a sprite does; idle staff stand
+    # still. The motion is the state, so a still room is a true still room.
+    if status.busy:
+        drawing.add('<g class="busy">')
     for index in range(shown):
         x = room.x + 24 + index * step
         # Busy staff take the room's status colour; idle staff are still
@@ -167,9 +176,13 @@ def _draw_staff(
         colour = tone if status.busy else colours.dim
         # Head, torso, legs: blocky on purpose.
         drawing.add(rect(x, floor - 27, 8, 8, fill=colour))
+        drawing.add(rect(x + 2, floor - 24, 2, 2, fill=colours.ground))
+        drawing.add(rect(x + 5, floor - 24, 2, 2, fill=colours.ground))
         drawing.add(rect(x, floor - 17, 8, 11, fill=colour, opacity=0.8))
         drawing.add(rect(x + 1, floor - 5, 2, 5, fill=colour, opacity=0.6))
         drawing.add(rect(x + 5, floor - 5, 2, 5, fill=colour, opacity=0.6))
+    if status.busy:
+        drawing.add("</g>")
 
     if headcount > shown:
         drawing.label(
@@ -218,6 +231,10 @@ def _draw_fixture(
         )
     elif fixture.shape == "floor":
         drawing.add(rect(x, y, fixture.w, fixture.h, fill=colours.plant))
+        # Floor plates every eight pixels: a dither, the way a pixel floor is
+        # tiled. Structure, and it carries nothing.
+        for tile in range(4, fixture.w - 4, 8):
+            drawing.add(rect(x + tile, y + 1, 2, 2, fill=colours.edge))
         drawing.add(rect(x, y + fixture.h, fixture.w, 3, fill=colours.edge))
     elif fixture.shape == "ceiling":
         drawing.add(rect(x, y, fixture.w, fixture.h, fill=colours.plate))
@@ -345,6 +362,31 @@ tr:hover td { background:#171d27; }
 .banner { border:1px solid var(--warn); color:var(--warn); padding:6px 10px; margin-bottom:12px; }
 .banner.ok { border-color:var(--ok); color:var(--ok); }
 footer { color:var(--dim); font-size:11px; padding:20px 16px; text-align:center; }
+
+/* The facility in pixels. Every rule here is either identity, measured state,
+   or structure that carries nothing; none of it invents a reading. */
+body::after {
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:9;
+  background:repeating-linear-gradient(0deg, transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
+}
+header.bar .brand::before {
+  content:""; display:inline-block; width:12px; height:12px; margin-right:8px;
+  vertical-align:-1px; background:var(--ok);
+  clip-path:polygon(0 0,50% 0,50% 25%,100% 25%,100% 75%,50% 75%,50% 100%,0 100%);
+}
+.facility { image-rendering:pixelated; image-rendering:crisp-edges; }
+.facility text { text-rendering:geometricPrecision; }
+@keyframes led { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+.facility .led.on { animation:led 1.6s steps(2,end) infinite; }
+@keyframes bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-1px); } }
+.facility g.busy { animation:bob .9s steps(2,end) infinite; }
+.avatar { vertical-align:middle; margin-right:8px; image-rendering:pixelated; }
+.bar { display:inline-block; width:90px; height:8px; border:1px solid var(--edge);
+       background:var(--ground); vertical-align:middle; }
+.bar .fill { display:block; height:100%; background:var(--warn); }
+.bar.ok .fill { background:var(--ok); }
+.bar.bad .fill { background:var(--bad); }
+.bar-n { font-size:10px; color:var(--dim); margin-left:6px; }
 """
 
 _SSE = """
