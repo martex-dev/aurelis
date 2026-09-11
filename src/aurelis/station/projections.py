@@ -1248,6 +1248,8 @@ def service_view(session: Session, *, limit: int = 40) -> ServiceView:
                 "source": g.source,
                 "desk": g.desk,
                 "instruments": ", ".join(map(str, g.instruments)),
+                "count": len(g.instruments),
+                "rule": g.rule or "",
                 "bars": g.bars,
                 "by": g.granted_by,
                 "reason": g.reason,

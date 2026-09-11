@@ -48,6 +48,14 @@ class DataGrant(Base):
     granted_at: Mapped[dt.datetime] = mapped_column(index=True)
     reason: Mapped[str] = mapped_column(sa.Text)
 
+    rule: Mapped[str | None] = mapped_column(sa.Text)
+    """How the instruments were chosen, when they were drawn from the venue's
+    own liquidity ranking rather than named one by one. Provenance of the
+    decision; the instruments themselves are the decision."""
+
+    selection_digest: Mapped[str | None] = mapped_column(sa.String(64))
+    """Artifact digest of the ranking the choice was drawn from."""
+
     revoked_by: Mapped[str | None] = mapped_column(sa.String(64))
     revoked_at: Mapped[dt.datetime | None] = mapped_column()
 

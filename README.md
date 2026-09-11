@@ -11,13 +11,19 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M33 — the miner shows its evidence, and the company stated its
-first mechanism.** Shown that fifteen of sixteen range breaks on live BTC
-were followed by a rise — beside the coin-toss figure for any bar — a real
-Validation agent stated *breakout stop-cascade momentum continuation*, with
-who is on the other side and how fast it decays; three other agents still
-declined, and the record says so. It now predicts every future break, sealed
-before the outcome, and must beat the drift out of sample. Before it, M32:
+Status: **M34 — a mechanism is tested across the universe, not on one
+chart.** A grant can now be drawn from the venue's own liquidity ranking:
+the top thirty USD-quoted instruments by dollar notional, pegged ones set
+aside by their measured range, the rule and the ranking frozen on the record
+with the list. A mechanism seals a prediction wherever its trigger fires, so
+the live one that needed weeks of bitcoin range breaks now gathers evidence
+across thirty instruments. Before it, M33: the miner shows its evidence, and
+the company stated its first mechanism.** Shown that fifteen of sixteen range
+breaks on live BTC were followed by a rise — beside the coin-toss figure for
+any bar — a real Validation agent stated *breakout stop-cascade momentum
+continuation*, with who is on the other side and how fast it decays; three
+other agents still declined, and the record says so. It predicts every future
+break, sealed before the outcome, and must beat the drift out of sample. M32:
 the book and the tape enter the event stream.** Order-book
 depth and taker flow, read every wake from the venue's public API, become
 hashed events a mechanism can fire on and a judge can cite — with the
@@ -958,6 +964,7 @@ automatically by the company, five milestones in.
 | **M31** ✅ | **The hunt, and paper** | the loop mines and brings every conjunction to every agent; a calibrated scheme trades on paper through Risk |
 | **M32** ✅ | **The book and the tape** | order-book depth and taker flow as events every wake; the maker-side trap pinned by a test |
 | **M33** ✅ | **The miner's evidence** | in-sample effect sizes beside the unconditional, labelled; the first real mechanism, and declines that say why |
+| **M34** ✅ | **The universe** | a grant drawn from the venue's liquidity ranking by dollar notional, pegs excluded by measurement; a mechanism is tested wherever its trigger fires |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

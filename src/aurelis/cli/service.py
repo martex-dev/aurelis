@@ -9,8 +9,9 @@ down what happened — including what broke. ``status`` reads the record.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 import typer
@@ -19,6 +20,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from aurelis.runtime import Runtime
+from aurelis.world.liquidity import Universe, UniverseRule, rank_universe
 
 console = Console()
 
@@ -56,23 +58,64 @@ def service_grant(
     reason: Annotated[str, typer.Option(help="Why, in a sentence. Goes on the record.")] = "",
     by: Annotated[str, typer.Option(help="Who is granting this.")] = "OPERATOR",
     yes: Annotated[bool, typer.Option("--yes", help="Record without confirming.")] = False,
+    universe: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Draw the instruments from the venue's own liquidity ranking instead of "
+                "naming them: the quote asset, e.g. USD. Reaches the vendor once, now."
+            )
+        ),
+    ] = None,
+    top: Annotated[int, typer.Option(help="With --universe: how many instruments.")] = 30,
+    min_range: Annotated[
+        float,
+        typer.Option(
+            help="With --universe: exclude instruments whose 24h range was under this percent."
+        ),
+    ] = 0.2,
 ) -> None:
     """Record a standing permission for the service to fetch these instruments.
 
     This is the one decision a person makes. The service fetches nothing that
     is not on an active grant, the grant names who and why, and the database
-    refuses to change it afterwards — only to revoke it.
+    refuses to change it afterwards — only to revoke it. With --universe the
+    instruments are drawn once from the vendor's liquidity ranking; the rule
+    and the ranking go on the record and the list is as fixed as a typed one.
     """
     instruments = tuple(instrument or [])
-    if not instruments:
-        console.print("[red]A grant names at least one --instrument.[/red]")
+    if universe and instruments:
+        console.print("[red]Name instruments or draw a universe, not both.[/red]")
+        raise typer.Exit(code=2)
+    if not instruments and not universe:
+        console.print("[red]A grant names at least one --instrument, or a --universe.[/red]")
         raise typer.Exit(code=2)
     if len(reason) <= 10:
         console.print("[red]A grant says why, in a sentence: --reason.[/red]")
         raise typer.Exit(code=2)
+
+    drawn: Universe | None = None
+    held: _HeldStats | None = None
+    rule: UniverseRule | None = None
+    if universe:
+        from aurelis.service.grants import stats_for
+
+        rule = UniverseRule(quote=universe.upper(), top=top, min_range_pct=Decimal(str(min_range)))
+        payload = stats_for(source).stats()
+        held = _HeldStats(payload)
+        drawn = rank_universe(payload, rule)
+        _print_universe(drawn)
+        instruments = drawn.chosen
+        if not instruments:
+            console.print("[red]The rule selects no instrument. Nothing was granted.[/red]")
+            raise typer.Exit(code=2)
+
     if not yes and not source.startswith("fixture:"):
+        listed = (
+            ", ".join(instruments) if len(instruments) <= 8 else f"{len(instruments)} instruments"
+        )
         console.print(
-            f"[yellow]This lets the service fetch {', '.join(instruments)} from "
+            f"[yellow]This lets the service fetch {escape(listed)} from "
             f"{escape(source)} on its own, every wake, until revoked.[/yellow] "
             "Re-run with --yes to record it."
         )
@@ -81,22 +124,94 @@ def service_grant(
     try:
         runtime.initialise()
         with runtime.database.session() as session:
-            row = runtime.grants.grant(
-                session,
-                source=source,
-                desk=desk,
-                instruments=instruments,
-                granted_by=by,
-                reason=reason,
-                bars=bars,
-            )
+            if drawn is not None and held is not None and rule is not None:
+                row, _ = runtime.grants.grant_universe(
+                    session,
+                    stats=held,
+                    artifacts=runtime.artifacts,
+                    rule=rule,
+                    source=source,
+                    desk=desk,
+                    granted_by=by,
+                    reason=reason,
+                    bars=bars,
+                )
+            else:
+                row = runtime.grants.grant(
+                    session,
+                    source=source,
+                    desk=desk,
+                    instruments=instruments,
+                    granted_by=by,
+                    reason=reason,
+                    bars=bars,
+                )
             ref = row.ref
+            rule_text = row.rule
     finally:
         runtime.close()
     console.print(
-        f"[green]{ref}[/green] recorded: {escape(source)} {', '.join(instruments)} by {by}"
+        f"[green]{ref}[/green] recorded: {escape(source)} {len(instruments)} instrument(s) by {by}"
     )
+    if rule_text:
+        console.print(f"[dim]drawn as: {escape(rule_text)}[/dim]")
     console.print("[dim]Revoke with `aurelis service revoke <ref>`. It cannot be edited.[/dim]")
+
+
+class _HeldStats:
+    """The stats document already fetched and shown, handed to the grant so the
+    ranking recorded is the one the person confirmed, not a second fetch."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self._payload = payload
+
+    def stats(self) -> dict[str, Any]:
+        return self._payload
+
+
+def _print_universe(drawn: Universe) -> None:
+    table = Table(title=f"universe: {drawn.rule.describe()}")
+    for column in ("#", "instrument", "24h notional", "24h range", ""):
+        table.add_column(column, overflow="fold")
+    shown = 0
+    for rank, row in enumerate(drawn.ranked, start=1):
+        if row.symbol in drawn.chosen:
+            mark = "[green]chosen[/green]"
+        elif row.symbol in drawn.excluded_pegged:
+            mark = "[dim]pegged, excluded[/dim]"
+        else:
+            continue
+        table.add_row(
+            str(rank), row.symbol, f"{row.notional_24h:,.0f}", f"{row.range_24h_pct}%", mark
+        )
+        shown += 1
+        if shown >= len(drawn.chosen) + len(drawn.excluded_pegged):
+            break
+    console.print(table)
+    console.print(
+        f"[dim]{len(drawn.ranked)} {drawn.rule.quote}-quoted instrument(s) ranked; "
+        f"{len(drawn.chosen)} chosen, {len(drawn.excluded_pegged)} set aside as pegged.[/dim]"
+    )
+
+
+@service_app.command("universe")
+def service_universe(
+    source: Annotated[str, typer.Option(help="The vendor whose ranking to read.")] = "coinbase",
+    quote: Annotated[str, typer.Option(help="Quote asset, e.g. USD.")] = "USD",
+    top: Annotated[int, typer.Option(help="How many instruments the rule would choose.")] = 30,
+    min_range: Annotated[
+        float, typer.Option(help="Exclude instruments whose 24h range was under this percent.")
+    ] = 0.2,
+) -> None:
+    """Show what a universe rule would choose right now. Reads the vendor; writes nothing."""
+    from aurelis.service.grants import stats_for
+
+    rule = UniverseRule(quote=quote.upper(), top=top, min_range_pct=Decimal(str(min_range)))
+    _print_universe(rank_universe(stats_for(source).stats(), rule))
+    console.print(
+        "[dim]Record it with `aurelis service grant --universe "
+        f"{quote.upper()} --top {top} --reason ... --yes`.[/dim]"
+    )
 
 
 @service_app.command("revoke")
@@ -108,6 +223,7 @@ def service_revoke(
     """Withdraw a grant. Written once; the row stays."""
     runtime = _runtime(workspace)
     try:
+        runtime.initialise()
         with runtime.database.session() as session:
             runtime.grants.revoke(session, ref, by=by)
     finally:
@@ -185,6 +301,9 @@ def service_status(workspace: WorkspaceOption = None) -> None:
 
     runtime = _runtime(workspace)
     try:
+        # Additive migration first: a status read on a workspace whose grant
+        # table predates a column would otherwise fail on the column.
+        runtime.initialise()
         with runtime.database.session() as session:
             grants = runtime.grants.all(session)
             wakes = list(

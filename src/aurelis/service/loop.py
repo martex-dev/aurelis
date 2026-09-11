@@ -159,11 +159,18 @@ class Service:
                     )
                 )
 
-        # 1. fetch, under the grants a person recorded
+        # 1. fetch, under the grants a person recorded. An instrument on two
+        #    grants is fetched once: two permissions are one instrument.
         if not grants:
             notes.append("no active data grant; nothing was fetched")
+        fetched_once: set[tuple[str, str]] = set()
+        duplicates = 0
         for grant in grants:
             for symbol in grant.instruments:
+                if (grant.source, str(symbol)) in fetched_once:
+                    duplicates += 1
+                    continue
+                fetched_once.add((grant.source, str(symbol)))
                 try:
                     feed = self._feeds(grant)
                     with runtime.database.session() as session:
@@ -255,6 +262,8 @@ class Service:
 
         if derived:
             notes.append(f"{derived} price event(s) derived")
+        if duplicates:
+            notes.append(f"{duplicates} instrument(s) on more than one grant, fetched once")
 
         # 1b. the book and the tape, per live instrument: depth and taker flow
         #     as events, with the raw payloads as artifacts
@@ -262,10 +271,14 @@ class Service:
 
         readings = 0
         micro_events = 0
+        read_once: set[tuple[str, str]] = set()
         for grant in grants:
             if not grant.is_live:
                 continue
             for symbol in grant.instruments:
+                if (grant.source, str(symbol)) in read_once:
+                    continue
+                read_once.add((grant.source, str(symbol)))
                 try:
                     book_feed, trades_feed = self._microstructure(grant)
                     with runtime.database.session() as session:

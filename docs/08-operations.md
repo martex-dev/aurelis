@@ -171,6 +171,23 @@ aurelis service start -w live --every 1h --for 7d --calls-per-day 200
 aurelis service status -w live
 ```
 
+A grant can also be drawn from the venue's own liquidity ranking instead of
+typed:
+
+```bash
+aurelis service universe --quote USD --top 30            # show the ranking; writes nothing
+aurelis service grant -w live --universe USD --top 30 \
+    --reason "a mechanism is a claim about an event, tested wherever it fires" --by <you> --yes
+```
+
+The ranking is by dollar notional over the last day (by units a memecoin
+outranks bitcoin), and any instrument whose 24h range was under 0.2% is set
+aside as pegged — a stablecoin is liquid and not a market. The instruments
+that come out are the grant, as fixed as a typed list; the rule and the
+ranking's artifact digest are recorded on it as provenance. The service never
+re-runs the rule: a listing that becomes liquid later is not fetched until a
+person grants again. An instrument on two grants is fetched once a wake.
+
 The grant is the one decision a person makes: it names the vendor, the
 instruments, who and why, goes on the ledger, and cannot be widened — only
 revoked (`aurelis service revoke GRT-0001`). The service then wakes on the

@@ -27,8 +27,13 @@ _CHANGED = (
     "NEW.ref <> OLD.ref OR NEW.source <> OLD.source OR NEW.desk <> OLD.desk "
     "OR NEW.instruments <> OLD.instruments OR NEW.interval <> OLD.interval "
     "OR NEW.bars <> OLD.bars OR NEW.granted_by <> OLD.granted_by "
-    "OR NEW.granted_at <> OLD.granted_at OR NEW.reason <> OLD.reason"
+    "OR NEW.granted_at <> OLD.granted_at OR NEW.reason <> OLD.reason "
+    "OR coalesce(NEW.rule, '') <> coalesce(OLD.rule, '') "
+    "OR coalesce(NEW.selection_digest, '') <> coalesce(OLD.selection_digest, '')"
 )
+"""The nullable columns are compared through ``coalesce``: ``NULL <> NULL`` is
+not true in either dialect, and a frozen column that could be changed from
+null would not be frozen."""
 _FROZEN = (
     "Aurelis: a data grant cannot be changed. The service fetches only what a "
     "person granted, and a grant that could be widened afterwards is a flag."
@@ -38,8 +43,12 @@ _DELETED = "Aurelis: a data grant is never deleted. Revoke it."
 
 
 def _sqlite_statements() -> Iterator[str]:
+    # Dropped and recreated rather than IF NOT EXISTS: the frozen-column list
+    # grew in M34 and a workspace that already had the trigger would otherwise
+    # keep the shorter one. The other two never change.
+    yield "DROP TRIGGER IF EXISTS aurelis_grant_is_immutable"
     yield (
-        "CREATE TRIGGER IF NOT EXISTS aurelis_grant_is_immutable "
+        "CREATE TRIGGER aurelis_grant_is_immutable "
         "BEFORE UPDATE ON data_grants FOR EACH ROW "
         f"WHEN ({_CHANGED}) BEGIN SELECT RAISE(ABORT, '{_FROZEN}'); END"
     )

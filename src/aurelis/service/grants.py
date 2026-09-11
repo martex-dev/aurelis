@@ -15,8 +15,16 @@ from aurelis.core.ids import RefKind, uuid7
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
 from aurelis.service.tables import DataGrant
+from aurelis.world.liquidity import Universe, UniverseRule, rank_universe
 
-__all__ = ["KNOWN_SOURCES", "Grants", "catalogue_for", "feed_for", "microstructure_for"]
+__all__ = [
+    "KNOWN_SOURCES",
+    "Grants",
+    "catalogue_for",
+    "feed_for",
+    "microstructure_for",
+    "stats_for",
+]
 
 KNOWN_SOURCES: tuple[str, ...] = ("coinbase",)
 """Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``."""
@@ -43,6 +51,8 @@ class Grants:
         interval: str = "1h",
         bars: int = 400,
         at: dt.datetime | None = None,
+        rule: str | None = None,
+        selection_digest: str | None = None,
     ) -> DataGrant:
         if source not in KNOWN_SOURCES and not source.startswith("fixture:"):
             raise IntegrityViolation(
@@ -64,26 +74,84 @@ class Grants:
             granted_by=granted_by,
             granted_at=moment,
             reason=reason,
+            rule=rule,
+            selection_digest=selection_digest,
         )
         session.add(row)
         session.flush()
+        payload: dict[str, Any] = {
+            "source": source,
+            "desk": desk,
+            "instruments": list(instruments),
+            "interval": interval,
+            "bars": bars,
+            "granted_by": granted_by,
+            "reason": reason[:300],
+        }
+        if rule:
+            payload["rule"] = rule
+            payload["selection"] = selection_digest
         self._ledger.append(
             session,
             kind=EventKind.DATA_GRANTED,
             actor=Actor.OPERATOR,
             subject=ref,
-            payload={
-                "source": source,
-                "desk": desk,
-                "instruments": list(instruments),
-                "interval": interval,
-                "bars": bars,
-                "granted_by": granted_by,
-                "reason": reason[:300],
-            },
+            payload=payload,
             at=moment,
         )
         return row
+
+    def grant_universe(
+        self,
+        session: Session,
+        *,
+        stats: Any,
+        artifacts: Any,
+        rule: UniverseRule,
+        source: str = "coinbase",
+        desk: str,
+        granted_by: str,
+        reason: str,
+        interval: str = "1h",
+        bars: int = 400,
+        at: dt.datetime | None = None,
+    ) -> tuple[DataGrant, Universe]:
+        """Draw the instruments from the venue's liquidity ranking, once, now.
+
+        The ranking is read at this moment and stored as an artifact; the grant
+        names the rule and the artifact. What the service may fetch is the
+        concrete list that came out, exactly as if a person had typed it — the
+        rule is provenance, not a standing instruction the service re-runs.
+        A rule that selects nothing is not a grant. A vendor that cannot be
+        reached raises before anything is written.
+        """
+        universe = rank_universe(stats.stats(), rule)
+        if not universe.chosen:
+            raise IntegrityViolation(
+                f"the rule ({rule.describe()}) selects no instrument from "
+                f"{len(universe.ranked)} ranked; nothing was granted"
+            )
+        stored = artifacts.put_json(
+            session,
+            universe.as_record(),
+            kind="universe.ranking",
+            produced_by=granted_by,
+            actor=Actor.OPERATOR,
+        )
+        row = self.grant(
+            session,
+            source=source,
+            desk=desk,
+            instruments=universe.chosen,
+            granted_by=granted_by,
+            reason=reason,
+            interval=interval,
+            bars=bars,
+            at=at,
+            rule=rule.describe(),
+            selection_digest=stored.digest,
+        )
+        return row, universe
 
     def revoke(
         self, session: Session, ref: str, *, by: str, at: dt.datetime | None = None
@@ -127,6 +195,15 @@ def catalogue_for(grant: DataGrant) -> Any:
 
         return CoinbaseProducts()
     raise IntegrityViolation(f"no catalogue for source {grant.source!r}")
+
+
+def stats_for(source: str) -> Any:
+    """The vendor's liquidity stats, for drawing a universe at grant time."""
+    if source == "coinbase":
+        from aurelis.world.liquidity import CoinbaseStats
+
+        return CoinbaseStats()
+    raise IntegrityViolation(f"no liquidity ranking for source {source!r}")
 
 
 def microstructure_for(grant: DataGrant) -> tuple[Any, Any]:

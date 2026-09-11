@@ -1862,6 +1862,52 @@ See [ADR-0034](adr/0034-the-miner-shows-its-evidence.md).
 
 ---
 
+## M34 — A mechanism is tested across the universe, not on one chart ✅
+
+`MEC-0001` needs twenty out-of-sample predictions and the live grant named
+three instruments, so it could fire about once a day. Prediction generation
+never cared which chart a mechanism was found on — it seals on every
+occurrence of the trigger kind, on whatever instrument — so the typed list of
+three was the only throttle on the company's evidence.
+
+### A grant drawn from the venue's own ranking
+
+`aurelis service grant --universe USD --top 30` reads the vendor's one-call
+stats document, ranks USD-quoted instruments by **dollar notional** (by units
+PEPE, MOG and BONK are the top three; by dollars none is in the top twenty),
+sets aside any instrument whose 24-hour range was under 0.2% as pegged — the
+measurement, not a list of stablecoin names — and grants the top thirty. The
+rule in words and the ranking's artifact digest go on the grant and are
+frozen with the instrument list; the service never re-runs the rule. `aurelis
+service universe` shows the ranking and writes nothing. An instrument on two
+grants is fetched once.
+
+### Tested wherever the event fires
+
+A test states a mechanism on one instrument, records a second, and the
+mechanism seals on the second's range breaks — none marked as training — and
+scores on the second's own recording.
+
+### What the live workspace did meanwhile
+
+The service's first wake on M33 code brought the spike-then-spike pair to
+the agents with its in-sample evidence. Four declined, each with a reason,
+and the reasons agree: a volume spike after a volume spike is volatility
+clustering, a variance mechanism with no side to it. A fifth, the Research
+agent AG-0004, read the same table the other way — the 24-hour figure said
+the price *fell* two times in three — and stated **MEC-0002, leveraged
+liquidation-cascade exhaustion reversal**: a spike is forced flow that runs
+out of fuel, the momentum flip after it marks the point the marginal buyer is
+gone, and price bleeds lower over the day as the unwind continues. Down over
+24h at 0.55; the other side is late leveraged longs buying the spike as a
+breakout. Eleven forward predictions sealed within the hour. Two mechanisms,
+both gathering, both against the instrument's own drift; the universe grant
+is what lets them be judged in days rather than months.
+
+See [ADR-0035](adr/0035-a-mechanism-is-tested-across-the-universe.md).
+
+---
+
 ## Sequencing
 
 ```
