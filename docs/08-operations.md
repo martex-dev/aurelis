@@ -444,6 +444,10 @@ lists them:
   out-of-sample predictions beating the instrument's own drift; then five
   percent of the paper book, through Risk. `aurelis mechanism trades` shows
   the round trips and realised P&L, which is reported and never judged.
+- **The book and the tape are read hourly, not streamed.** Depth and taker
+  flow enter as events on every wake for every granted instrument; a
+  microstructure edge on a faster clock is not something an hourly reading
+  can see. `--every 15m` is the floor.
 - **The world model holds the venue and what recordings imply, nothing
   off-venue.** `aurelis world sync --yes` reads the public catalogue;
   `world derive` adds volume spikes and range breaks from a recording; the

@@ -754,10 +754,27 @@ def _recent_events(session: Session, instrument: str, *, limit: int = 8) -> list
     """
     from aurelis.world.store import World
 
-    rows = World.events_for(session, entity_kind="instrument", entity_key=instrument, limit=limit)
-    out: list[str] = []
+    rows = World.events_for(
+        session, entity_kind="instrument", entity_key=instrument, limit=limit * 6
+    )
+    # The newest of each kind first, so an hourly book snapshot does not crowd
+    # out the one listing halt; then the rest by recency, up to the limit.
+    seen: set[str] = set()
+    chosen: list[Any] = []
     for row in rows:
-        detail = ", ".join(f"{k} {v}" for k, v in sorted(row.payload.items()) if k != "first_sync")
+        if row.kind not in seen:
+            seen.add(row.kind)
+            chosen.append(row)
+    for row in rows:
+        if len(chosen) >= limit:
+            break
+        if row not in chosen:
+            chosen.append(row)
+    out: list[str] = []
+    for row in chosen[:limit]:
+        detail = ", ".join(
+            f"{k} {v}" for k, v in sorted(row.payload.items()) if k not in ("first_sync", "raw")
+        )
         out.append(f"{isoformat(row.at)} {row.kind}: {detail}")
     return out
 

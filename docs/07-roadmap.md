@@ -1763,6 +1763,55 @@ See [ADR-0032](adr/0032-the-company-hunts-and-a-scheme-trades-on-paper.md).
 
 ---
 
+## M32 — The book and the tape enter the event stream ✅
+
+Through M31 every agent and every mechanism reasoned over closes and events
+derived from closes. The venue the company records already serves, without
+credentials, the top fifty levels of its order book and the most recent
+trades with the side that took liquidity. Now it is read.
+
+### Two readings per instrument per wake
+
+`book.snapshot`: mid, spread in basis points, depth within one percent of the
+mid on each side, and the bid share. `flow.trades`: taker buy and sell volume
+over the most recent trades, the buy share, the volume-weighted price. When
+either is lopsided past sixty-five percent, a derived kind fires too —
+`book.bid_heavy` / `book.ask_heavy`, `flow.buy_pressure` /
+`flow.sell_pressure` — so a mechanism can fire on it and mining can join it
+to a move. The raw payloads are one artifact whose digest the events carry.
+
+**The trade's side is the maker's.** A `buy` row is a resting buy a seller
+hit; the aggressor sold. Read naively it inverts every flow signal while
+looking exactly like one. The inversion lives in one function and a test
+pins it.
+
+### On the live workspace, the first readings
+
+```
+BTC-USD  mid 77242.10  spread 0.0013 bps  bids 16,008,176  asks 14,968,889  bid share 0.5168
+         500 trades    taker bought 1.6522  sold 1.1831    buy share 0.5827   vwap 77250.82
+ETH-USD  mid 2466.00   spread 0.4461 bps   bids  6,597,965  asks  6,756,717  bid share 0.4941
+         500 trades    taker bought 99.04   sold 67.22     buy share 0.5957   vwap 2466.14
+SOL-USD  mid 99.74     spread 2.0052 bps   bids  4,072,341  asks  4,273,426  bid share 0.4880
+         500 trades    taker bought 394.09  sold 367.56    buy share 0.5174   vwap 99.72
+```
+
+Nothing lopsided past the threshold, so no heavy event — which is the
+reading, not a gap. The service now takes these every wake under the grant,
+the judges see the newest of each kind first, and a test states a mechanism
+on `flow.buy_pressure` and watches it seal a forward prediction.
+
+### What this milestone did not do
+
+- One venue's book and tape. Funding, basis, open interest, options,
+  on-chain, social, filings: each an adapter under the same discipline, none
+  built.
+- Hourly readings are slow for microstructure; nothing wakes on an event.
+
+See [ADR-0033](adr/0033-the-book-and-the-tape-enter-the-stream.md).
+
+---
+
 ## Sequencing
 
 ```

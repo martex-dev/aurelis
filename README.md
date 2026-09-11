@@ -11,8 +11,11 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M31 — the company hunts for mechanisms on its own, and a scheme
-trades on paper.** The loop mines the event stream, brings every ranked
+Status: **M32 — the book and the tape enter the event stream.** Order-book
+depth and taker flow, read every wake from the venue's public API, become
+hashed events a mechanism can fire on and a judge can cite — with the
+vendor's maker-side trade field inverted in one pinned place. Before it, M31:
+the company hunts for mechanisms on its own, and a scheme trades on paper.** The loop mines the event stream, brings every ranked
 conjunction to every judging agent, seals each stated mechanism's forward
 predictions, retires the ones that fail the instrument's own drift, and
 trades the ones that earn it — five percent of the paper book, through Risk,
@@ -946,6 +949,7 @@ automatically by the company, five milestones in.
 | **M29** ✅ | **The world model** | entities, an immutable event stream, relations; the catalogue as the first non-price source |
 | **M30** ✅ | **Mechanisms** | an agent's causal story over a mined pattern, tested by additional forward predictions or retired |
 | **M31** ✅ | **The hunt, and paper** | the loop mines and brings every conjunction to every agent; a calibrated scheme trades on paper through Risk |
+| **M32** ✅ | **The book and the tape** | order-book depth and taker flow as events every wake; the maker-side trap pinned by a test |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

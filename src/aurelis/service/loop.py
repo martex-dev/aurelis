@@ -32,7 +32,7 @@ from aurelis.core.errors import ProviderUnavailable
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.intel.live import FeedUnavailable
 from aurelis.platform.db.refs import allocate_ref
-from aurelis.service.grants import Grants, catalogue_for, feed_for
+from aurelis.service.grants import Grants, catalogue_for, feed_for, microstructure_for
 from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.world.derive import derive_price_events
 from aurelis.world.sources import sync_catalogue
@@ -104,6 +104,7 @@ class Service:
         cycles_per_wake: int = 40,
         feeds: Callable[[DataGrant], Any] | None = None,
         catalogues: Callable[[DataGrant], Any] | None = None,
+        microstructure: Callable[[DataGrant], tuple[Any, Any]] | None = None,
         research_source: Any | None = None,
     ) -> None:
         self.runtime = runtime
@@ -111,6 +112,7 @@ class Service:
         self.cycles_per_wake = cycles_per_wake
         self._feeds = feeds or (lambda grant: feed_for(grant, clock=runtime.clock))
         self._catalogue = catalogues or catalogue_for
+        self._microstructure = microstructure or microstructure_for
         self._research_source = research_source
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -253,6 +255,48 @@ class Service:
 
         if derived:
             notes.append(f"{derived} price event(s) derived")
+
+        # 1b. the book and the tape, per live instrument: depth and taker flow
+        #     as events, with the raw payloads as artifacts
+        from aurelis.intel.microstructure import record_microstructure
+
+        readings = 0
+        micro_events = 0
+        for grant in grants:
+            if not grant.is_live:
+                continue
+            for symbol in grant.instruments:
+                try:
+                    book_feed, trades_feed = self._microstructure(grant)
+                    with runtime.database.session() as session:
+                        _, created = record_microstructure(
+                            session,
+                            runtime.world,
+                            runtime.artifacts,
+                            symbol=str(symbol),
+                            book_feed=book_feed,
+                            trades_feed=trades_feed,
+                            clock=runtime.clock,
+                            at=moment,
+                        )
+                    readings += 1
+                    micro_events += created
+                except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                    incidents.append(
+                        self._incident(
+                            severity=Severity.WARNING,
+                            source="service.microstructure",
+                            subject=f"{grant.ref}:{symbol}",
+                            desk=grant.desk,
+                            message=f"{symbol} book/trades: {type(error).__name__}: {error}",
+                            action=(
+                                "Nothing was recorded for this instrument; the next wake retries."
+                            ),
+                            at=moment,
+                        )
+                    )
+        if readings:
+            notes.append(f"microstructure: {readings} reading(s), {micro_events} event(s)")
 
         # After new events and settlements, every active mechanism seals
         # predictions on any occurrence it has not yet, and mechanisms that

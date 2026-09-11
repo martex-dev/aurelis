@@ -16,7 +16,7 @@ from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
 from aurelis.service.tables import DataGrant
 
-__all__ = ["KNOWN_SOURCES", "Grants", "catalogue_for", "feed_for"]
+__all__ = ["KNOWN_SOURCES", "Grants", "catalogue_for", "feed_for", "microstructure_for"]
 
 KNOWN_SOURCES: tuple[str, ...] = ("coinbase",)
 """Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``."""
@@ -127,6 +127,15 @@ def catalogue_for(grant: DataGrant) -> Any:
 
         return CoinbaseProducts()
     raise IntegrityViolation(f"no catalogue for source {grant.source!r}")
+
+
+def microstructure_for(grant: DataGrant) -> tuple[Any, Any]:
+    """The book and trades feeds for the same source a grant names."""
+    if grant.source == "coinbase":
+        from aurelis.intel.microstructure import CoinbaseBook, CoinbaseTrades
+
+        return CoinbaseBook(), CoinbaseTrades()
+    raise IntegrityViolation(f"no microstructure feed for source {grant.source!r}")
 
 
 def feed_for(grant: DataGrant, *, clock: Clock | None = None) -> Any:
