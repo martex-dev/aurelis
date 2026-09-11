@@ -11,13 +11,19 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M34 — a mechanism is tested across the universe, not on one
-chart.** A grant can now be drawn from the venue's own liquidity ranking:
-the top thirty USD-quoted instruments by dollar notional, pegged ones set
-aside by their measured range, the rule and the ranking frozen on the record
-with the list. A mechanism seals a prediction wherever its trigger fires, so
-the live one that needed weeks of bitcoin range breaks now gathers evidence
-across thirty instruments. Before it, M33: the miner shows its evidence, and
+Status: **M35 — the leverage the agents keep citing enters the stream.**
+Both live mechanisms are stories about liquidation cascades; the company
+held no funding rate and no open interest. Under its own grant the service
+now reads each instrument's perpetual every wake, records funding and open
+interest as events on the spot instrument, derives extreme funding and
+open-interest surges with their thresholds in the event, and a mechanism can
+fire on them and seal against the spot close. Before it, M34: a mechanism is
+tested across the universe, not on one chart.** A grant can be drawn from the
+venue's own liquidity ranking: the top thirty USD-quoted instruments by
+dollar notional, pegged ones set aside by their measured range, the rule and
+the ranking frozen on the record with the list. A mechanism seals a
+prediction wherever its trigger fires, so the live ones gather evidence
+across thirty instruments. M33: the miner shows its evidence, and
 the company stated its first mechanism.** Shown that fifteen of sixteen range
 breaks on live BTC were followed by a rise — beside the coin-toss figure for
 any bar — a real Validation agent stated *breakout stop-cascade momentum
@@ -965,6 +971,7 @@ automatically by the company, five milestones in.
 | **M32** ✅ | **The book and the tape** | order-book depth and taker flow as events every wake; the maker-side trap pinned by a test |
 | **M33** ✅ | **The miner's evidence** | in-sample effect sizes beside the unconditional, labelled; the first real mechanism, and declines that say why |
 | **M34** ✅ | **The universe** | a grant drawn from the venue's liquidity ranking by dollar notional, pegs excluded by measurement; a mechanism is tested wherever its trigger fires |
+| **M35** ✅ | **Leverage** | funding and open interest from the perpetual, as events on the spot instrument; extreme funding and OI surges derived; a mechanism can fire on them |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

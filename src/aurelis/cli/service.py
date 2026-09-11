@@ -49,7 +49,15 @@ def _runtime(workspace: Path | None) -> Runtime:
 @service_app.command("grant")
 def service_grant(
     workspace: WorkspaceOption = None,
-    source: Annotated[str, typer.Option(help="coinbase, or fixture:<desk>.")] = "coinbase",
+    source: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "coinbase (bars, book, tape), bybit (funding and open interest), "
+                "or fixture:<desk>."
+            )
+        ),
+    ] = "coinbase",
     desk: Annotated[str, typer.Option(help="Which desk the recordings belong to.")] = "crypto",
     instrument: Annotated[
         list[str] | None, typer.Option(help="Instrument to fetch. Repeatable.")
@@ -64,6 +72,15 @@ def service_grant(
             help=(
                 "Draw the instruments from the venue's own liquidity ranking instead of "
                 "naming them: the quote asset, e.g. USD. Reaches the vendor once, now."
+            )
+        ),
+    ] = None,
+    from_grant: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Name the same instruments as an existing grant, e.g. GRT-0002 — the way "
+                "a leverage grant (--source bybit) follows the universe a bars grant reads."
             )
         ),
     ] = None,
@@ -84,11 +101,29 @@ def service_grant(
     and the ranking go on the record and the list is as fixed as a typed one.
     """
     instruments = tuple(instrument or [])
-    if universe and instruments:
-        console.print("[red]Name instruments or draw a universe, not both.[/red]")
+    if sum(1 for chosen in (universe, from_grant, instruments) if chosen) > 1:
+        console.print(
+            "[red]Name instruments, draw a universe, or follow a grant — one of the three.[/red]"
+        )
         raise typer.Exit(code=2)
+    if from_grant:
+        runtime = _runtime(workspace)
+        try:
+            runtime.initialise()
+            with runtime.database.session() as session:
+                followed = next(
+                    (g for g in runtime.grants.all(session) if g.ref == from_grant), None
+                )
+                if followed is None:
+                    console.print(f"[red]No grant {escape(from_grant)}.[/red]")
+                    raise typer.Exit(code=2)
+                instruments = tuple(str(s) for s in followed.instruments)
+        finally:
+            runtime.close()
     if not instruments and not universe:
-        console.print("[red]A grant names at least one --instrument, or a --universe.[/red]")
+        console.print(
+            "[red]A grant names at least one --instrument, a --universe, or a --from-grant.[/red]"
+        )
         raise typer.Exit(code=2)
     if len(reason) <= 10:
         console.print("[red]A grant says why, in a sentence: --reason.[/red]")

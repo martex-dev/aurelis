@@ -23,7 +23,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from aurelis.platform.db.tables import Base
 
-__all__ = ["DataGrant", "ServiceCycle"]
+__all__ = ["LEVERAGE_SOURCES", "DataGrant", "ServiceCycle"]
+
+LEVERAGE_SOURCES: tuple[str, ...] = ("bybit",)
+"""Vendors a grant reads *leverage* from — funding and open interest of the
+perpetual — rather than bars. The instruments a leverage grant names are the
+spot symbols the readings are recorded against."""
 
 
 class DataGrant(Base):
@@ -72,6 +77,11 @@ class DataGrant(Base):
     @property
     def is_live(self) -> bool:
         return not self.source.startswith("fixture:")
+
+    @property
+    def is_leverage(self) -> bool:
+        """Read funding and open interest, not bars, under this grant."""
+        return self.source in LEVERAGE_SOURCES
 
 
 class ServiceCycle(Base):

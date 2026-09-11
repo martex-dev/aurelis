@@ -22,12 +22,16 @@ __all__ = [
     "Grants",
     "catalogue_for",
     "feed_for",
+    "leverage_for",
     "microstructure_for",
     "stats_for",
 ]
 
-KNOWN_SOURCES: tuple[str, ...] = ("coinbase",)
-"""Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``."""
+KNOWN_SOURCES: tuple[str, ...] = ("coinbase", "bybit")
+"""Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``.
+``coinbase`` grants read bars, the book and the tape; ``bybit`` grants read
+the leverage of the same spot symbols' perpetuals (see
+:data:`aurelis.service.tables.LEVERAGE_SOURCES`)."""
 
 
 class Grants:
@@ -195,6 +199,15 @@ def catalogue_for(grant: DataGrant) -> Any:
 
         return CoinbaseProducts()
     raise IntegrityViolation(f"no catalogue for source {grant.source!r}")
+
+
+def leverage_for(grant: DataGrant) -> Any:
+    """The funding and open-interest feed a leverage grant names."""
+    if grant.source == "bybit":
+        from aurelis.intel.leverage import BybitLeverage
+
+        return BybitLeverage()
+    raise IntegrityViolation(f"no leverage feed for source {grant.source!r}")
 
 
 def stats_for(source: str) -> Any:

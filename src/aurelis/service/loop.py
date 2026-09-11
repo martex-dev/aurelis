@@ -32,7 +32,13 @@ from aurelis.core.errors import ProviderUnavailable
 from aurelis.core.ids import RefKind, uuid7
 from aurelis.intel.live import FeedUnavailable
 from aurelis.platform.db.refs import allocate_ref
-from aurelis.service.grants import Grants, catalogue_for, feed_for, microstructure_for
+from aurelis.service.grants import (
+    Grants,
+    catalogue_for,
+    feed_for,
+    leverage_for,
+    microstructure_for,
+)
 from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.world.derive import derive_price_events
 from aurelis.world.sources import sync_catalogue
@@ -105,6 +111,7 @@ class Service:
         feeds: Callable[[DataGrant], Any] | None = None,
         catalogues: Callable[[DataGrant], Any] | None = None,
         microstructure: Callable[[DataGrant], tuple[Any, Any]] | None = None,
+        leverage: Callable[[DataGrant], Any] | None = None,
         research_source: Any | None = None,
     ) -> None:
         self.runtime = runtime
@@ -113,6 +120,7 @@ class Service:
         self._feeds = feeds or (lambda grant: feed_for(grant, clock=runtime.clock))
         self._catalogue = catalogues or catalogue_for
         self._microstructure = microstructure or microstructure_for
+        self._leverage = leverage or leverage_for
         self._research_source = research_source
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -136,7 +144,7 @@ class Service:
         #    delistings become events before any bar is fetched
         catalogue_done: set[str] = set()
         for grant in grants:
-            if not grant.is_live or grant.source in catalogue_done:
+            if not grant.is_live or grant.is_leverage or grant.source in catalogue_done:
                 continue
             catalogue_done.add(grant.source)
             try:
@@ -166,6 +174,8 @@ class Service:
         fetched_once: set[tuple[str, str]] = set()
         duplicates = 0
         for grant in grants:
+            if grant.is_leverage:
+                continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in fetched_once:
                     duplicates += 1
@@ -273,7 +283,7 @@ class Service:
         micro_events = 0
         read_once: set[tuple[str, str]] = set()
         for grant in grants:
-            if not grant.is_live:
+            if not grant.is_live or grant.is_leverage:
                 continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in read_once:
@@ -310,6 +320,69 @@ class Service:
                     )
         if readings:
             notes.append(f"microstructure: {readings} reading(s), {micro_events} event(s)")
+
+        # 1c. leverage, under its own grant: the funding rate and the open
+        #     interest of each spot instrument's perpetual, as events on the
+        #     spot instrument. A symbol with no perpetual is counted, not an
+        #     incident; a venue that is down is one incident for the grant.
+        from aurelis.intel.leverage import perp_for, record_leverage
+
+        lev_readings = lev_events = lev_without = 0
+        for grant in grants:
+            if not grant.is_leverage:
+                continue
+            try:
+                feed = self._leverage(grant)
+                listed = feed.listed()
+            except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                incidents.append(
+                    self._incident(
+                        severity=Severity.WARNING,
+                        source="service.leverage",
+                        subject=grant.ref,
+                        desk=grant.desk,
+                        message=f"{grant.source} instruments: {type(error).__name__}: {error}",
+                        action="No leverage was recorded this wake; the next retries.",
+                        at=moment,
+                    )
+                )
+                continue
+            for symbol in grant.instruments:
+                if perp_for(str(symbol)) not in listed:
+                    lev_without += 1
+                    continue
+                try:
+                    with runtime.database.session() as session:
+                        _, created = record_leverage(
+                            session,
+                            runtime.world,
+                            runtime.artifacts,
+                            symbol=str(symbol),
+                            feed=feed,
+                            clock=runtime.clock,
+                            at=moment,
+                        )
+                    lev_readings += 1
+                    lev_events += created
+                except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                    incidents.append(
+                        self._incident(
+                            severity=Severity.WARNING,
+                            source="service.leverage",
+                            subject=f"{grant.ref}:{symbol}",
+                            desk=grant.desk,
+                            message=f"{symbol} leverage: {type(error).__name__}: {error}",
+                            action=(
+                                "Nothing was recorded for this instrument; the next wake retries."
+                            ),
+                            at=moment,
+                        )
+                    )
+        if lev_readings or lev_without:
+            notes.append(
+                f"leverage: {lev_readings} reading(s), {lev_events} event(s), "
+                f"{lev_without} without a perpetual"
+            )
 
         # After new events and settlements, every active mechanism seals
         # predictions on any occurrence it has not yet, and mechanisms that

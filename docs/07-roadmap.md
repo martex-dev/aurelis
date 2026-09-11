@@ -1908,6 +1908,36 @@ See [ADR-0035](adr/0035-a-mechanism-is-tested-across-the-universe.md).
 
 ---
 
+## M35 — The leverage the agents keep citing enters the stream ✅
+
+Both live mechanisms are stories about liquidation cascades and crowded
+leveraged longs, stated over closes, a book and a tape. The company held no
+funding rate and no open interest. Now it does.
+
+### Funding and open interest as events on the spot instrument
+
+Under a `bybit` grant that names the same spot symbols as the universe grant
+(`--from-grant GRT-0002`), every wake reads each instrument's USDT perpetual
+without credentials: `leverage.funding`, one per eight-hour settlement with
+the rate and its annualised figure; `leverage.open_interest`, one per hourly
+reading with the change over a day. They are recorded on the spot instrument
+so that mining joins them to price events and a mechanism on funding seals
+against the spot close; the perpetual is its own entity, `derivative_of` the
+spot. Derived: `funding.extreme_positive` / `_negative` past five basis
+points a settlement, `oi.surge` / `oi.purge` past ten percent a day — each
+carrying the threshold that fired. The same settlement read twice is one
+event. A symbol with no perpetual is counted, not an incident.
+
+### Tested
+
+A mechanism stated on `funding.extreme_positive` seals a forward prediction
+against the spot close at the settlement. The judge's material shows the
+funding line and the open-interest line by the newest-per-kind rule.
+
+See [ADR-0036](adr/0036-the-leverage-the-agents-cite-enters-the-stream.md).
+
+---
+
 ## Sequencing
 
 ```

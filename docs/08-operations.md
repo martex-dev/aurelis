@@ -188,6 +188,19 @@ ranking's artifact digest are recorded on it as provenance. The service never
 re-runs the rule: a listing that becomes liquid later is not fetched until a
 person grants again. An instrument on two grants is fetched once a wake.
 
+Leverage is its own grant, on the same spot symbols:
+
+```bash
+aurelis service grant -w live --source bybit --from-grant GRT-0002 \
+    --reason "the leverage the agents keep citing, read for the same universe" --by <you> --yes
+```
+
+Every wake it reads each instrument's USDT perpetual on Bybit's public API —
+the funding rate per settlement and the hourly open interest — and records
+them as events on the spot instrument, with extreme funding and open-interest
+surges derived. A symbol with no perpetual is counted in the wake's note; a
+venue that is down is one warning incident. A leverage grant fetches no bars.
+
 The grant is the one decision a person makes: it names the vendor, the
 instruments, who and why, goes on the ledger, and cannot be widened — only
 revoked (`aurelis service revoke GRT-0001`). The service then wakes on the
