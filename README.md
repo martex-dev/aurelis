@@ -11,13 +11,18 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M35 — the leverage the agents keep citing enters the stream.**
-Both live mechanisms are stories about liquidation cascades; the company
-held no funding rate and no open interest. Under its own grant the service
-now reads each instrument's perpetual every wake, records funding and open
-interest as events on the spot instrument, derives extreme funding and
-open-interest surges with their thresholds in the event, and a mechanism can
-fire on them and seal against the spot close. Before it, M34: a mechanism is
+Status: **M36 — Mission Control shows the hunt.** Every mechanism has a
+page: the causal statement, what its author was shown with the in-sample
+figures labelled as such, the record against the unconditional base rate,
+every prediction with its outcome, the paper trades, and the other agents
+who were shown the same trigger and declined, with their reasons. Before it,
+M35: the leverage the agents keep citing enters the stream.** Both live
+mechanisms are stories about liquidation cascades; the company held no
+funding rate and no open interest. Under its own grant the service now reads
+each instrument's perpetual every wake, records funding and open interest as
+events on the spot instrument, derives extreme funding and open-interest
+surges with their thresholds in the event, and a mechanism can fire on them
+and seal against the spot close. M34: a mechanism is
 tested across the universe, not on one chart.** A grant can be drawn from the
 venue's own liquidity ranking: the top thirty USD-quoted instruments by
 dollar notional, pegged ones set aside by their measured range, the rule and
@@ -972,6 +977,7 @@ automatically by the company, five milestones in.
 | **M33** ✅ | **The miner's evidence** | in-sample effect sizes beside the unconditional, labelled; the first real mechanism, and declines that say why |
 | **M34** ✅ | **The universe** | a grant drawn from the venue's liquidity ranking by dollar notional, pegs excluded by measurement; a mechanism is tested wherever its trigger fires |
 | **M35** ✅ | **Leverage** | funding and open interest from the perpetual, as events on the spot instrument; extreme funding and OI surges derived; a mechanism can fire on them |
+| **M36** ✅ | **The hunt, on the station** | a page per mechanism: statement, evidence shown, predictions and outcomes, paper trades, and who declined the trigger and why |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

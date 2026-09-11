@@ -1952,6 +1952,26 @@ See [ADR-0036](adr/0036-the-leverage-the-agents-cite-enters-the-stream.md).
 
 ---
 
+## M36 — Mission Control shows the hunt ✅
+
+The mechanism loop was the company's most important work and nobody could
+watch it without opening the database.
+
+### A page per mechanism
+
+`/mechanism/<ref>`: the causal statement, what the agent was shown unfolded
+from the evidence artifact with the in-sample figures labelled as such, the
+record with the unconditional base rate, the tally by instrument, every
+prediction with its outcome linked to its thesis, the paper trades, and the
+other agents who were shown the same trigger and declined — with their
+reasons. The mechanisms page gained "Declined, and why" under its table and
+links every mechanism to its page. The page computes nothing: every figure is
+the library's or the resolver's.
+
+See [ADR-0037](adr/0037-mission-control-shows-the-hunt.md).
+
+---
+
 ## Sequencing
 
 ```

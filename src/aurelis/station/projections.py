@@ -24,6 +24,7 @@ strategies` today would be a fabricated fact about an empty world; reporting
 from __future__ import annotations
 
 import datetime as dt
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -82,8 +83,10 @@ __all__ = [
     "DepartmentView",
     "DeskView",
     "GraveyardView",
+    "HuntView",
     "HypothesisView",
     "KnowledgeView",
+    "MechanismDetail",
     "MeetingView",
     "MissionView",
     "MechanismsView",
@@ -97,8 +100,10 @@ __all__ = [
     "department_view",
     "desk_view",
     "graveyard_view",
+    "hunt_view",
     "hypothesis_view",
     "knowledge_view",
+    "mechanism_detail",
     "meeting_view",
     "mission_view",
     "mechanisms_view",
@@ -1626,3 +1631,216 @@ def _href_for(subject: str | None) -> str:
         "MTG": f"/meeting/{subject}",
         "HYP": f"/hypothesis/{subject}",
     }.get(prefix, "")
+
+
+# ------------------------------------------------------------------ the hunt
+
+
+@dataclass(frozen=True, slots=True)
+class MechanismDetail:
+    """One mechanism, drill-down: the statement, what the agent was shown, every
+    prediction and its outcome, the paper trades, and who declined the same
+    trigger and why. Everything the mechanisms table summarises, unfolded."""
+
+    ref: str
+    title: str
+    agent: str
+    trigger: str
+    direction: str
+    horizon: int
+    confidence: str
+    why: str
+    other_side: str
+    decay: str
+    origin: str
+    found_on: str
+    stated_at: dt.datetime
+    model: str
+    seal: str
+    evidence_digest: str
+    evidence: list[tuple[str, str]]
+    """What the agent was shown, unfolded from the evidence artifact: the
+    pattern's figures and the in-sample effect beside the unconditional."""
+
+    verdict: str
+    is_scheme: bool
+    retired: bool
+    retired_reason: str
+    predictions: int
+    scored: int
+    hits: int
+    brier: str
+    base_rate: str
+    rows: list[dict[str, Any]]
+    """Every prediction, newest first."""
+
+    by_instrument: list[dict[str, Any]]
+    trades: list[dict[str, Any]]
+    declines: list[dict[str, Any]]
+    """Agents who were shown the same trigger and declined, with their reasons."""
+
+
+def _declines(
+    session: Session, *, trigger: str | None = None, limit: int = 40
+) -> list[dict[str, Any]]:
+    from aurelis.core.enums import EventKind
+
+    query = (
+        sa.select(Event)
+        .where(Event.kind == EventKind.MECHANISM_DECLINED.value)
+        .order_by(Event.seq.desc())
+        .limit(limit * 4 if trigger else limit)
+    )
+    out: list[dict[str, Any]] = []
+    for event in session.execute(query).scalars():
+        payload = dict(event.payload or {})
+        if trigger is not None and payload.get("trigger") != trigger:
+            continue
+        out.append(
+            {
+                "seq": event.seq,
+                "at": event.created_at,
+                "agent": event.actor,
+                "trigger": str(payload.get("trigger", "")),
+                "then": str(payload.get("then", "")),
+                "because": str(payload.get("because", "") or ""),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _evidence_pairs(artifacts: Any, digest: str | None) -> list[tuple[str, str]]:
+    if not digest or artifacts is None:
+        return []
+    try:
+        record = json.loads(artifacts.get(digest))
+    except Exception:  # noqa: BLE001 - a missing or unreadable artifact is shown as such
+        return [("evidence", f"artifact {digest[:16]} could not be read")]
+    pairs: list[tuple[str, str]] = []
+    pattern = record.get("pattern") or {}
+    for key, value in pattern.items():
+        pairs.append((f"pattern: {key}", str(value)))
+    evidence = record.get("evidence") or {}
+    for key, value in evidence.items():
+        pairs.append((f"in sample: {key}", str(value)))
+    return pairs
+
+
+def mechanism_detail(
+    session: Session, ref: str, *, artifacts: Any = None
+) -> MechanismDetail | None:
+    from aurelis.mechanism.tables import Mechanism, MechanismTrade
+
+    row = session.execute(sa.select(Mechanism).where(Mechanism.ref == ref)).scalar_one_or_none()
+    if row is None:
+        return None
+    status = Mechanisms().status(session, ref)
+    theses = list(
+        session.execute(
+            sa.select(Thesis)
+            .where(Thesis.mechanism_ref == ref)
+            .order_by(Thesis.sealed_at.desc(), Thesis.ref.desc())
+        ).scalars()
+    )
+    rows: list[dict[str, Any]] = []
+    tally: dict[str, dict[str, int]] = {}
+    for thesis in theses:
+        settled = thesis.scored_at is not None
+        hit = bool(thesis.outcome) == (thesis.direction == "up") if settled else None
+        rows.append(
+            {
+                "ref": thesis.ref,
+                "instrument": thesis.instrument,
+                "reference_at": thesis.reference_at,
+                "reference_close": thesis.reference_close,
+                "resolves_at": thesis.resolves_at,
+                "state": "training" if thesis.mechanism_training else (
+                    "open" if not settled else ("right" if hit else "wrong")
+                ),
+                "brier": str(thesis.brier) if thesis.brier is not None else "",
+                "is_live": bool(thesis.is_live),
+            }
+        )
+        bucket = tally.setdefault(thesis.instrument, {"n": 0, "scored": 0, "hits": 0})
+        if thesis.mechanism_training:
+            continue
+        bucket["n"] += 1
+        if settled:
+            bucket["scored"] += 1
+            bucket["hits"] += int(bool(hit))
+    trades = [
+        {
+            "thesis": t.thesis_ref,
+            "portfolio": t.portfolio_ref,
+            "opened_at": t.opened_at,
+            "closed_at": t.closed_at,
+            "pnl": str(t.pnl) if t.pnl is not None else "",
+        }
+        for t in session.execute(
+            sa.select(MechanismTrade)
+            .where(MechanismTrade.mechanism_ref == ref)
+            .order_by(MechanismTrade.opened_at.desc())
+        ).scalars()
+    ]
+    calibration = status.calibration
+    return MechanismDetail(
+        ref=row.ref,
+        title=row.title,
+        agent=row.agent_ref,
+        trigger=row.trigger_kind,
+        direction=row.direction,
+        horizon=row.horizon_hours,
+        confidence=str(row.confidence),
+        why=row.why,
+        other_side=row.other_side,
+        decay=row.decay,
+        origin=row.origin,
+        found_on=f"{row.found_on_instrument} @ {row.found_on_event[:16]}",
+        stated_at=row.stated_at,
+        model=row.model,
+        seal=row.seal,
+        evidence_digest=row.evidence_digest or "",
+        evidence=_evidence_pairs(artifacts, row.evidence_digest),
+        verdict=status.verdict,
+        is_scheme=status.is_scheme,
+        retired=status.retired,
+        retired_reason=row.retired_reason or "",
+        predictions=status.predictions,
+        scored=status.scored,
+        hits=calibration.hits,
+        brier=str(calibration.mean_brier) if calibration.mean_brier is not None else "-",
+        base_rate=str(status.base_rate_brier) if status.base_rate_brier is not None else "-",
+        rows=rows,
+        by_instrument=[
+            {"instrument": k, **v}
+            for k, v in sorted(tally.items(), key=lambda kv: (-kv[1]["n"], kv[0]))
+        ],
+        trades=trades,
+        declines=_declines(session, trigger=row.trigger_kind),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class HuntView:
+    """The part of the hunt that is not yet a mechanism: who was shown a
+    conjunction and declined it, and why. A record of refusals with reasons is
+    most of what the company knows about which patterns are coincidences."""
+
+    declines: list[dict[str, Any]]
+    declined_total: Figure
+
+
+def hunt_view(session: Session, *, limit: int = 30) -> HuntView:
+    from aurelis.core.enums import EventKind
+
+    return HuntView(
+        declines=_declines(session, limit=limit),
+        declined_total=_count(
+            session,
+            Event,
+            Event.kind == EventKind.MECHANISM_DECLINED.value,
+            detail="mechanism declined",
+        ),
+    )

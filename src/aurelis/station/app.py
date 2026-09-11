@@ -184,6 +184,13 @@ class StationApp:
         with self.runtime.database.session() as session:
             return self._render("Mechanisms", pages.mechanisms_page(session), "")
 
+    def _mechanism(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
+        if not rest:
+            return self._mechanisms(rest, _q)
+        with self.runtime.database.session() as session:
+            body = pages.mechanism_page(session, rest[0], artifacts=self.runtime.artifacts)
+        return self._render(rest[0], body, f"mechanism {rest[0]}")
+
     def _world(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
         with self.runtime.database.session() as session:
             return self._render("World", pages.world_page(session), "")
@@ -262,6 +269,7 @@ _ROUTES: dict[str, Route] = {
     "service": StationApp._service,
     "world": StationApp._world,
     "mechanisms": StationApp._mechanisms,
+    "mechanism": StationApp._mechanism,
     "thesis": StationApp._thesis,
     "workshop": StationApp._workshop,
     "knowledge": StationApp._knowledge,

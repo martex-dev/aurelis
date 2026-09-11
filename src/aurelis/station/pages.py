@@ -54,6 +54,7 @@ __all__ = [
     "theses_page",
     "thesis_page",
     "timeline_page",
+    "mechanism_page",
     "mechanisms_page",
     "world_page",
 ]
@@ -1024,9 +1025,9 @@ def mechanisms_page(session: Session) -> str:
         ],
         [
             [
-                f"<a href='/agent/{escape_text(r['agent'])}'>{escape_text(r['ref'])}</a>",
+                f"<a href='/mechanism/{escape_text(r['ref'])}'>{escape_text(r['ref'])}</a>",
                 escape_text(r["title"][:40]),
-                escape_text(r["agent"]),
+                f"<a href='/agent/{escape_text(r['agent'])}'>{escape_text(r['agent'])}</a>",
                 escape_text(f"{r['trigger']} {r['direction']} {r['horizon']}h"),
                 str(r["predictions"]),
                 str(r["scored"]),
@@ -1045,6 +1046,20 @@ def mechanisms_page(session: Session) -> str:
             for r in view.rows
         ],
     )
+    hunt = proj.hunt_view(session)
+    declines = _rows(
+        ["at", "agent", "shown", "because"],
+        [
+            [
+                _when(d["at"]),
+                f"<a href='/agent/{escape_text(d['agent'])}'>{escape_text(d['agent'])}</a>",
+                escape_text(f"{d['trigger']} → {d['then']}"),
+                escape_text(d["because"] or "no reason given") if d["because"]
+                else "<span class='nodata'>no reason given</span>",
+            ]
+            for d in hunt.declines
+        ],
+    )
     return (
         "<h1>Mechanisms</h1>"
         "<p class='mono'>The join from a mined conjunction to a tested scheme. An "
@@ -1061,10 +1076,145 @@ def mechanisms_page(session: Session) -> str:
                 ("mechanisms", figure_span(view.total)),
                 ("candidate schemes", figure_span(view.schemes)),
                 ("retired", figure_span(view.retired)),
+                ("declined", figure_span(hunt.declined_total)),
             ]
         )
         + "</div>"
         f"{rows}"
+        "<h2>Declined, and why</h2>"
+        "<p class='mono'>Agents shown a mined conjunction with its in-sample "
+        "evidence who would not state a mechanism over it. A record of refusals "
+        "with reasons is most of what the company knows about which patterns are "
+        "coincidences.</p>"
+        f"{declines}"
+    )
+
+
+def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str | None:
+    """One mechanism, unfolded: the statement, what the agent was shown, every
+    prediction with its outcome, the paper trades, and who declined the same
+    trigger and why. The page draws the record; the verdict is the library's."""
+    view = proj.mechanism_detail(session, ref, artifacts=artifacts)
+    if view is None:
+        return None
+    verdict = (
+        "<span class='pill ok'>SCHEME</span>"
+        if view.is_scheme
+        else "<span class='pill bad'>RETIRED</span>"
+        if view.retired
+        else f"<span class='pill warn'>{escape_text(view.verdict).upper()}</span>"
+    )
+    statement = _kv(
+        [
+            (
+                "stated by",
+                f"<a href='/agent/{escape_text(view.agent)}'>{escape_text(view.agent)}</a>",
+            ),
+            ("trigger", escape_text(view.trigger)),
+            (
+                "claims",
+                escape_text(f"{view.direction} over {view.horizon}h at {view.confidence}"),
+            ),
+            ("found on", escape_text(view.found_on)),
+            ("origin", escape_text(view.origin)),
+            ("stated", _when(view.stated_at)),
+            ("model", escape_text(view.model)),
+            ("seal", f"<span class='mono'>{escape_text(view.seal[:16])}</span>"),
+            ("verdict", verdict),
+        ]
+    )
+    story = (
+        f"<div class='turn'><span class='who'>WHY</span><br>{escape_text(view.why)}</div>"
+        f"<div class='turn opposes'><span class='who'>OTHER SIDE</span><br>"
+        f"{escape_text(view.other_side)}</div>"
+        f"<div class='turn'><span class='who'>DECAY</span><br>{escape_text(view.decay)}</div>"
+    )
+    if view.retired:
+        reason = escape_text(view.retired_reason or "no reason recorded")
+        story += f"<div class='banner'>RETIRED — {reason}</div>"
+    record = _kv(
+        [
+            ("predictions", str(view.predictions)),
+            ("scored", str(view.scored)),
+            ("right", str(view.hits)),
+            ("brier", escape_text(view.brier)),
+            ("base rate", escape_text(view.base_rate)),
+        ]
+    )
+    shown = [[escape_text(k), escape_text(v)] for k, v in view.evidence]
+    evidence = (
+        _rows(["what the agent was shown", "figure"], shown)
+        if view.evidence
+        else "<p class='nodata'>No evidence artifact: stated before the miner showed its "
+        "evidence, or by hand.</p>"
+    )
+    if view.evidence:
+        evidence += (
+            f"<p class='mono'>artifact {escape_text(view.evidence_digest[:16])} — in-sample "
+            "figures are the reason the question was asked, not evidence it predicts; "
+            "the predictions below are the test.</p>"
+        )
+    by_instrument = _rows(
+        ["instrument", "predictions", "scored", "right"],
+        [
+            [escape_text(b["instrument"]), str(b["n"]), str(b["scored"]), str(b["hits"])]
+            for b in view.by_instrument
+        ],
+    )
+    predictions = _rows(
+        ["ref", "instrument", "reference bar", "close", "resolves", "outcome", "brier"],
+        [
+            [
+                f"<a href='/thesis/{escape_text(r['ref'])}'>{escape_text(r['ref'])}</a>",
+                escape_text(r["instrument"]) + _fixture_tag(r["is_live"]),
+                _when(r["reference_at"]),
+                escape_text(r["reference_close"]),
+                _when(r["resolves_at"]),
+                _pill(r["state"]),
+                escape_text(r["brier"] or "—"),
+            ]
+            for r in view.rows[:200]
+        ],
+    )
+    trades = _rows(
+        ["thesis", "portfolio", "opened", "closed", "P&L"],
+        [
+            [
+                f"<a href='/thesis/{escape_text(t['thesis'])}'>{escape_text(t['thesis'])}</a>",
+                escape_text(t["portfolio"]),
+                _when(t["opened_at"]),
+                _when(t["closed_at"]),
+                escape_text(t["pnl"] or "open"),
+            ]
+            for t in view.trades
+        ],
+    )
+    declines = _rows(
+        ["at", "agent", "shown", "because"],
+        [
+            [
+                _when(d["at"]),
+                f"<a href='/agent/{escape_text(d['agent'])}'>{escape_text(d['agent'])}</a>",
+                escape_text(f"{d['trigger']} → {d['then']}"),
+                escape_text(d["because"]) if d["because"]
+                else "<span class='nodata'>no reason given</span>",
+            ]
+            for d in view.declines
+        ],
+    )
+    return (
+        f"<h1>{escape_text(view.ref)} — {escape_text(view.title)}</h1>"
+        f"<div class='panel'>{statement}</div>"
+        f"<h2>The mechanism</h2>{story}"
+        f"<h2>The record</h2><div class='panel'>{record}</div>"
+        "<p class='mono'>The training occurrence is excluded from every figure above. "
+        "Only predictions the mechanism sealed before the outcome, on occurrences it "
+        "was not found on, count.</p>"
+        f"<h2>What the agent was shown</h2>{evidence}"
+        f"<h2>By instrument</h2>{by_instrument}"
+        f"<h2>Predictions</h2>{predictions}"
+        f"<h2>Paper trades</h2>{trades}"
+        f"<h2>Others shown the same trigger, who declined</h2>{declines}"
     )
 
 
