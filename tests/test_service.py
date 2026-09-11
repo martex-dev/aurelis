@@ -244,7 +244,8 @@ def test_the_forward_record_accumulates_across_wakes(company: Runtime, clock: Fr
     assert len(outcome.wakes) == 4
     with company.database.session() as session:
         record = company_calibration(session)["overall"][0]
-    assert record.scored >= 3 * (len(_theses(company)) // 4), "most views have been scored"
+    views = [t for t in _theses(company) if t.mechanism_ref is None]
+    assert record.scored >= 3 * (len(views) // 4), "most views have been scored"
     assert record.scored > 0 and record.mean_brier is not None
 
 

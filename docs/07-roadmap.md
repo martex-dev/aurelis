@@ -1697,6 +1697,72 @@ See [ADR-0031](adr/0031-a-mechanism-is-the-join-from-a-conjunction-to-a-scheme.m
 
 ---
 
+## M31 — The company hunts for mechanisms, and a scheme trades on paper ✅
+
+Three gaps stood between M30 and agents developing their own strategies: an
+operator named the pattern to bring to the seat, the trigger vocabulary was
+two price events, and a mechanism that earned a record never became a
+position. Closing the third found a flaw in M30's own bar.
+
+### The base rate was wrong, and a perfect mechanism could not pass it
+
+M30 measured a mechanism against the up-frequency among its own predictions.
+That is conditioned on the trigger — it is the signal — so a mechanism right
+every time had a base-rate Brier of zero and read as worse than the base
+rate. The bar is now the instrument's **unconditional** drift over the same
+horizon: what a forecaster who knew only how often the market went up would
+have scored. A test builds a market whose drift is a coin toss and whose
+post-spike six hours always rise; the mechanism is a scheme.
+
+### The company hunts
+
+`aurelis mechanism mine` ranks every ordered pair of event kinds that
+co-occurs inside a window. The loop's `discover` action brings one (agent,
+pair) to the discovery seat per cycle — one active mechanism per trigger,
+every pair to every judging agent, then it stops — after `judge`, so the
+forward record is never starved. Four more derived events (momentum flip,
+volatility squeeze and expansion, drawdown) give the agents more to reason
+about. The mandate has a twelfth condition, `scheme`.
+
+### A scheme trades on paper, through the same chain as anything else
+
+Only a candidate scheme trades. It is composed into a strategy version by the
+Strategy Architect — the write-scope guard refused the researcher who stated
+it, which is the org design working — given five percent of the paper book,
+and every firing goes through Risk, approval, execution and post-trade.
+Opens at the reference close, closes at the resolution close, realised P&L
+after fees on the record. Reported, never judged.
+
+```
+aurelis mechanism mine          # ranked conjunctions; a list, not a discovery
+aurelis run                     # judges, then brings every pair to every agent
+aurelis mechanism trades        # what each scheme did on paper
+```
+
+### On the live workspace
+
+```
+price.volume_spike  then price.volume_spike   108 on 3 instruments
+price.volume_spike  then price.range_break     53 on 3
+price.range_break   then price.range_break     40 on 3
+price.range_break   then price.volume_spike    30 on 3
+```
+
+The first forward view scored: STRAT's six-hour ETH short, weakened by the
+critic to 0.52, was right — Brier 0.2304 over one, twenty more standing. The
+service now runs the whole loop unattended, hourly, under the grant.
+
+### What this milestone did not do
+
+- Every trigger is still price-derived. The memecoin example needs social and
+  on-chain sources that do not exist.
+- A scheme's share of the book is a constant, not a function of its record.
+- Nothing closes a paper position early on a kill latch.
+
+See [ADR-0032](adr/0032-the-company-hunts-and-a-scheme-trades-on-paper.md).
+
+---
+
 ## Sequencing
 
 ```

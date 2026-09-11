@@ -46,6 +46,7 @@ from aurelis.strategy.tables import PromotionGate
 __all__ = [
     "AGENDA",
     "JUDGING_DEPARTMENTS",
+    "_discoverable",
     "Action",
     "ActionRefused",
     "Choice",
@@ -205,6 +206,80 @@ def _seatable(session: Session) -> tuple[list[Any], int, int]:
     return seatable, len(instruments), open_views
 
 
+def _last_word_on_pattern(session: Session, agent_ref: str, first: str, second: str) -> bool:
+    """Whether this agent already answered this pattern on the standing events.
+
+    The same material gets the same cached answer, so an agent that stated or
+    declined a mechanism for a pair is not asked again until a newer world
+    event exists.
+    """
+    from aurelis.core.enums import EventKind
+    from aurelis.platform.db.tables import Event
+
+    rows = session.execute(
+        sa.select(Event.seq, Event.payload)
+        .where(
+            Event.actor == agent_ref,
+            Event.kind.in_([EventKind.MECHANISM_STATED.value, EventKind.MECHANISM_DECLINED.value]),
+        )
+        .order_by(Event.seq.desc())
+    ).all()
+    last = next(
+        (
+            int(seq)
+            for seq, payload in rows
+            if (payload or {}).get("trigger") == first
+            and ((payload or {}).get("then") == second or (payload or {}).get("then") is None)
+        ),
+        None,
+    )
+    if last is None:
+        return False
+    newest_event = session.execute(
+        sa.select(sa.func.max(Event.seq)).where(Event.kind == EventKind.WORLD_EVENT_RECORDED.value)
+    ).scalar()
+    return newest_event is None or last > int(newest_event)
+
+
+def _discoverable(session: Session) -> list[tuple[Any, Any]]:
+    """(agent, mined pair) combinations not yet answered on the standing events."""
+    import datetime as dt
+
+    from aurelis.mechanism.library import Mechanisms
+    from aurelis.mechanism.mining import mine_pairs
+
+    pairs = mine_pairs(session, within=dt.timedelta(hours=24), min_count=3, limit=8)
+    # One active mechanism per trigger. A pattern somebody already stated a
+    # mechanism for is being tested by that mechanism's predictions; a second
+    # story about the same trigger waits until the first is retired.
+    taken = {m.trigger_kind for m in Mechanisms.active(session)}
+    out: list[tuple[Any, Any]] = []
+    for pair in pairs:
+        if pair.first in taken:
+            continue
+        for agent in _judges(session):
+            if not _last_word_on_pattern(session, agent.ref, pair.first, pair.second):
+                out.append((agent, pair))
+    return out
+
+
+def _nothing_to_discover(session: Session) -> str:
+    """Every mined pair has been put to every judging agent on these events."""
+    from aurelis.world.tables import WorldEvent
+
+    if not _count(session, WorldEvent):
+        return "the event stream is empty, so there is no conjunction to bring to anyone"
+    if not _judges(session):
+        return "no active agent sits in a department that forms views"
+    if _discoverable(session):
+        return ""
+    return (
+        "every mined conjunction has been put to every judging agent on the "
+        "events that stand; each stated a mechanism or declined, and the same "
+        "material gets the same answer until a new event arrives"
+    )
+
+
 def _nothing_to_judge(session: Session) -> str:
     """The seat runs until every judge holds a view on every recorded market.
 
@@ -348,6 +423,16 @@ AGENDA: tuple[Action, ...] = (
         ),
         exhausted=_nothing_to_judge,
         estimated_calls=4,
+    ),
+    Action(
+        key="discover",
+        condition="scheme",
+        intent=(
+            "mine the event stream for a conjunction and seat an agent to state a "
+            "mechanism for it, or decline; a stated mechanism starts predicting"
+        ),
+        exhausted=_nothing_to_discover,
+        estimated_calls=1,
     ),
     Action(
         key="author",

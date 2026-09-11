@@ -605,8 +605,8 @@ def test_views_on_fixtures_do_not_count_toward_the_mandate(settings: Settings) -
     built.close()
 
 
-def test_the_standard_has_eleven_conditions_and_calibrated_is_second() -> None:
-    assert len(STANDARD) == 11
+def test_the_standard_has_twelve_conditions_and_calibrated_is_second() -> None:
+    assert len(STANDARD) == 12
     assert STANDARD[1].key == "calibrated"
 
 

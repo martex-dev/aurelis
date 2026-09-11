@@ -1009,7 +1009,19 @@ def service_page(session: Session) -> str:
 def mechanisms_page(session: Session) -> str:
     view = proj.mechanisms_view(session)
     rows = _rows(
-        ["ref", "title", "agent", "trigger", "predicts", "scored", "brier", "base rate", "verdict"],
+        [
+            "ref",
+            "title",
+            "agent",
+            "trigger",
+            "predicts",
+            "scored",
+            "brier",
+            "base rate",
+            "paper trades",
+            "paper P&L",
+            "verdict",
+        ],
         [
             [
                 f"<a href='/agent/{escape_text(r['agent'])}'>{escape_text(r['ref'])}</a>",
@@ -1020,6 +1032,8 @@ def mechanisms_page(session: Session) -> str:
                 str(r["scored"]),
                 escape_text(r["brier"]),
                 escape_text(r["base_rate"]),
+                escape_text(f"{r['paper']['closed']} closed, {r['paper']['open']} open"),
+                escape_text(str(r["paper"]["pnl"])),
                 (
                     "<span class='pill ok'>SCHEME</span>"
                     if r["is_scheme"]
@@ -1038,7 +1052,9 @@ def mechanisms_page(session: Session) -> str:
         "it decays; the mechanism then predicts every other occurrence, sealed "
         "before the outcome and scored. The instance it was found on is excluded. "
         "A mechanism is a scheme only when its out-of-sample predictions beat a "
-        "coin toss and the base rate; one that does not is retired and kept.</p>"
+        "coin toss and the instrument's own drift; one that does not is retired and "
+        "kept. A scheme trades its firings on paper through Risk; its P&L is "
+        "reported and never judged, because over a short window it is mostly luck.</p>"
         "<div class='panel'>"
         + _kv(
             [

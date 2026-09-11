@@ -137,6 +137,33 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
     as one so that "what can the company do unattended?" is answerable by
     reading twenty lines.
     """
+    if action.key == "discover":
+        from aurelis.autonomy.agenda import _discoverable
+        from aurelis.mechanism.discovery import MechanismRefused, seat_discovery
+
+        with runtime.database.session() as session:
+            candidates = _discoverable(session)
+        if not candidates:
+            return "nothing left to bring to anyone"
+        agent, pair = candidates[0]
+        try:
+            mechanism = seat_discovery(
+                runtime,
+                agent_handle=agent.handle,
+                trigger_kind=pair.first,
+                second_kind=pair.second,
+                desk="crypto",
+                window_hours=24,
+                at=at,
+            )
+        except MechanismRefused as error:
+            raise ActionRefused(
+                f"{agent.handle} was refused on {pair.describe()}: {error}"
+            ) from error
+        if mechanism is None:
+            return f"{agent.handle} declined to state a mechanism for {pair.describe()}"
+        return f"{mechanism.ref} {mechanism.title!r} stated by {agent.handle} on {pair.describe()}"
+
     if action.key == "judge":
         from aurelis.autonomy.agenda import _seatable
         from aurelis.judgement.resolution import resolve_due

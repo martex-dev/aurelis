@@ -18,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from aurelis.platform.db.tables import Base
 
-__all__ = ["Mechanism"]
+__all__ = ["Mechanism", "MechanismTrade"]
 
 
 class Mechanism(Base):
@@ -71,6 +71,11 @@ class Mechanism(Base):
     retired_at: Mapped[dt.datetime | None] = mapped_column()
     retired_reason: Mapped[str] = mapped_column(sa.Text, default="")
 
+    version_ref: Mapped[str | None] = mapped_column(sa.String(24), index=True)
+    """The strategy version this mechanism trades as, once it is a candidate
+    scheme. Bookkeeping set after the fact, outside the seal like retirement:
+    it changes nothing about what the mechanism claims."""
+
     __table_args__ = (
         sa.CheckConstraint("direction IN ('up','down')", name="ck_mechanism_direction"),
         sa.CheckConstraint("horizon_hours > 0", name="ck_mechanism_horizon"),
@@ -83,3 +88,21 @@ class Mechanism(Base):
         sa.CheckConstraint("length(other_side) > 10", name="ck_mechanism_names_the_other_side"),
         sa.CheckConstraint("length(seal) = 64", name="ck_mechanism_is_sealed"),
     )
+
+
+class MechanismTrade(Base):
+    """One paper round trip a scheme made on one of its own firings."""
+
+    __tablename__ = "mechanism_trades"
+
+    trade_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    mechanism_ref: Mapped[str] = mapped_column(sa.String(24), index=True)
+    thesis_ref: Mapped[str] = mapped_column(sa.String(24), unique=True, index=True)
+    portfolio_ref: Mapped[str] = mapped_column(sa.String(24), index=True)
+    open_order_ref: Mapped[str] = mapped_column(sa.String(24))
+    close_order_ref: Mapped[str | None] = mapped_column(sa.String(24))
+    opened_at: Mapped[dt.datetime] = mapped_column(index=True)
+    closed_at: Mapped[dt.datetime | None] = mapped_column()
+    pnl: Mapped[Decimal | None] = mapped_column()
+    """Realised, after fees, once closed. Reported, never judged: over a short
+    window it is mostly luck, and the mandate does not read it."""

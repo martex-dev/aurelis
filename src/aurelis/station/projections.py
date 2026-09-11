@@ -1307,6 +1307,7 @@ class MechanismsView:
 
 
 def mechanisms_view(session: Session) -> MechanismsView:
+    from aurelis.mechanism.paper import pnl_of
     from aurelis.mechanism.tables import Mechanism
 
     statuses = Mechanisms().statuses(session)
@@ -1330,6 +1331,7 @@ def mechanisms_view(session: Session) -> MechanismsView:
             "verdict": st.verdict,
             "is_scheme": st.is_scheme,
             "retired": st.retired,
+            "paper": pnl_of(session, st.mechanism.ref),
         }
         for st in statuses
     ]

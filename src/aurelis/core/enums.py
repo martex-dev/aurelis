@@ -163,6 +163,10 @@ class EventKind(StrEnum):
     MECHANISM_PREDICTED = "mechanism.predicted"
     """A mechanism sealed forward predictions on the occurrences of its trigger."""
 
+    MECHANISM_TRADED = "mechanism.traded"
+    """A candidate scheme opened or closed paper positions on its own firings,
+    through Risk, approval and execution like any other intent."""
+
     MECHANISM_RETIRED = "mechanism.retired"
     """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
 

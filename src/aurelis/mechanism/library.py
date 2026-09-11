@@ -26,6 +26,49 @@ MIN_SCORED_PREDICTIONS = 20
 record is read as evidence rather than as a handful of coin flips."""
 
 
+def _unconditional_base_rate(session: Session, scored: list[Thesis]) -> Decimal | None:
+    """Brier of always predicting the instrument's own up-frequency.
+
+    For each scored prediction, the up-frequency is read from the newest
+    recording of its instrument over its horizon: the fraction of bars whose
+    close ``h`` bars later was above their own close. What a forecaster who
+    knew only the drift would have said, scored against what happened.
+    """
+    from aurelis.intel.snapshots import MarketSnapshot, Snapshots
+
+    if not scored:
+        return None
+    frequencies: dict[tuple[str, int], Decimal] = {}
+    total = Decimal(0)
+    for thesis in scored:
+        key = (thesis.instrument, thesis.horizon_hours)
+        if key not in frequencies:
+            snapshot = (
+                session.execute(
+                    sa.select(MarketSnapshot)
+                    .where(MarketSnapshot.symbol == thesis.instrument)
+                    .order_by(MarketSnapshot.bars.desc(), MarketSnapshot.ref.desc())
+                    .limit(1)
+                )
+                .scalars()
+                .first()
+            )
+            if snapshot is None:
+                frequencies[key] = Decimal("0.5")
+            else:
+                bars = Snapshots.bars_of(session, snapshot.ref)
+                horizon = thesis.horizon_hours
+                ups = sum(
+                    1 for i in range(len(bars) - horizon) if bars[i + horizon].close > bars[i].close
+                )
+                span = max(1, len(bars) - horizon)
+                frequencies[key] = (Decimal(ups) / Decimal(span)).quantize(Decimal("0.0001"))
+        p = frequencies[key]
+        realised = Decimal(1) if thesis.outcome else Decimal(0)
+        total += (p - realised) ** 2
+    return (total / len(scored)).quantize(Decimal("0.0001"))
+
+
 def seal_of(row: Mechanism) -> str:
     return sha256_of(
         {
@@ -59,6 +102,14 @@ class MechanismStatus:
     The training occurrence is excluded: a mechanism scored on the instance it
     was found on is scored on the data that suggested it, which is the
     circularity the whole design exists to break.
+
+    ``base_rate_brier`` is the **unconditional** one: what always predicting
+    the instrument's own up-frequency over the same horizon, across every bar
+    of the recording, would have scored on these predictions. The up-frequency
+    *among the mechanism's own predictions* is conditioned on the trigger --
+    it is the signal -- and a mechanism that was right every time could never
+    beat it. The first version of this used that, and a perfect mechanism read
+    as worse than the base rate.
     """
 
     mechanism: Mechanism
@@ -66,6 +117,7 @@ class MechanismStatus:
     scored: int
     calibration: AgentCalibration
     retired: bool
+    base_rate_brier: Decimal | None = None
 
     @property
     def enough(self) -> bool:
@@ -83,7 +135,15 @@ class MechanismStatus:
             not self.retired
             and self.enough
             and self.calibration.informative
-            and self.calibration.beats_base_rate
+            and self.beats_base_rate
+        )
+
+    @property
+    def beats_base_rate(self) -> bool:
+        return (
+            self.calibration.mean_brier is not None
+            and self.base_rate_brier is not None
+            and self.calibration.mean_brier < self.base_rate_brier
         )
 
     @property
@@ -94,6 +154,8 @@ class MechanismStatus:
             return f"gathering ({self.scored}/{MIN_SCORED_PREDICTIONS})"
         if self.is_scheme:
             return "candidate scheme"
+        if self.calibration.informative and not self.beats_base_rate:
+            return "beats a coin toss, not the base rate"
         if self.calibration.informative:
             return "beats a coin toss, not the base rate"
         return "no better than a coin toss"
@@ -103,7 +165,7 @@ class MechanismStatus:
             f"{self.mechanism.ref} {self.mechanism.title!r}: {self.predictions} "
             f"prediction(s), {self.scored} scored, Brier "
             f"{self.calibration.mean_brier} (coin toss {COIN_TOSS}, base rate "
-            f"{self.calibration.base_rate_brier}) — {self.verdict}"
+            f"{self.base_rate_brier}) — {self.verdict}"
         )
 
 
@@ -243,7 +305,12 @@ class Mechanisms:
             scored=len(scored),
             calibration=calibration_over(ref, out_of_sample),
             retired=row.retired_at is not None,
+            base_rate_brier=_unconditional_base_rate(session, scored),
         )
+
+    def schemes(self, session: Session) -> list[MechanismStatus]:
+        """The mechanisms that have earned the right to trade on paper."""
+        return [s for s in self.statuses(session) if s.is_scheme]
 
     def statuses(self, session: Session) -> list[MechanismStatus]:
         return [self.status(session, row.ref) for row in self.all(session)]
@@ -262,7 +329,7 @@ class Mechanisms:
         for status in self.statuses(session):
             if status.retired or not status.enough:
                 continue
-            if not status.calibration.beats_base_rate:
+            if not status.beats_base_rate:
                 retired.append(
                     self.retire(
                         session,

@@ -11,16 +11,16 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M30 — a mechanism is the join from a mined conjunction to a tested
-scheme.** An agent states why a pattern should work, who is on the other
-side, and how it decays; the mechanism then predicts every future occurrence,
-sealed before the outcome and scored, and beats a coin toss and the base rate
-or is retired. Shown the spike-then-break pattern that fired 37 times on live
-BTC, **two real agents declined to state a mechanism** — the requirement
-separating a coincidence from a scheme, which is the whole point. Behind it:
-M29 built the event/entity world model; M28 attacks every view; M27 runs for
-days; M26 deleted the menu; M25 made the evidence forward. No live trading,
-and every page says so. · 2026-09-11
+Status: **M31 — the company hunts for mechanisms on its own, and a scheme
+trades on paper.** The loop mines the event stream, brings every ranked
+conjunction to every judging agent, seals each stated mechanism's forward
+predictions, retires the ones that fail the instrument's own drift, and
+trades the ones that earn it — five percent of the paper book, through Risk,
+opened at the firing and closed at the resolution, P&L reported and never
+judged. The first live view scored: a six-hour ETH short the critic had
+weakened to 0.52 was right. Behind it: M30 mechanisms; M29 the world model;
+M28 the adversary; M27 the service; M26 deleted the menu; M25 made the
+evidence forward. No live trading, and every page says so. · 2026-09-11
 
 > Research software. No live trading adapter exists. Nothing here is proven
 > profitable. Read [DISCLAIMER.md](DISCLAIMER.md).
@@ -47,6 +47,7 @@ aurelis thesis calibration # and is measured on what happened
 aurelis service start      # and the company runs on its own, under a grant you recorded
 aurelis world events       # what it knows that is not a price
 aurelis mechanism discover # turn a mined conjunction into a tested scheme, or decline
+aurelis mechanism trades   # what a calibrated scheme did on paper, through Risk
 aurelis station serve      # Mission Control on http://127.0.0.1:8787/
 ```
 
@@ -944,6 +945,7 @@ automatically by the company, five milestones in.
 | **M28** ✅ | **Disagreement** | a critic attacks every view before the seal, and is scored on catches and false alarms |
 | **M29** ✅ | **The world model** | entities, an immutable event stream, relations; the catalogue as the first non-price source |
 | **M30** ✅ | **Mechanisms** | an agent's causal story over a mined pattern, tested by additional forward predictions or retired |
+| **M31** ✅ | **The hunt, and paper** | the loop mines and brings every conjunction to every agent; a calibrated scheme trades on paper through Risk |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

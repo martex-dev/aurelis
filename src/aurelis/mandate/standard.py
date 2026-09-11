@@ -5,7 +5,7 @@ specified by the person who has to act on it: the company does **not** get a
 live adapter switched on for it. It reaches the judgement itself, on evidence,
 and asks.
 
-So the question is what would entitle it to ask. Eleven conditions, and every one
+So the question is what would entitle it to ask. Twelve conditions, and every one
 is checked against a row the company already writes — no self-assessment, no
 prose, no confidence.
 
@@ -166,6 +166,39 @@ def _calibrated(session: Session) -> tuple[bool, str]:
     )
 
 
+def _scheme(session: Session) -> tuple[bool, str]:
+    """Has a mechanism the agents stated beaten the base rate out of sample?
+
+    Read from the mechanism record: predictions sealed as the trigger fired,
+    the training occurrence excluded, scored against recordings, compared with
+    the instrument's own unconditional drift. A mechanism nobody stated, or one
+    still gathering, is reported as such rather than as a zero.
+    """
+    from aurelis.mechanism.library import Mechanisms
+
+    statuses = Mechanisms().statuses(session)
+    if not statuses:
+        return False, "no mechanism has been stated over the event stream"
+    schemes = [s for s in statuses if s.is_scheme]
+    retired = sum(1 for s in statuses if s.retired)
+    gathering = sum(1 for s in statuses if not s.retired and not s.enough)
+    best = max(
+        (s for s in statuses if s.calibration.mean_brier is not None),
+        key=lambda s: -(s.calibration.mean_brier or 0),
+        default=None,
+    )
+    reading = (
+        f"{len(statuses)} mechanism(s): {len(schemes)} candidate scheme(s), "
+        f"{gathering} gathering, {retired} retired"
+    )
+    if best is not None and best.calibration.mean_brier is not None:
+        reading += (
+            f"; best Brier {best.calibration.mean_brier} against base rate "
+            f"{best.base_rate_brier} on {best.scored} scored"
+        )
+    return bool(schemes), reading
+
+
 def _authored(session: Session) -> tuple[bool, str]:
     count = session.execute(
         sa.text("SELECT count(*) FROM authoring_attempts")
@@ -317,6 +350,15 @@ STANDARD: tuple[Criterion, ...] = (
         _calibrated,
     ),
     Criterion(
+        "scheme",
+        "Has a mechanism the agents stated beaten the base rate out of sample?",
+        "A mined pattern is a coincidence until an agent says why it works and "
+        "the additional predictions it implies come true. The only evidence that "
+        "the company found something is a mechanism whose sealed, out-of-sample "
+        "predictions beat knowing only the drift.",
+        _scheme,
+    ),
+    Criterion(
         "authored",
         "Did an agent write the strategy, rather than a menu or the corpus supplying it?",
         "The company exists to create an edge, not to sift for one. A strategy "
@@ -381,7 +423,7 @@ STANDARD: tuple[Criterion, ...] = (
         _chain_intact,
     ),
 )
-"""The eleven conditions, in the order a reader should meet them.
+"""The twelve conditions, in the order a reader should meet them.
 
 ``live_data`` is first because it is the one the company cannot argue its way
 around: everything else could be satisfied on fixtures, and satisfying them on

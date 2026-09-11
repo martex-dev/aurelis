@@ -110,6 +110,7 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
     """Every mechanism, and what its out-of-sample predictions say so far."""
     runtime = _runtime(workspace)
     try:
+        runtime.initialise()
         with runtime.database.session() as session:
             statuses = runtime.mechanisms.statuses(session)
     finally:
@@ -155,6 +156,7 @@ def mechanism_sweep(workspace: WorkspaceOption = None) -> None:
     """Retire mechanisms that gathered enough predictions and did not beat the base rate."""
     runtime = _runtime(workspace)
     try:
+        runtime.initialise()
         with runtime.database.session() as session:
             retired = runtime.mechanisms.sweep_retirements(session)
     finally:
@@ -164,3 +166,71 @@ def mechanism_sweep(workspace: WorkspaceOption = None) -> None:
         return
     for row in retired:
         console.print(f"[red]{row.ref}[/red] retired: {escape(row.retired_reason)}")
+
+
+@mechanism_app.command("mine")
+def mechanism_mine(
+    workspace: WorkspaceOption = None,
+    hours: Annotated[int, typer.Option(help="Co-occurrence window, hours.")] = 24,
+    min_count: Annotated[int, typer.Option(help="Least occurrences to list.")] = 3,
+) -> None:
+    """Rank the conjunctions in the event stream. A list, not a discovery."""
+    import datetime as dt
+
+    from aurelis.mechanism.mining import mine_pairs
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        with runtime.database.session() as session:
+            pairs = mine_pairs(session, within=dt.timedelta(hours=hours), min_count=min_count)
+    finally:
+        runtime.close()
+    table = Table(title=f"conjunctions within {hours}h")
+    for column in ("trigger", "then", "count", "instruments"):
+        table.add_column(column)
+    for pair in pairs:
+        table.add_row(pair.first, pair.second, str(pair.count), str(pair.instruments))
+    console.print(table)
+    console.print(
+        "[dim]Every row is a coincidence until an agent states why it works and the "
+        "predictions it implies come true. `aurelis mechanism discover --trigger ... "
+        "--then ...` puts one to an agent; `aurelis run` puts all of them to everyone.[/dim]"
+    )
+
+
+@mechanism_app.command("trades")
+def mechanism_trades(workspace: WorkspaceOption = None) -> None:
+    """What each candidate scheme did on paper: round trips and realised P&L."""
+    from aurelis.mechanism.paper import pnl_of
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        with runtime.database.session() as session:
+            rows = [
+                (s.mechanism, pnl_of(session, s.mechanism.ref))
+                for s in runtime.mechanisms.statuses(session)
+            ]
+    finally:
+        runtime.close()
+    table = Table(title="scheme paper trading")
+    for column in ("ref", "title", "trades", "open", "closed", "won", "realised P&L"):
+        table.add_column(column, overflow="fold")
+    for mechanism, summary in rows:
+        tone = "green" if summary["pnl"] > 0 else ("red" if summary["pnl"] < 0 else "dim")
+        table.add_row(
+            mechanism.ref,
+            escape(mechanism.title[:40]),
+            str(summary["trades"]),
+            str(summary["open"]),
+            str(summary["closed"]),
+            str(summary["won"]),
+            f"[{tone}]{summary['pnl']}[/{tone}]",
+        )
+    console.print(table)
+    console.print(
+        "[dim]Only a candidate scheme trades, and only on paper, through Risk. P&L is "
+        "reported and never judged: over a short window it is mostly luck. The "
+        "calibration record is the measure.[/dim]"
+    )

@@ -232,6 +232,10 @@ jobs:
           aurelis mechanism discover -w "$workspace" --agent QUANT --trigger price.range_break --then price.range_break --hours 48
           aurelis mechanism list -w "$workspace"
           aurelis mechanism sweep -w "$workspace"
+          # M31: the stream is mined and ranked, and a scheme's paper trades
+          # are listed. Offline nothing is a scheme yet, so nothing trades.
+          aurelis mechanism mine -w "$workspace" --hours 48
+          aurelis mechanism trades -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"
