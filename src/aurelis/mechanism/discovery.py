@@ -65,12 +65,15 @@ DISCOVERY_FORM = (
     "WHY: <the causal reason it works>\n"
     "OTHER_SIDE: <who takes the losing side of the trade, and why>\n"
     "DECAY: <how crowded it can get and how fast it dies once others find it>\n\n"
-    "Or, if you cannot give a causal reason: MECHANISM: nothing\n\n"
+    "Or, if you cannot give a causal reason:\n"
+    "MECHANISM: nothing\n"
+    "BECAUSE: <why not, in one or two sentences>\n\n"
     f"{FIGURE_RULE}"
 )
 
 _FIELD = re.compile(
-    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY)\s*:\s*(.*)$", re.I
+    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY|BECAUSE)\s*:\s*(.*)$",
+    re.I,
 )
 
 
@@ -87,6 +90,9 @@ class MechanismProposal:
     why: str
     other_side: str
     decay: str
+    because: str = ""
+    """Why the agent declined, when it did. The most useful sentence a decline
+    can carry: a record of refusals with no reasons is a record of nothing."""
 
     @property
     def declined(self) -> bool:
@@ -101,12 +107,14 @@ def _parse(text: str) -> MechanismProposal:
         if match:
             current = match.group(1).upper()
             fields[current] = match.group(2).strip()
-        elif current in ("WHY", "OTHER_SIDE", "DECAY") and line.strip():
+        elif current in ("WHY", "OTHER_SIDE", "DECAY", "BECAUSE") and line.strip():
             fields[current] = f"{fields[current]} {line.strip()}".strip()
 
     title = fields.get("MECHANISM", "").strip()
     if title.lower() == "nothing" or not title:
-        return MechanismProposal(None, "up", 0, Decimal("1"), "", "", "")
+        return MechanismProposal(
+            None, "up", 0, Decimal("1"), "", "", "", fields.get("BECAUSE", "").strip()
+        )
 
     direction = fields.get("DIRECTION", "").strip().lower()
     if direction not in ("up", "down"):
@@ -140,12 +148,33 @@ def _parse(text: str) -> MechanismProposal:
     )
 
 
+_HORIZONS_SHOWN: tuple[int, ...] = (6, 24, 72)
+
+
 def _material(
-    trigger_kind: str, second_kind: str, pairs: list[CoOccurrence], window_hours: int
+    trigger_kind: str,
+    second_kind: str,
+    pairs: list[CoOccurrence],
+    window_hours: int,
+    session: Session | None = None,
 ) -> dict[str, Any]:
+    from aurelis.mechanism.mining import effect_of
+
     by_instrument: dict[str, int] = {}
     for pair in pairs:
         by_instrument[pair.entity_key] = by_instrument.get(pair.entity_key, 0) + 1
+    evidence: dict[str, str] = {}
+    if session is not None:
+        for horizon in _HORIZONS_SHOWN:
+            effect = effect_of(session, trigger=trigger_kind, horizon_hours=horizon)
+            if effect is None:
+                continue
+            evidence[f"{horizon}h after the trigger"] = (
+                f"n {effect.n}, mean {effect.mean_return_after}%, up {effect.up_rate_after}"
+            )
+            evidence[f"{horizon}h after any bar"] = (
+                f"mean {effect.unconditional_mean_return}%, up {effect.unconditional_up_rate}"
+            )
     return {
         "pattern": {
             "trigger": trigger_kind,
@@ -155,9 +184,15 @@ def _material(
             "instruments": len(by_instrument),
         },
         "by_instrument": {k: str(v) for k, v in sorted(by_instrument.items())},
+        "in_sample_evidence": evidence
+        or {"none": "no occurrence of the trigger has a recording that covers its horizon"},
         "note": (
-            "This count is what the mining found. It is not evidence the pattern "
-            "predicts anything; a causal reason is."
+            "The count and the in-sample figures are what the mining found on the "
+            "data it was mined from. They are the reason to ask, not evidence the "
+            "pattern predicts anything; the out-of-sample predictions a mechanism "
+            "seals as the trigger fires again are the test. A causal reason is "
+            "what makes a mechanism, and only one that would also hold on data "
+            "the mining never saw is worth stating."
         ),
     }
 
@@ -176,6 +211,7 @@ def propose_mechanism(
     identity: str = "",
     task_ref: str | None = None,
     ledger: Any = None,
+    artifacts: Any = None,
     at: dt.datetime | None = None,
 ) -> Mechanism | None:
     """Show an agent a co-occurrence and seal the mechanism it states, or ``None``.
@@ -192,7 +228,7 @@ def propose_mechanism(
     )
     if not pairs:
         return None
-    material = _material(trigger_kind, second_kind, pairs, window_hours)
+    material = _material(trigger_kind, second_kind, pairs, window_hours, session=session)
     counts: dict[str, int] = {}
     for pair in pairs:
         counts[pair.entity_key] = counts.get(pair.entity_key, 0) + 1
@@ -220,7 +256,11 @@ def propose_mechanism(
                 kind=EventKind.MECHANISM_DECLINED,
                 actor=agent_ref,
                 subject=agent_ref,
-                payload={"trigger": trigger_kind, "then": second_kind},
+                payload={
+                    "trigger": trigger_kind,
+                    "then": second_kind,
+                    "because": proposal.because[:400],
+                },
                 at=moment,
             )
         return None
@@ -233,6 +273,15 @@ def propose_mechanism(
             f"the mechanism cites {len(invented)} figure(s) it was not shown: "
             f"{', '.join(invented[:5])}"
         )
+    evidence_digest = ""
+    if artifacts is not None:
+        evidence_digest = artifacts.put_json(
+            session,
+            {"pattern": material["pattern"], "evidence": material["in_sample_evidence"]},
+            kind="mechanism.evidence",
+            produced_by=agent_ref,
+            actor=agent_ref,
+        ).digest
     return mechanisms.state(
         session,
         agent_ref=agent_ref,
@@ -252,6 +301,7 @@ def propose_mechanism(
         tokens=response.usage.total,
         usd=response.usd,
         at=moment,
+        evidence_digest=evidence_digest,
     )
 
 
@@ -299,6 +349,7 @@ def seat_discovery(
             identity=identity_of(seated),
             task_ref=task_ref,
             ledger=runtime.ledger,
+            artifacts=runtime.artifacts,
             at=moment,
         )
         if claimed is not None:

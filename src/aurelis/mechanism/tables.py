@@ -71,6 +71,11 @@ class Mechanism(Base):
     retired_at: Mapped[dt.datetime | None] = mapped_column()
     retired_reason: Mapped[str] = mapped_column(sa.Text, default="")
 
+    evidence_digest: Mapped[str | None] = mapped_column(sa.String(64))
+    """Artifact digest of the in-sample evidence the agent was shown when it
+    stated the mechanism. Provenance, outside the seal like the version: it
+    records what prompted the claim, not the claim."""
+
     version_ref: Mapped[str | None] = mapped_column(sa.String(24), index=True)
     """The strategy version this mechanism trades as, once it is a candidate
     scheme. Bookkeeping set after the fact, outside the seal like retirement:

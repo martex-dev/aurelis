@@ -345,3 +345,113 @@ def test_the_richer_derived_events_fire_and_are_citable(company: Runtime) -> Non
     assert "price.momentum_flip" in kinds
     assert flip is not None and flip.payload["to"] in ("up", "down")
     assert "return_24" in flip.payload
+
+
+# ------------------------------------------------------------ the miner's evidence (M33)
+
+
+def test_the_miner_shows_the_in_sample_effect_of_a_trigger(company: Runtime) -> None:
+    """On the edge market the six hours after a spike rise every time, and any
+    six hours rise about half the time. Both columns come from the same
+    recording, and the material says the figures are in sample."""
+    from aurelis.mechanism.mining import effect_of
+
+    with company.database.session() as session:
+        effect = effect_of(session, trigger="price.volume_spike", horizon_hours=6)
+    assert effect is not None and effect.n >= 20
+    assert effect.up_rate_after == Decimal("1")
+    assert Decimal("0.35") < effect.unconditional_up_rate < Decimal("0.8")
+    assert effect.mean_return_after > effect.unconditional_mean_return
+    assert effect.lift > Decimal("0.2")
+
+
+def test_the_agent_is_shown_the_evidence_and_may_cite_it(
+    settings: Settings, clock: FrozenClock
+) -> None:
+    """A mechanism that cites the in-sample figures it was shown passes the
+    figure check; one that cites a figure it was not shown is refused. The
+    evidence is kept as an artifact the mechanism names."""
+    from aurelis.mechanism.discovery import MechanismRefused
+
+    seen: list[str] = []
+
+    def citing(request: Any) -> str:
+        prompt = request.messages[-1].content
+        if "State a mechanism for this pattern" in prompt:
+            seen.append(prompt)
+            import re
+
+            match = re.search(
+                r"6h after the trigger: n (\d+), mean (-?[\d.]+)%, up ([\d.]+)", prompt
+            )
+            assert match, prompt
+            n, mean, up = match.groups()
+            return (
+                "MECHANISM: spike then lift\nDIRECTION: up\nHORIZON: 6\nCONFIDENCE: 0.7\n"
+                f"WHY: across {n} spikes the next six hours averaged {mean}% and rose {up} of "
+                "the time, because a burst of forced buying is filled before it is done.\n"
+                "OTHER_SIDE: passive quoters who lean against the burst and are run over.\n"
+                "DECAY: it fades once quoters widen around spikes, within months.\n"
+            )
+        return standins()(request)
+
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=citing))
+    built.initialise()
+    built.staff()
+    with built.database.session() as session:
+        snapshot = built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Payload(_edge(900)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=900,
+        )
+        derive_price_events(session, built.world, snapshot, tail=900)
+        mechanism = propose_mechanism(
+            built.provider,
+            session,
+            built.mechanisms,
+            agent_ref=built.roster.by_handle(session, "QUANT").ref,
+            trigger_kind="price.volume_spike",
+            second_kind="price.range_break",
+            desk="crypto",
+            window_hours=24,
+            ledger=built.ledger,
+            artifacts=built.artifacts,
+        )
+        assert mechanism is not None
+        assert mechanism.evidence_digest and len(mechanism.evidence_digest) == 64
+        kind = session.execute(
+            sa.text("SELECT kind FROM artifacts WHERE digest = :d"),
+            {"d": mechanism.evidence_digest},
+        ).scalar_one()
+    assert kind == "mechanism.evidence"
+    assert "In Sample Evidence" in seen[0] and "6h after any bar" in seen[0]
+    assert "not evidence the pattern predicts anything" in seen[0]
+
+    def inventing(request: Any) -> str:
+        if "State a mechanism for this pattern" in request.messages[-1].content:
+            return (
+                "MECHANISM: made up\nDIRECTION: up\nHORIZON: 6\nCONFIDENCE: 0.7\n"
+                "WHY: it rose 93.7% of the time last year which the table does not show.\n"
+                "OTHER_SIDE: slow traders.\nDECAY: fades over months.\n"
+            )
+        return standins()(request)
+
+    other = Runtime.build(settings, clock=clock, provider=MockProvider(responder=inventing))
+    with other.database.session() as session, pytest.raises(MechanismRefused, match="not shown"):
+        propose_mechanism(
+            other.provider,
+            session,
+            other.mechanisms,
+            agent_ref=built.roster.by_handle(session, "STRAT").ref,
+            trigger_kind="price.volume_spike",
+            second_kind="price.range_break",
+            desk="crypto",
+            window_hours=24,
+            # A different agent in the prompt, or the response cache hands this
+            # call the first agent's answer -- the M25 finding, again.
+            identity="You are STRAT, the strategy architect.",
+        )
+    other.close()
+    built.close()

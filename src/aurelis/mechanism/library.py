@@ -199,6 +199,7 @@ class Mechanisms:
         tokens: int = 0,
         usd: Decimal = Decimal("0"),
         at: dt.datetime | None = None,
+        evidence_digest: str = "",
     ) -> Mechanism:
         moment = at or self._clock.now()
         ref = allocate_ref(session, RefKind.MECHANISM)
@@ -223,6 +224,7 @@ class Mechanisms:
             usd=usd,
             stated_at=moment,
             seal="0" * 64,
+            evidence_digest=evidence_digest or None,
         )
         row.seal = seal_of(row)
         session.add(row)
@@ -240,6 +242,7 @@ class Mechanisms:
                 "confidence": str(confidence),
                 "origin": origin,
                 "found_on": f"{found_on_instrument}@{found_on_event}",
+                "evidence": evidence_digest[:16] if evidence_digest else None,
                 "seal": row.seal[:16],
             },
             at=moment,

@@ -1812,6 +1812,56 @@ See [ADR-0033](adr/0033-the-book-and-the-tape-enter-the-stream.md).
 
 ---
 
+## M33 — The miner shows its evidence, and a decline says why ✅
+
+Five real agents had declined to state a mechanism over a mined pair, and
+the seat had shown them a count. A count is not a reason, and it is also not
+enough to reason from.
+
+### The evidence, labelled as in sample
+
+For the trigger at 6, 24 and 72 hours: occurrences a recording could settle,
+the mean return after them, the share that rose — and the same figures after
+*any* bar, on the same recordings. The note under the table says what it is:
+the reason to ask, computed on the data the pattern was mined from, not
+evidence it predicts anything; the out-of-sample predictions are the test.
+The evidence shown is an artifact the mechanism names. A decline may now
+carry `BECAUSE:`, recorded on the ledger.
+
+### What the live evidence said, and what happened
+
+```
+after price.volume_spike   6h: n 38, up 0.5526 | any bar up 0.5093
+                          24h: n 32, mean -1.18%, up 0.3125 | any bar up 0.5098
+after price.range_break    6h: n 16, mean +0.58%, up 0.9375 | any bar up 0.5093
+                          72h: n 13, mean +2.50%, up 0.8462 | any bar up 0.5144
+```
+
+The agents that declined an "up" mechanism on the spike were right: six
+hours on it is a coin toss and a day on it the price fell two times in three.
+Shown the range-break figures, three real agents still declined — sixteen is
+thin — and a fourth, the Validation agent, stated the company's first
+mechanism:
+
+> **MEC-0001 — Breakout stop-cascade momentum continuation.** A range break
+> in a heavily-leveraged, thin-order-book asset trips clustered stop-loss and
+> liquidation orders on the side caught wrong, and that forced flow plus
+> trend-following systems chasing the break push price further before the
+> move exhausts. Up over 6h at 0.68. Other side: leveraged traders and market
+> makers positioned against the break, and fade traders forced to cover.
+> Decay: a well-known, widely-traded effect; as capital crowds into
+> anticipating it the cascade gets front-run and the edge should compress
+> over weeks to a few months, faster on the more liquid instrument.
+
+It has zero predictions, correctly: every past break's horizon has elapsed.
+Its first sealed prediction comes with the next break the service derives,
+and it has to beat the instrument's own drift out of sample as if nobody had
+believed it.
+
+See [ADR-0034](adr/0034-the-miner-shows-its-evidence.md).
+
+---
+
 ## Sequencing
 
 ```
