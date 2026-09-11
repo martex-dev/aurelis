@@ -395,7 +395,9 @@ def test_an_instrument_on_two_grants_is_fetched_once_a_wake(
     assert "1 instrument(s) on more than one grant, fetched once" in wake.note
     with company.database.session() as session:
         symbols = list(
-            session.execute(sa.text("SELECT symbol FROM market_snapshots ORDER BY symbol")).scalars()
+            session.execute(
+                sa.text("SELECT symbol FROM market_snapshots ORDER BY symbol")
+            ).scalars()
         )
     assert symbols == ["BTC-USD", "ETH-USD"]
     with company.database.session() as session:
