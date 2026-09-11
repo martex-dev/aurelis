@@ -400,3 +400,62 @@ def test_a_prediction_is_not_a_model_call() -> None:
     provider round trip -- which is why a thesis can carry model 'mechanism:...'."""
     response = LlmResponse(text="unused", usage=Usage(1, 1), model=None)  # type: ignore[arg-type]
     assert response.text == "unused"
+
+
+# ------------------------------------------------------------ what the station and the CLI show
+
+
+def test_the_station_shows_the_unconditional_base_rate_not_the_triggers_own(
+    company: Runtime,
+) -> None:
+    """Found on the live workspace after the first scored prediction: the
+    mechanisms page read `base rate 0.0000`. It was printing the calibration's
+    base rate, which is conditioned on the trigger and with one scored
+    prediction is a perfect forecaster. The figure a reader must see is the
+    one retirement compares against: the instrument's own drift."""
+    from decimal import Decimal
+
+    from aurelis.station.projections import mechanisms_view
+
+    # Just after the recording's last break (bar 290), so a six-hour horizon
+    # from it is still ahead and one prediction seals forward.
+    company.clock.set(dt.datetime.fromtimestamp(_START + 292 * _HOUR + 600, tz=dt.UTC))
+    with company.database.session() as session:
+        mechanism = company.mechanisms.state(
+            session,
+            agent_ref=company.roster.by_handle(session, "QUANT").ref,
+            title="break then continuation, six hours",
+            trigger_kind="price.range_break",
+            desk="crypto",
+            horizon_hours=6,
+            direction="up",
+            confidence=Decimal("0.7"),
+            why="stops above the range are run and the forced buying carries the close.",
+            other_side="the shorts whose stops sit just above the range.",
+            decay="it fades as the stops move, within months.",
+            origin="invented",
+            found_on_instrument="BTC-USD",
+            found_on_event="test",
+            model="test",
+        )
+        generate_predictions(session, mechanism, clock=company.clock)
+    company.clock.advance(hours=30)
+    with company.database.session() as session:
+        company.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Payload(_rising(360)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=360,
+        )
+        resolve_due(session, ledger=company.ledger, clock=company.clock)
+        status = company.mechanisms.status(session, mechanism.ref)
+        row = next(r for r in mechanisms_view(session).rows if r["ref"] == mechanism.ref)
+    assert status.scored >= 1
+    assert status.base_rate_brier is not None
+    assert row["base_rate"] == str(status.base_rate_brier)
+    assert status.calibration.base_rate_brier != status.base_rate_brier, (
+        "on a market that only rises the trigger's own base rate is a perfect "
+        "forecaster; the drift over six bars is not, and that is the difference "
+        "the page must show"
+    )

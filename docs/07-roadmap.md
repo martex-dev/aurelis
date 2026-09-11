@@ -1934,6 +1934,20 @@ A mechanism stated on `funding.extreme_positive` seals a forward prediction
 against the spot close at the settlement. The judge's material shows the
 funding line and the open-interest line by the newest-per-kind rule.
 
+### What the live workspace did
+
+The first wake under the leverage grant read twenty-six perpetuals (four of
+the thirty have none), recorded fifty-four leverage events and derived two
+open-interest purges — ZEC's open interest had fallen fifteen percent in a
+day. The same wake scored the first two mechanism predictions ever: MEC-0001
+right on RAY-USD, MEC-0002 wrong on VTHO-USD. One each; nothing to conclude.
+
+Reading the page afterwards found a display bug: the mechanisms table and
+`mechanism list` printed the calibration's *own* base rate — conditioned on
+the trigger, and with one scored prediction a perfect forecaster, `0.0000` —
+where the unconditional figure retirement compares against belongs. Fixed,
+with a test that only passes when the two differ.
+
 See [ADR-0036](adr/0036-the-leverage-the-agents-cite-enters-the-stream.md).
 
 ---

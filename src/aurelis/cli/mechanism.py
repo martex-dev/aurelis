@@ -138,7 +138,8 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
             str(status.predictions),
             str(status.scored),
             str(cal.mean_brier) if cal.mean_brier is not None else "—",
-            str(cal.base_rate_brier) if cal.base_rate_brier is not None else "—",
+            # The unconditional base rate, the one retirement compares against.
+            str(status.base_rate_brier) if status.base_rate_brier is not None else "—",
             f"[{tone}]{escape(status.verdict)}[/{tone}]",
         )
     console.print(table)

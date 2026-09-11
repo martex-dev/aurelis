@@ -1327,9 +1327,11 @@ def mechanisms_view(session: Session) -> MechanismsView:
             "brier": (
                 str(st.calibration.mean_brier) if st.calibration.mean_brier is not None else "-"
             ),
-            "base_rate": str(st.calibration.base_rate_brier)
-            if st.calibration.base_rate_brier is not None
-            else "-",
+            # The unconditional one -- the instrument's own drift over the
+            # horizon -- which is what retirement compares against. The
+            # calibration's own base rate is conditioned on the trigger and
+            # with one scored prediction reads as a perfect forecaster.
+            "base_rate": str(st.base_rate_brier) if st.base_rate_brier is not None else "-",
             "verdict": st.verdict,
             "is_scheme": st.is_scheme,
             "retired": st.retired,
