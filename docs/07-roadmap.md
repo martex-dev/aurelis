@@ -2053,6 +2053,30 @@ See [ADR-0040](adr/0040-evidence-is-counted-by-independent-episode.md).
 
 ---
 
+## M40 — Paper fills at the price the wake can see ✅
+
+A scheme's paper position opened at the trigger bar's close and closed at
+the resolution bar's — prices the order, placed at the next hourly wake,
+could not have got, and for a momentum mechanism the hour in between is
+where the move is. Fills are now at the newest close the wake can see, the
+bar is recorded on the trade, a firing with no recorded price as new as its
+trigger is refused with the reason, a settled position with no price newer
+than its entry waits rather than closing at the entry, and the slippage
+against the trigger's close is reported in basis points, signed so positive
+is worse. Entry and exit are on the mechanism's page.
+
+### What the live workspace did meanwhile
+
+The first wake on M39 code read MEC-0001 as gathering at two episodes, and
+a real agent stated **MEC-0003, repeat volume spike as confirmation of
+sustained inflow into inelastic float** — the first mechanism to fire on the
+conjunction it was shown, `price.volume_spike ⇒ price.volume_spike`, with
+131 forward predictions sealed at the wake and none yet scored.
+
+See [ADR-0041](adr/0041-paper-fills-at-the-price-the-wake-can-see.md).
+
+---
+
 ## Sequencing
 
 ```

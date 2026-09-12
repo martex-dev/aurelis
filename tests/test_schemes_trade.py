@@ -54,7 +54,7 @@ _HOUR = 3600
 _START = 1_780_000_000
 
 
-def _edge(count: int, *, every: int = 30, lift: float = 3.0) -> bytes:
+def _edge(count: int, *, every: int = 30, lift: float = 9.0) -> bytes:
     """A market with a real, mechanical edge and a drift near one half.
 
     Every ``every`` bars a volume spike prints. The six bars after it step up
@@ -63,6 +63,12 @@ def _edge(count: int, *, every: int = 30, lift: float = 3.0) -> bytes:
     time, while over a 6-bar window starting anywhere the close is above its
     start about half the time. A forecaster who knew only the drift scores a
     coin toss; the mechanism does not.
+
+    The lift is nine points on a thousand: large enough that a paper round
+    trip filled at the wake *after* the spike (M40), paying ten basis points
+    a side and the spread, still shows the edge after fees. At three points
+    it did not -- the old hindsight fill at the spike's own close had been
+    carrying the test.
     """
     rows = []
     level = 1000.0
@@ -231,6 +237,9 @@ def test_a_candidate_scheme_trades_its_firings_on_paper_through_risk(
             bars=940,
         )
         derive_price_events(session, company.world, snapshot, tail=940)
+        # The clock stands where the wake would: just after the fresh firing
+        # at bar 930, so the fill is at a price the wake can see (M40).
+        company.clock.set(dt.datetime.fromtimestamp(_START + 931 * _HOUR + 600, tz=dt.UTC))
         generate_predictions(session, mechanism, clock=company.clock)
         first = trade_firings(runtime=company, session=session, mechanism=mechanism)
         trades = list(session.execute(sa.select(MechanismTrade)).scalars())
@@ -241,9 +250,10 @@ def test_a_candidate_scheme_trades_its_firings_on_paper_through_risk(
     assert all(o.version_ref == mechanism.version_ref for o in orders)
     assert mechanism.version_ref is not None or trades[0].open_order_ref
 
-    # Advance past the horizons, settle, and the positions close at the
-    # resolution close; each round trip carries its realised P&L after fees.
-    company.clock.set(dt.datetime.fromtimestamp(_START + 950 * _HOUR, tz=dt.UTC))
+    # Advance to the wake after the horizon, settle, and the positions close
+    # at the newest close that wake can see (M40); each round trip carries its
+    # realised P&L after fees.
+    company.clock.set(dt.datetime.fromtimestamp(_START + 937 * _HOUR + 600, tz=dt.UTC))
     with company.database.session() as session:
         resolve_due(session, ledger=company.ledger, clock=company.clock)
         second = trade_firings(runtime=company, session=session, mechanism=mechanism)

@@ -220,7 +220,16 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
     finally:
         runtime.close()
     table = Table(title="scheme paper trading")
-    for column in ("ref", "title", "trades", "open", "closed", "won", "realised P&L"):
+    for column in (
+        "ref",
+        "title",
+        "trades",
+        "open",
+        "closed",
+        "won",
+        "realised P&L",
+        "entry slippage bps",
+    ):
         table.add_column(column, overflow="fold")
     for mechanism, summary in rows:
         tone = "green" if summary["pnl"] > 0 else ("red" if summary["pnl"] < 0 else "dim")
@@ -232,10 +241,13 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
             str(summary["closed"]),
             str(summary["won"]),
             f"[{tone}]{summary['pnl']}[/{tone}]",
+            str(summary["slippage_bps"]) if summary["slippage_bps"] is not None else "—",
         )
     console.print(table)
     console.print(
         "[dim]Only a candidate scheme trades, and only on paper, through Risk. P&L is "
         "reported and never judged: over a short window it is mostly luck. The "
-        "calibration record is the measure.[/dim]"
+        "calibration record is the measure. Fills are at the newest close the wake "
+        "could see, not the trigger's; the slippage column is the difference, in "
+        "basis points, signed so that positive is worse.[/dim]"
     )

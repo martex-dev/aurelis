@@ -1212,18 +1212,26 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
         ],
     )
     trades = _rows(
-        ["thesis", "portfolio", "opened", "closed", "P&L"],
+        ["thesis", "portfolio", "opened", "entry", "closed", "exit", "P&L"],
         [
             [
                 f"<a href='/thesis/{escape_text(t['thesis'])}'>{escape_text(t['thesis'])}</a>",
                 escape_text(t["portfolio"]),
                 _when(t["opened_at"]),
+                escape_text(t["entry"] or "—"),
                 _when(t["closed_at"]),
+                escape_text(t["exit"] or "—"),
                 escape_text(t["pnl"] or "open"),
             ]
             for t in view.trades
         ],
     )
+    if view.trades:
+        trades += (
+            "<p class='mono'>Entry and exit are the newest closes the wake could see when "
+            "it placed each order, not the trigger's close or the resolution bar's: an "
+            "order placed an hour after a trigger does not fill at the trigger.</p>"
+        )
     declines = _rows(
         ["at", "agent", "shown", "because"],
         [

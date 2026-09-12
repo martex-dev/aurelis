@@ -129,5 +129,14 @@ class MechanismTrade(Base):
     opened_at: Mapped[dt.datetime] = mapped_column(index=True)
     closed_at: Mapped[dt.datetime | None] = mapped_column()
     pnl: Mapped[Decimal | None] = mapped_column()
+
+    entry_price: Mapped[str | None] = mapped_column(sa.String(32))
+    entry_bar_at: Mapped[dt.datetime | None] = mapped_column()
+    exit_price: Mapped[str | None] = mapped_column(sa.String(32))
+    exit_bar_at: Mapped[dt.datetime | None] = mapped_column()
+    """The price the wake could actually see when it placed each order, and
+    the bar it came from. Not the trigger's close: the order is placed at the
+    wake, which may be an hour after the trigger, and a fill at a price the
+    company had not yet recorded is a fill in hindsight (M40)."""
     """Realised, after fees, once closed. Reported, never judged: over a short
     window it is mostly luck, and the mandate does not read it."""

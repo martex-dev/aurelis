@@ -234,10 +234,18 @@ def trade_firings(
             .order_by(Thesis.ref)
         ).scalars()
     )
+    notes: list[str] = []
     for thesis in firings:
         if thesis.scored_at is not None:
             continue  # its horizon already passed unopened; a round trip now would be hindsight
-        price = Decimal(thesis.reference_close)
+        # The fill is at the newest close the wake can see, never the
+        # trigger's: the order is placed now, and now may be an hour later.
+        known = _executable_price(session, thesis.instrument, moment)
+        if known is None or known[1] < _aware(thesis.reference_at):
+            refused.append(thesis.ref)
+            notes.append(f"{thesis.ref}: no recorded price as new as the trigger; not opened")
+            continue
+        price, bar_at = known
         side = OrderSide.BUY if thesis.direction == "up" else OrderSide.SELL
         broker.marks[thesis.instrument] = price
         outcome = runtime.cycle.run(
@@ -263,6 +271,8 @@ def trade_firings(
                 portfolio_ref=book,
                 open_order_ref=outcome.orders[0],
                 opened_at=moment,
+                entry_price=str(price),
+                entry_bar_at=bar_at,
             )
         )
         session.flush()
@@ -290,8 +300,44 @@ def trade_firings(
         tuple(opened),
         closing.closed,
         tuple(refused) + closing.refused,
-        "",
+        "; ".join(notes + ([closing.note] if closing.note else [])),
     )
+
+
+def _executable_price(
+    session: Session, instrument: str, at: dt.datetime
+) -> tuple[Decimal, dt.datetime] | None:
+    """The newest close the company had recorded for ``instrument`` at ``at``.
+
+    From the newest recording of the instrument, the last bar that opened at
+    or before the moment. What a trader at the wake could have dealt near;
+    the trigger's own close is what they could have dealt near an hour ago.
+    """
+    from aurelis.intel.snapshots import MarketSnapshot, Snapshots
+
+    snapshot = (
+        session.execute(
+            sa.select(MarketSnapshot)
+            .where(MarketSnapshot.symbol == instrument)
+            .order_by(MarketSnapshot.fetched_at.desc(), MarketSnapshot.ref.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if snapshot is None:
+        return None
+    moment = at if at.tzinfo else at.replace(tzinfo=dt.UTC)
+    known: tuple[Decimal, dt.datetime] | None = None
+    for bar in Snapshots.bars_of(session, snapshot.ref):
+        when = bar.timestamp if bar.timestamp.tzinfo else bar.timestamp.replace(tzinfo=dt.UTC)
+        if when <= moment and (known is None or when > known[1]):
+            known = (Decimal(str(bar.close)), when)
+    return known
+
+
+def _aware(moment: dt.datetime) -> dt.datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)
 
 
 def has_open_trades(session: Session, mechanism_ref: str) -> bool:
@@ -342,8 +388,17 @@ def close_settled(
     exposure = equity * weight
     closed: list[str] = []
     refused: list[str] = []
+    notes: list[str] = []
     for trade, thesis in to_close:
-        price = Decimal(thesis.resolution_close or thesis.reference_close)
+        # Closed at the newest close the wake can see, not the resolution
+        # bar's: the horizon passed, and the order is placed now.
+        known = _executable_price(session, thesis.instrument, moment)
+        if known is None or (
+            trade.entry_bar_at is not None and known[1] <= _aware(trade.entry_bar_at)
+        ):
+            notes.append(f"{thesis.ref}: no price newer than the entry yet; still open")
+            continue
+        price, bar_at = known
         side = OrderSide.SELL if thesis.direction == "up" else OrderSide.BUY
         broker.marks[thesis.instrument] = price
         outcome = runtime.cycle.run(
@@ -363,6 +418,8 @@ def close_settled(
             continue
         trade.close_order_ref = outcome.orders[0]
         trade.closed_at = moment
+        trade.exit_price = str(price)
+        trade.exit_bar_at = bar_at
         trade.pnl = _round_trip_pnl(session, trade.open_order_ref, trade.close_order_ref)
         session.flush()
         closed.append(thesis.ref)
@@ -382,7 +439,7 @@ def close_settled(
             },
             at=moment,
         )
-    return PaperResult(mechanism.ref, (), tuple(closed), tuple(refused), "")
+    return PaperResult(mechanism.ref, (), tuple(closed), tuple(refused), "; ".join(notes))
 
 
 def _fill(session: Session, order_ref: str) -> tuple[Order, Fill] | None:
@@ -422,10 +479,32 @@ def pnl_of(session: Session, mechanism_ref: str) -> dict[str, Any]:
     )
     closed = [r for r in rows if r.close_order_ref is not None]
     total = sum((Decimal(str(r.pnl or 0)) for r in closed), Decimal(0))
+    # Entry slippage against the trigger's close, in basis points, signed so
+    # that positive is worse for the position: a long filled above the
+    # reference paid it, a short filled below it did.
+    slips: list[Decimal] = []
+    for trade in rows:
+        if not trade.entry_price:
+            continue
+        thesis = session.execute(
+            sa.select(Thesis.reference_close, Thesis.direction).where(
+                Thesis.ref == trade.thesis_ref
+            )
+        ).first()
+        if thesis is None:
+            continue
+        reference = Decimal(str(thesis[0]))
+        if reference <= 0:
+            continue
+        moved = (Decimal(trade.entry_price) - reference) / reference * 10_000
+        slips.append(moved if thesis[1] == "up" else -moved)
     return {
         "trades": len(rows),
         "open": len(rows) - len(closed),
         "closed": len(closed),
         "won": sum(1 for r in closed if Decimal(str(r.pnl or 0)) > 0),
         "pnl": total.quantize(Decimal("0.01")),
+        "slippage_bps": (
+            (sum(slips, Decimal(0)) / len(slips)).quantize(Decimal("0.1")) if slips else None
+        ),
     }

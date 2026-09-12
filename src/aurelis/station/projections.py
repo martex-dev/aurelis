@@ -1780,6 +1780,8 @@ def mechanism_detail(
             "portfolio": t.portfolio_ref,
             "opened_at": t.opened_at,
             "closed_at": t.closed_at,
+            "entry": t.entry_price or "",
+            "exit": t.exit_price or "",
             "pnl": str(t.pnl) if t.pnl is not None else "",
         }
         for t in session.execute(
