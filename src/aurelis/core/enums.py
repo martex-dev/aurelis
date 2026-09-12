@@ -170,6 +170,13 @@ class EventKind(StrEnum):
     MECHANISM_RETIRED = "mechanism.retired"
     """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
 
+    SOURCE_REQUESTED = "source.requested"
+    """An agent asked the company to read a source from the free catalogue, and
+    said why. The service reads it under the source-class grant."""
+
+    SOURCE_DECLINED = "source.declined"
+    """An agent was shown the catalogue and wanted none of it, and said why."""
+
     WORLD_EVENT_RECORDED = "world.event_recorded"
     """A typed event about an entity entered the world model: a listing seen,
     a status change, a volume spike derived from a recording."""

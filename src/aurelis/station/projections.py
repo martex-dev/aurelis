@@ -1229,9 +1229,28 @@ class ServiceView:
     last_wake_at: dt.datetime | None
     next_due_at: dt.datetime | None
     open_incidents: Figure
+    sources: list[dict[str, Any]] = field(default_factory=list)
+    """What the agents asked the company to read, and why, newest first."""
 
 
 def service_view(session: Session, *, limit: int = 40) -> ServiceView:
+    from aurelis.sources.tables import SourceRequest
+
+    requests = [
+        {
+            "ref": r.ref,
+            "agent": r.agent_ref,
+            "source": r.source,
+            "wanted": bool(r.wanted),
+            "reason": r.reason,
+            "at": r.requested_at,
+        }
+        for r in session.execute(
+            sa.select(SourceRequest)
+            .order_by(SourceRequest.requested_at.desc(), SourceRequest.ref.desc())
+            .limit(limit)
+        ).scalars()
+    ]
     grants = list(session.execute(sa.select(DataGrant).order_by(DataGrant.ref)).scalars())
     wakes = list(
         session.execute(
@@ -1300,6 +1319,7 @@ def service_view(session: Session, *, limit: int = 40) -> ServiceView:
             sa.and_(Alert.source.like("service.%"), Alert.resolved_at.is_(None)),
             detail="source like service.%, unresolved",
         ),
+        sources=requests,
     )
 
 

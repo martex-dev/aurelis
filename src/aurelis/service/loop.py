@@ -38,6 +38,7 @@ from aurelis.service.grants import (
     feed_for,
     leverage_for,
     microstructure_for,
+    news_for,
 )
 from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.world.derive import derive_price_events
@@ -112,6 +113,7 @@ class Service:
         catalogues: Callable[[DataGrant], Any] | None = None,
         microstructure: Callable[[DataGrant], tuple[Any, Any]] | None = None,
         leverage: Callable[[DataGrant], Any] | None = None,
+        news: Callable[[str], Any] | None = None,
         research_source: Any | None = None,
     ) -> None:
         self.runtime = runtime
@@ -121,6 +123,7 @@ class Service:
         self._catalogue = catalogues or catalogue_for
         self._microstructure = microstructure or microstructure_for
         self._leverage = leverage or leverage_for
+        self._news = news or news_for
         self._research_source = research_source
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -144,7 +147,12 @@ class Service:
         #    delistings become events before any bar is fetched
         catalogue_done: set[str] = set()
         for grant in grants:
-            if not grant.is_live or grant.is_leverage or grant.source in catalogue_done:
+            if (
+                not grant.is_live
+                or grant.is_leverage
+                or grant.is_news
+                or grant.source in catalogue_done
+            ):
                 continue
             catalogue_done.add(grant.source)
             try:
@@ -174,7 +182,7 @@ class Service:
         fetched_once: set[tuple[str, str]] = set()
         duplicates = 0
         for grant in grants:
-            if grant.is_leverage:
+            if grant.is_leverage or grant.is_news:
                 continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in fetched_once:
@@ -196,9 +204,7 @@ class Service:
                             at=moment,
                         )
                         fetched.append(snapshot.ref)
-                        derived += derive_price_events(
-                            session, runtime.world, snapshot, at=moment
-                        )
+                        derived += derive_price_events(session, runtime.world, snapshot, at=moment)
                 except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                     failures += 1
                     incidents.append(
@@ -283,7 +289,7 @@ class Service:
         micro_events = 0
         read_once: set[tuple[str, str]] = set()
         for grant in grants:
-            if not grant.is_live or grant.is_leverage:
+            if not grant.is_live or grant.is_leverage or grant.is_news:
                 continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in read_once:
@@ -383,6 +389,54 @@ class Service:
                 f"leverage: {lev_readings} reading(s), {lev_events} event(s), "
                 f"{lev_without} without a perpetual"
             )
+
+        # 1d. news, under its own grant: the free-catalogue feeds the agents
+        #     asked for, matched against the grant's spot symbols. No request,
+        #     nothing read; a feed that is down is one incident.
+        from aurelis.intel.news import CATALOGUE, record_news
+        from aurelis.sources.seat import active_sources
+
+        news_grants = [g for g in grants if g.is_news]
+        if news_grants:
+            with runtime.database.session() as session:
+                wanted = active_sources(session)
+            symbols = tuple(dict.fromkeys(str(s) for g in news_grants for s in g.instruments))
+            read = mentions = bursts = 0
+            for name in wanted:
+                try:
+                    entries = self._news(name).entries()
+                    with runtime.database.session() as session:
+                        new_mentions, new_bursts = record_news(
+                            session,
+                            runtime.world,
+                            runtime.artifacts,
+                            source=CATALOGUE[name],
+                            entries=entries,
+                            instruments=symbols,
+                            clock=runtime.clock,
+                            at=moment,
+                        )
+                    read += 1
+                    mentions += new_mentions
+                    bursts += new_bursts
+                except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                    incidents.append(
+                        self._incident(
+                            severity=Severity.WARNING,
+                            source="service.news",
+                            subject=f"{news_grants[0].ref}:{name}",
+                            desk=news_grants[0].desk,
+                            message=f"{name}: {type(error).__name__}: {error}",
+                            action="Nothing was recorded from this source; the next wake retries.",
+                            at=moment,
+                        )
+                    )
+            if wanted:
+                notes.append(
+                    f"news: {read} source(s) read, {mentions} mention(s), {bursts} burst(s)"
+                )
+            else:
+                notes.append("news: no source requested by an agent yet")
 
         # After new events and settlements, every active mechanism seals
         # predictions on any occurrence it has not yet, and mechanisms that

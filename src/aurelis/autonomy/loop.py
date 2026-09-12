@@ -111,9 +111,7 @@ class AutonomyRun:
 
 def _model_calls(runtime: Any) -> int:
     with runtime.database.session() as session:
-        return int(
-            session.execute(sa.text("SELECT count(*) FROM model_calls")).scalar_one()
-        )
+        return int(session.execute(sa.text("SELECT count(*) FROM model_calls")).scalar_one())
 
 
 def _met(runtime: Any, *, at: dt.datetime) -> frozenset[str]:
@@ -163,6 +161,24 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
         if mechanism is None:
             return f"{agent.handle} declined to state a mechanism for {pair.describe()}"
         return f"{mechanism.ref} {mechanism.title!r} stated by {agent.handle} on {pair.describe()}"
+
+    if action.key == "source":
+        from aurelis.autonomy.agenda import _sourceable
+        from aurelis.sources.seat import SourceRefused, seat_sources
+
+        with runtime.database.session() as session:
+            agents = _sourceable(session)
+        if not agents:
+            return "every market-intelligence agent has answered on the catalogue"
+        agent = agents[0]
+        try:
+            rows = seat_sources(runtime, agent_handle=agent.handle, at=at)
+        except SourceRefused as error:
+            raise ActionRefused(f"{agent.handle} was refused on the catalogue: {error}") from error
+        wanted = [r.source for r in rows if r.wanted]
+        if not wanted:
+            return f"{agent.handle} wants none of the catalogue: {rows[0].reason[:120]}"
+        return f"{agent.handle} asked for {', '.join(wanted)}: {rows[0].reason[:120]}"
 
     if action.key == "judge":
         from aurelis.autonomy.agenda import _seatable
@@ -371,14 +387,10 @@ def run_autonomy(
         unmet = _unmet(runtime, at=moment)
 
         with runtime.database.session() as session:
-            decision = choose(
-                session, unmet, budget_left=left, failed=frozenset(failed)
-            )
+            decision = choose(session, unmet, budget_left=left, failed=frozenset(failed))
 
         if decision.action is None:
-            records.append(
-                CycleRecord(n, None, decision.reason, "stopped", False, "", 0)
-            )
+            records.append(CycleRecord(n, None, decision.reason, "stopped", False, "", 0))
             _write(runtime, run_ref, records[-1], unmet=unmet, at=moment)
             stopped = decision.reason
             break
@@ -424,9 +436,7 @@ def run_autonomy(
 
     final = _met(runtime, at=moment)
     with runtime.database.session() as session:
-        remaining = stuck_reasons(
-            session, frozenset(_unmet(runtime, at=moment))
-        )
+        remaining = stuck_reasons(session, frozenset(_unmet(runtime, at=moment)))
         runtime.ledger.append(
             session,
             kind=EventKind.AUTONOMY_RUN_FINISHED,

@@ -67,7 +67,6 @@ class ActionRefused(RuntimeError):
     """
 
 
-
 @dataclass(frozen=True, slots=True)
 class Action:
     """One thing the company can do to itself, and the rule that ends it."""
@@ -280,6 +279,39 @@ def _nothing_to_discover(session: Session) -> str:
     )
 
 
+def _sourceable(session: Session) -> list[Any]:
+    """Market-intelligence agents who have not yet answered on this catalogue."""
+    from aurelis.agents.tables import Agent, AgentState
+    from aurelis.sources.seat import answered_on, catalogue_digest
+
+    digest = catalogue_digest()
+    agents = list(
+        session.execute(
+            sa.select(Agent)
+            .where(
+                Agent.department == "market_intelligence",
+                Agent.state.in_([AgentState.ACTIVE.value, AgentState.WORKING.value]),
+            )
+            .order_by(Agent.ref)
+        ).scalars()
+    )
+    return [a for a in agents if not answered_on(session, a.ref, digest)]
+
+
+def _nothing_to_source(session: Session) -> str:
+    """Every market-intelligence agent has said which free sources it wants."""
+    from aurelis.service.tables import DataGrant
+
+    if not _count(session, DataGrant, DataGrant.revoked_at.is_(None)):
+        return "no data grant is active, so there is no instrument to read sources for"
+    if _sourceable(session):
+        return ""
+    return (
+        "every market-intelligence agent has answered on the current source "
+        "catalogue; a new source in the catalogue is a new question"
+    )
+
+
 def _nothing_to_judge(session: Session) -> str:
     """The seat runs until every judge holds a view on every recorded market.
 
@@ -342,9 +374,7 @@ def _replicated_everything(session: Session) -> str:
     locked = _count(session, Registration, Registration.locked_at.is_not(None))
     done = int(
         session.execute(
-            sa.select(
-                sa.func.count(sa.distinct(Replication.parent_registration_ref))
-            )
+            sa.select(sa.func.count(sa.distinct(Replication.parent_registration_ref)))
         ).scalar_one()
     )
     if not locked:
@@ -432,6 +462,16 @@ AGENDA: tuple[Action, ...] = (
             "mechanism for it, or decline; a stated mechanism starts predicting"
         ),
         exhausted=_nothing_to_discover,
+        estimated_calls=1,
+    ),
+    Action(
+        key="source",
+        condition="scheme",
+        intent=(
+            "show a market-intelligence agent the catalogue of free, official, "
+            "keyless sources and record which it wants the company to read, and why"
+        ),
+        exhausted=_nothing_to_source,
         estimated_calls=1,
     ),
     Action(

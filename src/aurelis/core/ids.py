@@ -133,6 +133,11 @@ class RefKind(StrEnum):
     because a thesis is cited by its own score, and the wrong ones are cited
     more often than the right ones."""
 
+    SOURCE_REQUEST = "SRQ"
+    """One agent's answer about one source in the catalogue: wanted or
+    declined, with the reason. Its own prefix because the answers are what
+    the company knows about which feeds are worth reading."""
+
     GRANT = "GRT"
     """A standing permission, recorded by a person, for the service to fetch
     named instruments from a named vendor. Its own prefix because it is the

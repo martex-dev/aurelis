@@ -24,14 +24,17 @@ __all__ = [
     "feed_for",
     "leverage_for",
     "microstructure_for",
+    "news_for",
     "stats_for",
 ]
 
-KNOWN_SOURCES: tuple[str, ...] = ("coinbase", "bybit")
+KNOWN_SOURCES: tuple[str, ...] = ("coinbase", "bybit", "news")
 """Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``.
 ``coinbase`` grants read bars, the book and the tape; ``bybit`` grants read
 the leverage of the same spot symbols' perpetuals (see
-:data:`aurelis.service.tables.LEVERAGE_SOURCES`)."""
+:data:`aurelis.service.tables.LEVERAGE_SOURCES`); ``news`` grants read the
+free-catalogue feeds the agents asked for, matched against the spot symbols
+(see :data:`aurelis.service.tables.NEWS_SOURCES`)."""
 
 
 class Grants:
@@ -208,6 +211,15 @@ def leverage_for(grant: DataGrant) -> Any:
 
         return BybitLeverage()
     raise IntegrityViolation(f"no leverage feed for source {grant.source!r}")
+
+
+def news_for(name: str) -> Any:
+    """The feed for one catalogue source, by name. Built here and nowhere else."""
+    from aurelis.intel.news import CATALOGUE, RssFeed
+
+    if name not in CATALOGUE:
+        raise IntegrityViolation(f"{name!r} is not in the free source catalogue")
+    return RssFeed(CATALOGUE[name])
 
 
 def stats_for(source: str) -> Any:

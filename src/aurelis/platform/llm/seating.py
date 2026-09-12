@@ -62,11 +62,14 @@ def standins() -> Callable[[LlmRequest], str]:
     from aurelis.authoring.standin import scripted_author
     from aurelis.judgement.standin import scripted_judge
     from aurelis.mechanism.standin import scripted_discovery
+    from aurelis.sources.standin import scripted_sources
 
     def respond(request: LlmRequest) -> str:
         prompt = request.messages[-1].content
         if "State a mechanism for this pattern" in prompt:
             return scripted_discovery(request)
+        if "Which of these sources" in prompt:
+            return scripted_sources(request)
         if any(
             marker in prompt
             for marker in (

@@ -236,6 +236,12 @@ jobs:
           # are listed. Offline nothing is a scheme yet, so nothing trades.
           aurelis mechanism mine -w "$workspace" --hours 48
           aurelis mechanism trades -w "$workspace"
+          # M41: the free source catalogue, and an agent (offline, a stand-in)
+          # asked which of it the company should read. Nothing is fetched here:
+          # a news grant reaches the publishers and is not recorded in CI.
+          aurelis source catalogue
+          aurelis source seat -w "$workspace" --agent INTEL
+          aurelis source requests -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

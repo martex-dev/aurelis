@@ -201,6 +201,20 @@ them as events on the spot instrument, with extreme funding and open-interest
 surges derived. A symbol with no perpetual is counted in the wake's note; a
 venue that is down is one warning incident. A leverage grant fetches no bars.
 
+Headlines are a third grant, for the *class* of free sources:
+
+```bash
+aurelis source catalogue                                  # the free, official, keyless feeds
+aurelis service grant -w live --source news --from-grant GRT-0002     --reason "the agents may read whichever free feeds they ask for" --by <you> --yes
+aurelis source requests -w live                           # what the agents asked for, and why
+```
+
+Which feeds are read is decided by the agents: the loop's `source` action
+shows each market-intelligence agent the catalogue and records what it wants
+and why. The service reads the union every wake, matches headlines to the
+grant's spot symbols, and records them as events. A news grant fetches no
+bars, and nothing is read until an agent asks.
+
 The grant is the one decision a person makes: it names the vendor, the
 instruments, who and why, goes on the ledger, and cannot be widened — only
 revoked (`aurelis service revoke GRT-0001`). The service then wakes on the

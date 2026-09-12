@@ -922,6 +922,22 @@ def thesis_page(session: Session, ref: str) -> str | None:
 
 def service_page(session: Session) -> str:
     view = proj.service_view(session)
+    sources = _rows(
+        ["ref", "at", "agent", "source", "wanted", "because"],
+        [
+            [
+                escape_text(s["ref"]),
+                _when(s["at"]),
+                f"<a href='/agent/{escape_text(s['agent'])}'>{escape_text(s['agent'])}</a>",
+                escape_text(s["source"]),
+                "<span class='pill ok'>YES</span>"
+                if s["wanted"]
+                else "<span class='pill dim'>NO</span>",
+                escape_text(s["reason"][:200]),
+            ]
+            for s in view.sources
+        ],
+    )
     grants = _rows(
         ["ref", "source", "desk", "instruments", "bars", "by", "why", "state"],
         [
@@ -1006,6 +1022,11 @@ def service_page(session: Session) -> str:
         + "</div>"
         f"<h2>Grants</h2>{grants}"
         f"<h2>Wakes</h2>{wakes}"
+        "<h2>Sources the agents asked for</h2>"
+        "<p class='mono'>The catalogue holds only free, official, keyless feeds; which of "
+        "them the company reads is a market-intelligence agent's decision, with its "
+        "reason, under a news grant a person recorded once.</p>"
+        f"{sources}"
         f"<h2>Incidents</h2>{incidents}"
     )
 

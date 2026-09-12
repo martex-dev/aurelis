@@ -2077,6 +2077,25 @@ See [ADR-0041](adr/0041-paper-fills-at-the-price-the-wake-can-see.md).
 
 ---
 
+## M41 — The agents ask for the sources they need ✅
+
+Three constraints: the brief's, that the agents decide what they need; the
+operator's, that every source be free and keyless; the company's, that it
+fetches nothing a person did not grant. The catalogue is four publishers'
+official RSS feeds, fixed in code. A Market Intelligence agent is shown it
+and the instruments the company follows, and asks for sources with a reason
+or wants none with a reason; a name outside the catalogue is refused; the
+loop's `source` action seats each such agent once per catalogue. The
+service reads the union under a `news` grant a person records once, matched
+against the grant's spot symbols, and fetches no bars under it. A headline
+is `news.mention` on every instrument it names at its own published time;
+`news.burst` is derived with its threshold in the event; a mechanism can
+fire on it and the judges see the headlines.
+
+See [ADR-0042](adr/0042-the-agents-ask-for-the-sources-they-need.md).
+
+---
+
 ## Sequencing
 
 ```
