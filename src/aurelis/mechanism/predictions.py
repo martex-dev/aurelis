@@ -100,6 +100,44 @@ def _covering_close(
     return snapshot, when, Decimal(str(bar[1]))
 
 
+def _occurrences(session: Session, mechanism: Mechanism) -> list[WorldEvent]:
+    """What fires the mechanism, oldest first.
+
+    On the trigger alone: every event of the trigger kind. On a conjunction:
+    every event of the second kind that follows a trigger within the window on
+    the same instrument — the instant the conjunction completes, which is the
+    first moment anyone could have acted on it. A second event that completes
+    several pairs (two triggers, then one follow) is one occurrence: the
+    conjunction happened once.
+    """
+    if not mechanism.then_kind:
+        return list(
+            session.execute(
+                sa.select(WorldEvent)
+                .where(WorldEvent.kind == mechanism.trigger_kind)
+                .order_by(WorldEvent.at)
+            ).scalars()
+        )
+    from aurelis.world.store import World
+
+    pairs = World.co_occurrences(
+        session,
+        first_kind=mechanism.trigger_kind,
+        second_kind=mechanism.then_kind,
+        within=dt.timedelta(hours=int(mechanism.within_hours or 0)),
+        limit=100_000,
+    )
+    seen: set[str] = set()
+    seconds: list[WorldEvent] = []
+    for pair in pairs:
+        if pair.second.digest in seen:
+            continue
+        seen.add(pair.second.digest)
+        seconds.append(pair.second)
+    seconds.sort(key=lambda event: (event.at, event.digest))
+    return seconds
+
+
 def generate_predictions(
     session: Session,
     mechanism: Mechanism,
@@ -121,13 +159,7 @@ def generate_predictions(
     confidence = Decimal(str(mechanism.confidence))
     probability_up = confidence if mechanism.direction == "up" else Decimal(1) - confidence
 
-    occurrences = list(
-        session.execute(
-            sa.select(WorldEvent)
-            .where(WorldEvent.kind == mechanism.trigger_kind)
-            .order_by(WorldEvent.at)
-        ).scalars()
-    )
+    occurrences = _occurrences(session, mechanism)
     sealed: list[str] = []
     skipped_past = 0
     skipped_no_recording = 0
@@ -168,7 +200,7 @@ def generate_predictions(
         ref = allocate_ref(session, RefKind.THESIS)
         text = (
             f"Mechanism {mechanism.ref} ({mechanism.title}): when "
-            f"{mechanism.trigger_kind} fires, {occurrence.entity_key} moves "
+            f"{mechanism.fires_on} fires, {occurrence.entity_key} moves "
             f"{mechanism.direction} over {mechanism.horizon_hours} bars. This is "
             f"occurrence at {isoformat(trigger_at)}, close {reference_close}."
         )
@@ -214,7 +246,7 @@ def generate_predictions(
             kind=EventKind.MECHANISM_PREDICTED,
             actor=Actor.SYSTEM,
             subject=mechanism.ref,
-            payload={"sealed": len(sealed), "trigger": mechanism.trigger_kind},
+            payload={"sealed": len(sealed), "trigger": mechanism.fires_on},
             at=moment,
         )
     return PredictionRun(

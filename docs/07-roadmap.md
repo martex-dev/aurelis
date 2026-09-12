@@ -1989,6 +1989,49 @@ See [ADR-0038](adr/0038-the-facility-in-pixels.md).
 
 ---
 
+## M38 — A mechanism may fire on the conjunction it was shown ✅
+
+Through M37 the miner showed an agent a pair and the mechanism it stated
+fired on the trigger alone: shown "spike then spike within 24h", `MEC-0002`
+predicts after any spike. The discovery form now carries `FIRES_ON: trigger |
+conjunction`. On `conjunction` the mechanism records the second kind and the
+window, and a prediction seals only when the second event follows the trigger
+inside the window on the same instrument, at that instant, against the spot
+close then. A second event that completes several pairs is one occurrence.
+The evidence shows the effect after the trigger, after the conjunction and
+after any bar side by side, so the agent can see where the follow-through is
+before choosing. The conjunction fields enter the seal only when set; a test
+recomputes the pre-M38 digest for a trigger mechanism and it matches.
+
+The station and the CLI print what a mechanism fires on:
+`price.range_break ⇒ price.range_break ≤48h`.
+
+### What the live workspace did
+
+The service died with the previous session at 11:08Z on the 11th and was
+restarted on this tree at 05:05Z on the 12th. Its first wake scored the
+backlog — 115 predictions — and the record moved:
+
+- **MEC-0001 is a candidate scheme.** 26 scored out of sample, 25 right,
+  Brier 0.1162 against the instruments' own drift at 0.2700. It opened two
+  paper positions through Risk at the wake, five percent of the paper book
+  each, and closes them at the horizon.
+- **MEC-0002 is retired.** 79 scored, 29 right: a down call over 24 hours
+  on a day the universe rose. Brier 0.2658 against 0.2323, and the sweep
+  wrote why.
+
+The caveat the record does not yet count: MEC-0001's twenty-six predictions
+came from about eighteen hours across thirty instruments that move together.
+Twenty-six sealed predictions are not twenty-six independent trials; on a
+day when everything broke upward and kept going, they are closer to a few.
+Counting evidence by independent episode rather than by prediction is the
+next thing the library has to learn, and until it does "candidate scheme"
+means exactly what M31 defined and no more.
+
+See [ADR-0039](adr/0039-a-mechanism-may-fire-on-the-conjunction.md).
+
+---
+
 ## Sequencing
 
 ```

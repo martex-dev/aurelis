@@ -64,7 +64,12 @@ DISCOVERY_FORM = (
     "CONFIDENCE: <a probability strictly above 0.5 and at most 1>\n"
     "WHY: <the causal reason it works>\n"
     "OTHER_SIDE: <who takes the losing side of the trade, and why>\n"
-    "DECAY: <how crowded it can get and how fast it dies once others find it>\n\n"
+    "DECAY: <how crowded it can get and how fast it dies once others find it>\n"
+    "FIRES_ON: trigger | conjunction\n"
+    "  (`trigger`: the prediction seals whenever the trigger event fires, on its "
+    "own. `conjunction`: it seals only when the second event follows the trigger "
+    "inside the window, at the instant of the second event -- the pattern you "
+    "were shown, as one occurrence.)\n\n"
     "Or, if you cannot give a causal reason:\n"
     "MECHANISM: nothing\n"
     "BECAUSE: <why not, in one or two sentences>\n\n"
@@ -72,7 +77,8 @@ DISCOVERY_FORM = (
 )
 
 _FIELD = re.compile(
-    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY|BECAUSE)\s*:\s*(.*)$",
+    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY|FIRES_ON|BECAUSE)"
+    r"\s*:\s*(.*)$",
     re.I,
 )
 
@@ -94,9 +100,17 @@ class MechanismProposal:
     """Why the agent declined, when it did. The most useful sentence a decline
     can carry: a record of refusals with no reasons is a record of nothing."""
 
+    fires_on: str = "trigger"
+    """``trigger`` or ``conjunction``: whether the mechanism fires on the
+    trigger alone or only when the pattern it was shown completes."""
+
     @property
     def declined(self) -> bool:
         return self.title is None
+
+    @property
+    def on_conjunction(self) -> bool:
+        return self.fires_on == "conjunction"
 
 
 def _parse(text: str) -> MechanismProposal:
@@ -143,8 +157,18 @@ def _parse(text: str) -> MechanismProposal:
         raise MechanismRefused("a mechanism must name who is on the other side")
     if len(decay) <= 10:
         raise MechanismRefused("a mechanism without a decay model will be held too long")
+    fires_on = fields.get("FIRES_ON", "trigger").strip().lower() or "trigger"
+    if fires_on not in ("trigger", "conjunction"):
+        raise MechanismRefused(f"FIRES_ON {fires_on!r} is not trigger or conjunction")
     return MechanismProposal(
-        title, direction, horizon, confidence.quantize(Decimal("0.01")), why, other, decay
+        title,
+        direction,
+        horizon,
+        confidence.quantize(Decimal("0.01")),
+        why,
+        other,
+        decay,
+        fires_on=fires_on,
     )
 
 
@@ -158,13 +182,19 @@ def _material(
     window_hours: int,
     session: Session | None = None,
 ) -> dict[str, Any]:
-    from aurelis.mechanism.mining import effect_of
+    from aurelis.mechanism.mining import effect_of, effect_over
 
     by_instrument: dict[str, int] = {}
     for pair in pairs:
         by_instrument[pair.entity_key] = by_instrument.get(pair.entity_key, 0) + 1
     evidence: dict[str, str] = {}
     if session is not None:
+        seconds: list[Any] = []
+        seen: set[str] = set()
+        for pair in pairs:
+            if pair.second.digest not in seen:
+                seen.add(pair.second.digest)
+                seconds.append(pair.second)
         for horizon in _HORIZONS_SHOWN:
             effect = effect_of(session, trigger=trigger_kind, horizon_hours=horizon)
             if effect is None:
@@ -172,6 +202,17 @@ def _material(
             evidence[f"{horizon}h after the trigger"] = (
                 f"n {effect.n}, mean {effect.mean_return_after}%, up {effect.up_rate_after}"
             )
+            # The same horizon after the conjunction completes: what a
+            # mechanism that fires on the pair, at the second event, would be
+            # tested on. Shown beside the trigger's so the agent can choose.
+            after_pair = effect_over(
+                session, seconds, label=f"{trigger_kind} then {second_kind}", horizon_hours=horizon
+            )
+            if after_pair is not None:
+                evidence[f"{horizon}h after the conjunction"] = (
+                    f"n {after_pair.n}, mean {after_pair.mean_return_after}%, "
+                    f"up {after_pair.up_rate_after}"
+                )
             evidence[f"{horizon}h after any bar"] = (
                 f"mean {effect.unconditional_mean_return}%, up {effect.unconditional_up_rate}"
             )
@@ -233,7 +274,7 @@ def propose_mechanism(
     for pair in pairs:
         counts[pair.entity_key] = counts.get(pair.entity_key, 0) + 1
     found_on = max(sorted(counts), key=lambda k: counts[k])
-    found_event = next(p.first.digest for p in pairs if p.entity_key == found_on)
+    found_pair = next(p for p in pairs if p.entity_key == found_on)
 
     system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
     rendered = f"{render_material(material)}\n\n{DISCOVERY_FORM}"
@@ -282,6 +323,10 @@ def propose_mechanism(
             produced_by=agent_ref,
             actor=agent_ref,
         ).digest
+    # The training occurrence is the event the mechanism fires on: the trigger
+    # of the strongest instrument's first pair, or -- on a conjunction -- the
+    # second event that completed it.
+    found_event = found_pair.second.digest if proposal.on_conjunction else found_pair.first.digest
     return mechanisms.state(
         session,
         agent_ref=agent_ref,
@@ -302,6 +347,8 @@ def propose_mechanism(
         usd=response.usd,
         at=moment,
         evidence_digest=evidence_digest,
+        then_kind=second_kind if proposal.on_conjunction else None,
+        within_hours=window_hours if proposal.on_conjunction else None,
     )
 
 

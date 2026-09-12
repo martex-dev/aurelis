@@ -11,7 +11,7 @@ themselves as the evidence justifies it.
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Status: **M37 — the facility in pixels.** The station is the brief's
+Status: **M38 — a mechanism may fire on the conjunction it was shown.** The discovery form carries `FIRES_ON: trigger | conjunction`; on `conjunction` a prediction seals only when the second event follows the trigger inside the window, at that instant, so the mechanism is tested on the pattern the agent actually reasoned about. Before it, M37: the facility in pixels.** The station is the brief's
 pixel-art research complex under one rule: a pixel carries identity (every
 agent's deterministic avatar), measured state (a room's LED blinks and its
 sprites move only when it is working; a gathering mechanism's bar is
@@ -984,6 +984,7 @@ automatically by the company, five milestones in.
 | **M35** ✅ | **Leverage** | funding and open interest from the perpetual, as events on the spot instrument; extreme funding and OI surges derived; a mechanism can fire on them |
 | **M36** ✅ | **The hunt, on the station** | a page per mechanism: statement, evidence shown, predictions and outcomes, paper trades, and who declined the trigger and why |
 | **M37** ✅ | **The facility in pixels** | deterministic agent avatars, LEDs and sprites that move only when a room works, progress bars of the record; generated, no assets |
+| **M38** ✅ | **Conjunction triggers** | an agent may state a mechanism that fires only when the pair it was shown completes, at the second event; the evidence shows both; old seals unchanged |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

@@ -81,8 +81,8 @@ def mechanism_discover(
     table.add_column("", style="bold", width=14)
     table.add_column("", overflow="fold")
     table.add_row(
-        "trigger",
-        f"{mechanism.trigger_kind} -> {mechanism.direction} over {mechanism.horizon_hours}h",
+        "fires on",
+        f"{mechanism.fires_on} -> {mechanism.direction} over {mechanism.horizon_hours}h",
     )
     table.add_row("confidence", str(mechanism.confidence))
     table.add_row("why", escape(mechanism.why))
@@ -134,7 +134,7 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
         table.add_row(
             m.ref,
             escape(m.title[:40]),
-            m.trigger_kind,
+            escape(m.fires_on),
             str(status.predictions),
             str(status.scored),
             str(cal.mean_brier) if cal.mean_brier is not None else "—",

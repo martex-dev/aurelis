@@ -70,12 +70,18 @@ def _unconditional_base_rate(session: Session, scored: list[Thesis]) -> Decimal 
 
 
 def seal_of(row: Mechanism) -> str:
+    # The conjunction fields enter the seal only when set, so every mechanism
+    # sealed before M38 still verifies against the digest it was given.
+    conjunction = (
+        {"then_kind": row.then_kind, "within_hours": row.within_hours} if row.then_kind else {}
+    )
     return sha256_of(
         {
             "ref": row.ref,
             "agent": row.agent_ref,
             "title": row.title,
             "trigger_kind": row.trigger_kind,
+            **conjunction,
             "desk": row.desk,
             "horizon_hours": row.horizon_hours,
             "direction": row.direction,
@@ -200,8 +206,12 @@ class Mechanisms:
         usd: Decimal = Decimal("0"),
         at: dt.datetime | None = None,
         evidence_digest: str = "",
+        then_kind: str | None = None,
+        within_hours: int | None = None,
     ) -> Mechanism:
         moment = at or self._clock.now()
+        if (then_kind is None) != (within_hours is None):
+            raise ValueError("a conjunction names both its second kind and its window")
         ref = allocate_ref(session, RefKind.MECHANISM)
         row = Mechanism(
             mechanism_id=uuid7(),
@@ -209,6 +219,8 @@ class Mechanisms:
             agent_ref=agent_ref,
             title=title,
             trigger_kind=trigger_kind,
+            then_kind=then_kind,
+            within_hours=within_hours,
             desk=desk,
             horizon_hours=horizon_hours,
             direction=direction,
@@ -237,6 +249,7 @@ class Mechanisms:
             payload={
                 "title": title,
                 "trigger": trigger_kind,
+                "fires_on": row.fires_on,
                 "direction": direction,
                 "horizon_hours": horizon_hours,
                 "confidence": str(confidence),
@@ -340,7 +353,7 @@ class Mechanisms:
                         reason=(
                             f"{status.scored} out-of-sample predictions, Brier "
                             f"{status.calibration.mean_brier} against a base rate of "
-                            f"{status.calibration.base_rate_brier}: the mechanism did not "
+                            f"{status.base_rate_brier}: the mechanism did not "
                             "beat knowing only how often the instrument moved"
                         ),
                         at=at,

@@ -36,6 +36,14 @@ class Mechanism(Base):
     trigger_kind: Mapped[str] = mapped_column(sa.String(48), index=True)
     """The world-event kind that fires a prediction, e.g. ``price.volume_spike``."""
 
+    then_kind: Mapped[str | None] = mapped_column(sa.String(48))
+    within_hours: Mapped[int | None] = mapped_column()
+    """Set when the mechanism fires on the *conjunction* it was shown rather
+    than on the trigger alone: a prediction seals when an event of
+    ``then_kind`` follows the trigger within ``within_hours`` on the same
+    instrument, at the instant of that second event. Null means the trigger
+    alone fires it, which is what every mechanism before M38 did."""
+
     desk: Mapped[str] = mapped_column(sa.String(24), index=True)
     horizon_hours: Mapped[int] = mapped_column()
     direction: Mapped[str] = mapped_column(sa.String(8))
@@ -92,7 +100,19 @@ class Mechanism(Base):
         sa.CheckConstraint("length(decay) > 10", name="ck_mechanism_has_a_decay_model"),
         sa.CheckConstraint("length(other_side) > 10", name="ck_mechanism_names_the_other_side"),
         sa.CheckConstraint("length(seal) = 64", name="ck_mechanism_is_sealed"),
+        sa.CheckConstraint(
+            "(then_kind IS NULL AND within_hours IS NULL) "
+            "OR (then_kind IS NOT NULL AND within_hours > 0)",
+            name="ck_mechanism_conjunction_has_a_window",
+        ),
     )
+
+    @property
+    def fires_on(self) -> str:
+        """``price.volume_spike`` or ``price.volume_spike ⇒ price.range_break ≤24h``."""
+        if self.then_kind:
+            return f"{self.trigger_kind} ⇒ {self.then_kind} ≤{self.within_hours}h"
+        return self.trigger_kind
 
 
 class MechanismTrade(Base):

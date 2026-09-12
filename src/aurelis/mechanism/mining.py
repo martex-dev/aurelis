@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from aurelis.world.store import World
 from aurelis.world.tables import WorldEvent
 
-__all__ = ["Effect", "MinedPair", "effect_of", "mine_pairs"]
+__all__ = ["Effect", "MinedPair", "effect_of", "effect_over", "mine_pairs"]
 
 _NOT_A_TRIGGER: frozenset[str] = frozenset({"listing.seen"})
 """Kinds that are facts about the company seeing the catalogue rather than
@@ -112,8 +112,6 @@ def effect_of(
     same recordings, so the two columns are computed on the same data.
     ``None`` when no occurrence can be settled.
     """
-    from aurelis.intel.snapshots import MarketSnapshot, Snapshots
-
     events = list(
         session.execute(
             sa.select(WorldEvent)
@@ -122,6 +120,16 @@ def effect_of(
             .limit(limit)
         ).scalars()
     )
+    return effect_over(session, events, label=trigger, horizon_hours=horizon_hours)
+
+
+def effect_over(
+    session: Session, events: list[WorldEvent], *, label: str, horizon_hours: int
+) -> Effect | None:
+    """The in-sample effect after these events — a trigger's occurrences, or
+    the second events of a conjunction's pairs — labelled as the caller says."""
+    from aurelis.intel.snapshots import MarketSnapshot, Snapshots
+
     if not events:
         return None
     bars_by_symbol: dict[str, list[Any]] = {}
@@ -164,7 +172,7 @@ def effect_of(
                 every.append((bars[i + horizon_hours].close / bars[i].close - 1) * 100)
     q = Decimal("0.0001")
     return Effect(
-        trigger=trigger,
+        trigger=label,
         horizon_hours=horizon_hours,
         n=len(after),
         mean_return_after=(sum(after, Decimal(0)) / len(after)).quantize(q),
