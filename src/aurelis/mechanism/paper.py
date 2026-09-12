@@ -41,7 +41,15 @@ from aurelis.strategy.states import ComponentKind, Origin
 from aurelis.trading.states import BrokerKind, OrderSide
 from aurelis.trading.tables import Fill, Order
 
-__all__ = ["DEFAULT_WEIGHT", "PaperResult", "ensure_version", "pnl_of", "trade_firings"]
+__all__ = [
+    "DEFAULT_WEIGHT",
+    "PaperResult",
+    "close_settled",
+    "ensure_version",
+    "has_open_trades",
+    "pnl_of",
+    "trade_firings",
+]
 
 DEFAULT_WEIGHT = Decimal("0.05")
 """Share of the paper book one scheme is given. Small on purpose: a scheme
@@ -212,7 +220,6 @@ def trade_firings(
     broker = runtime.brokers[BrokerKind.PAPER]
 
     opened: list[str] = []
-    closed: list[str] = []
     refused: list[str] = []
 
     # Firings not yet opened: a prediction sealed, not training, no trade row.
@@ -261,7 +268,61 @@ def trade_firings(
         session.flush()
         opened.append(thesis.ref)
 
-    # Open trades whose prediction has scored: close at the resolution close.
+    if opened:
+        runtime.ledger.append(
+            session,
+            kind=EventKind.MECHANISM_TRADED,
+            actor=actors["executor"],
+            subject=mechanism.ref,
+            payload={
+                "version": version_ref,
+                "book": book,
+                "opened": len(opened),
+                "closed": 0,
+                "refused": len(refused),
+                "at": isoformat(moment),
+            },
+            at=moment,
+        )
+    closing = close_settled(runtime, session, mechanism, equity=equity, weight=weight, at=moment)
+    return PaperResult(
+        mechanism.ref,
+        tuple(opened),
+        closing.closed,
+        tuple(refused) + closing.refused,
+        "",
+    )
+
+
+def has_open_trades(session: Session, mechanism_ref: str) -> bool:
+    return (
+        session.execute(
+            sa.select(sa.func.count()).where(
+                MechanismTrade.mechanism_ref == mechanism_ref,
+                MechanismTrade.close_order_ref.is_(None),
+            )
+        ).scalar_one()
+        > 0
+    )
+
+
+def close_settled(
+    runtime: Any,
+    session: Session,
+    mechanism: Mechanism,
+    *,
+    equity: Decimal = Decimal("100000"),
+    weight: Decimal = DEFAULT_WEIGHT,
+    at: dt.datetime | None = None,
+) -> PaperResult:
+    """Close every open paper position whose prediction has scored.
+
+    Called for *any* mechanism with open trades, scheme or not. A position
+    opened while the mechanism was a candidate scheme is closed at its horizon
+    even if the record has since demoted the mechanism: the alternative was a
+    position nothing would ever close, which is how M39 found this.
+    """
+    moment = at or runtime.clock.now()
     to_close = list(
         session.execute(
             sa.select(MechanismTrade, Thesis)
@@ -273,13 +334,21 @@ def trade_firings(
             )
         ).all()
     )
+    if not to_close:
+        return PaperResult(mechanism.ref, (), (), (), "")
+    actors = _actors(runtime, session)
+    version_ref = mechanism.version_ref or ensure_version(runtime, session, mechanism, at=moment)
+    broker = runtime.brokers[BrokerKind.PAPER]
+    exposure = equity * weight
+    closed: list[str] = []
+    refused: list[str] = []
     for trade, thesis in to_close:
         price = Decimal(thesis.resolution_close or thesis.reference_close)
         side = OrderSide.SELL if thesis.direction == "up" else OrderSide.BUY
         broker.marks[thesis.instrument] = price
         outcome = runtime.cycle.run(
             session,
-            portfolio_ref=book,
+            portfolio_ref=trade.portfolio_ref,
             broker=broker,
             intents=((version_ref, thesis.instrument, side, exposure, price),),
             proposer=actors["proposer"],
@@ -297,8 +366,7 @@ def trade_firings(
         trade.pnl = _round_trip_pnl(session, trade.open_order_ref, trade.close_order_ref)
         session.flush()
         closed.append(thesis.ref)
-
-    if opened or closed:
+    if closed:
         runtime.ledger.append(
             session,
             kind=EventKind.MECHANISM_TRADED,
@@ -306,15 +374,15 @@ def trade_firings(
             subject=mechanism.ref,
             payload={
                 "version": version_ref,
-                "book": book,
-                "opened": len(opened),
+                "book": to_close[0][0].portfolio_ref,
+                "opened": 0,
                 "closed": len(closed),
                 "refused": len(refused),
                 "at": isoformat(moment),
             },
             at=moment,
         )
-    return PaperResult(mechanism.ref, tuple(opened), tuple(closed), tuple(refused), "")
+    return PaperResult(mechanism.ref, (), tuple(closed), tuple(refused), "")
 
 
 def _fill(session: Session, order_ref: str) -> tuple[Order, Fill] | None:

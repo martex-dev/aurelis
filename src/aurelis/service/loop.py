@@ -401,13 +401,20 @@ class Service:
             notes.append(f"{len(retired)} mechanism(s) retired")
 
         # A candidate scheme trades its firings on paper, through Risk.
-        from aurelis.mechanism.paper import trade_firings
+        from aurelis.mechanism.paper import close_settled, has_open_trades, trade_firings
 
         traded_open = traded_closed = 0
         with runtime.database.session() as session:
-            for status in runtime.mechanisms.schemes(session):
+            for status in runtime.mechanisms.statuses(session):
                 try:
-                    result = trade_firings(runtime, session, status.mechanism, at=moment)
+                    if status.is_scheme:
+                        result = trade_firings(runtime, session, status.mechanism, at=moment)
+                    elif has_open_trades(session, status.mechanism.ref):
+                        # No longer a scheme, still holding: close what has
+                        # settled. A position nothing closes is a leak.
+                        result = close_settled(runtime, session, status.mechanism, at=moment)
+                    else:
+                        continue
                 except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                     incidents.append(
                         self._incident(

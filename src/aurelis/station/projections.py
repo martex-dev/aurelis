@@ -1329,6 +1329,7 @@ def mechanisms_view(session: Session) -> MechanismsView:
             "why": st.mechanism.why,
             "predictions": st.predictions,
             "scored": st.scored,
+            "episodes": st.episodes,
             "brier": (
                 str(st.calibration.mean_brier) if st.calibration.mean_brier is not None else "-"
             ),
@@ -1671,6 +1672,9 @@ class MechanismDetail:
     hits: int
     brier: str
     base_rate: str
+    episodes: int
+    episode_brier: str
+    episode_base_rate: str
     rows: list[dict[str, Any]]
     """Every prediction, newest first."""
 
@@ -1812,6 +1816,13 @@ def mechanism_detail(
         hits=calibration.hits,
         brier=str(calibration.mean_brier) if calibration.mean_brier is not None else "-",
         base_rate=str(status.base_rate_brier) if status.base_rate_brier is not None else "-",
+        episodes=status.episodes,
+        episode_brier=str(status.episode_brier) if status.episode_brier is not None else "-",
+        episode_base_rate=(
+            str(status.episode_base_rate_brier)
+            if status.episode_base_rate_brier is not None
+            else "-"
+        ),
         rows=rows,
         by_instrument=[
             {"instrument": k, **v}

@@ -2032,6 +2032,27 @@ See [ADR-0039](adr/0039-a-mechanism-may-fire-on-the-conjunction.md).
 
 ---
 
+## M39 — Evidence is counted by independent episode ✅
+
+`MEC-0001` became a candidate scheme on twenty-six predictions from one
+afternoon across thirty instruments that move together. The library now
+groups predictions whose horizons overlap, across instruments, into
+episodes: thirty instruments in the same hour are one observation. Enough
+means twenty scored predictions *and* ten episodes; a scheme must beat the
+drift by prediction and by episode, each episode weighing the same whatever
+its size; retirement uses the same test and prints both readings. The
+verdict names the binding count: `gathering (60/20 predictions, 2/10
+episodes)`.
+
+Closing a paper position is now its own step, run for any mechanism holding
+one: a mechanism demoted while holding would otherwise have held forever.
+
+The station and the CLI show episodes beside predictions, with a second bar.
+
+See [ADR-0040](adr/0040-evidence-is-counted-by-independent-episode.md).
+
+---
+
 ## Sequencing
 
 ```

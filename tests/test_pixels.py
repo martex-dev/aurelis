@@ -104,9 +104,9 @@ def test_the_mechanisms_page_shows_a_gathering_mechanism_as_a_bar_of_its_record(
             model="test",
         )
     page = station_app(company).handle("/mechanisms", {}).body.decode()
-    assert f">0/{MIN_SCORED_PREDICTIONS}<" in page and "width:0%" in page
+    assert f">0/{MIN_SCORED_PREDICTIONS} predictions<" in page and "width:0%" in page
     detail = station_app(company).handle(f"/mechanism/{mechanism.ref}", {}).body.decode()
-    assert f">0/{MIN_SCORED_PREDICTIONS}<" in detail
+    assert f">0/{MIN_SCORED_PREDICTIONS} predictions<" in detail
     assert 'class="avatar"' in detail, "the author's portrait is on the statement"
 
 

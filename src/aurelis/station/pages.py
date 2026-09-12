@@ -1011,7 +1011,7 @@ def service_page(session: Session) -> str:
 
 
 def mechanisms_page(session: Session) -> str:
-    from aurelis.mechanism.library import MIN_SCORED_PREDICTIONS
+    from aurelis.mechanism.library import MIN_EPISODES, MIN_SCORED_PREDICTIONS
 
     view = proj.mechanisms_view(session)
     rows = _rows(
@@ -1022,6 +1022,7 @@ def mechanisms_page(session: Session) -> str:
             "trigger",
             "predicts",
             "scored",
+            "episodes",
             "brier",
             "base rate",
             "paper trades",
@@ -1036,6 +1037,7 @@ def mechanisms_page(session: Session) -> str:
                 escape_text(f"{r['trigger']} {r['direction']} {r['horizon']}h"),
                 str(r["predictions"]),
                 str(r["scored"]),
+                str(r["episodes"]),
                 escape_text(r["brier"]),
                 escape_text(r["base_rate"]),
                 escape_text(f"{r['paper']['closed']} closed, {r['paper']['open']} open"),
@@ -1046,7 +1048,17 @@ def mechanisms_page(session: Session) -> str:
                     else "<span class='pill bad'>RETIRED</span>"
                     if r["retired"]
                     else f"<span class='pill warn'>{escape_text(r['verdict']).upper()}</span> "
-                    + progress_bar(int(r["scored"]), MIN_SCORED_PREDICTIONS)
+                    + progress_bar(
+                        int(r["scored"]),
+                        MIN_SCORED_PREDICTIONS,
+                        label=f"{r['scored']}/{MIN_SCORED_PREDICTIONS} predictions",
+                    )
+                    + " "
+                    + progress_bar(
+                        int(r["episodes"]),
+                        MIN_EPISODES,
+                        label=f"{r['episodes']}/{MIN_EPISODES} episodes",
+                    )
                 ),
             ]
             for r in view.rows
@@ -1103,7 +1115,7 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
     view = proj.mechanism_detail(session, ref, artifacts=artifacts)
     if view is None:
         return None
-    from aurelis.mechanism.library import MIN_SCORED_PREDICTIONS
+    from aurelis.mechanism.library import MIN_EPISODES, MIN_SCORED_PREDICTIONS
 
     tone = "ok" if view.is_scheme else "bad" if view.retired else "warn"
     verdict = (
@@ -1112,7 +1124,15 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
         else "<span class='pill bad'>RETIRED</span>"
         if view.retired
         else f"<span class='pill warn'>{escape_text(view.verdict).upper()}</span> "
-        + progress_bar(view.scored, MIN_SCORED_PREDICTIONS)
+        + progress_bar(
+            view.scored,
+            MIN_SCORED_PREDICTIONS,
+            label=f"{view.scored}/{MIN_SCORED_PREDICTIONS} predictions",
+        )
+        + " "
+        + progress_bar(
+            view.episodes, MIN_EPISODES, label=f"{view.episodes}/{MIN_EPISODES} episodes"
+        )
     )
     portrait = avatar_svg(view.agent, tone=f"var(--{tone})", size=24, title=view.agent)
     statement = _kv(
@@ -1151,6 +1171,9 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
             ("right", str(view.hits)),
             ("brier", escape_text(view.brier)),
             ("base rate", escape_text(view.base_rate)),
+            ("episodes", str(view.episodes)),
+            ("brier by episode", escape_text(view.episode_brier)),
+            ("base rate by episode", escape_text(view.episode_base_rate)),
         ]
     )
     shown = [[escape_text(k), escape_text(v)] for k, v in view.evidence]
@@ -1221,7 +1244,8 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
         f"<h2>The record</h2><div class='panel'>{record}</div>"
         "<p class='mono'>The training occurrence is excluded from every figure above. "
         "Only predictions the mechanism sealed before the outcome, on occurrences it "
-        "was not found on, count.</p>"
+        "was not found on, count — and predictions whose horizons overlap are one "
+        "episode: thirty instruments in the same hour are one observation.</p>"
         f"<h2>What the agent was shown</h2>{evidence}"
         f"<h2>By instrument</h2>{by_instrument}"
         f"<h2>Predictions</h2>{predictions}"

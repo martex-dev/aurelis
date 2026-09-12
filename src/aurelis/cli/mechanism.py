@@ -122,6 +122,7 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
         "trigger",
         "predictions",
         "scored",
+        "episodes",
         "brier",
         "base rate",
         "verdict",
@@ -137,6 +138,7 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
             escape(m.fires_on),
             str(status.predictions),
             str(status.scored),
+            str(status.episodes),
             str(cal.mean_brier) if cal.mean_brier is not None else "—",
             # The unconditional base rate, the one retirement compares against.
             str(status.base_rate_brier) if status.base_rate_brier is not None else "—",
@@ -148,7 +150,9 @@ def mechanism_list(workspace: WorkspaceOption = None) -> None:
     console.print(
         "\n[dim]The training occurrence is excluded from every score: a mechanism "
         "scored on the instance that suggested it is scored on the data that "
-        "suggested it. Only the additional predictions count.[/dim]"
+        "suggested it. Only the additional predictions count, and predictions whose "
+        "horizons overlap are one episode: thirty instruments in the same hour are "
+        "one observation.[/dim]"
     )
 
 

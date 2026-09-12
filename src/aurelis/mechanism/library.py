@@ -19,11 +19,51 @@ from aurelis.mechanism.tables import Mechanism
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.ledger.ledger import Ledger
 
-__all__ = ["MIN_SCORED_PREDICTIONS", "MechanismStatus", "Mechanisms", "seal_of"]
+__all__ = [
+    "MIN_EPISODES",
+    "MIN_SCORED_PREDICTIONS",
+    "MechanismStatus",
+    "Mechanisms",
+    "episodes_of",
+    "seal_of",
+]
 
 MIN_SCORED_PREDICTIONS = 20
 """How many scored out-of-sample predictions a mechanism needs before its
 record is read as evidence rather than as a handful of coin flips."""
+
+MIN_EPISODES = 10
+"""How many *independent* episodes those predictions must span.
+
+Predictions whose horizons overlap in time are one episode. Thirty
+instruments that break out in the same hour of the same market and all rise
+over the next six are one observation about that hour, not thirty
+observations about the mechanism; a record of twenty-six right predictions
+from one afternoon is a record of one afternoon. Found on the live workspace
+the morning MEC-0001 became a candidate scheme on exactly that.
+"""
+
+
+def _at(thesis: Thesis) -> dt.datetime:
+    moment = thesis.reference_at
+    return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)
+
+
+def episodes_of(theses: list[Thesis], horizon_hours: int) -> list[list[Thesis]]:
+    """Group predictions into episodes: runs whose horizons overlap in time,
+    across every instrument. A prediction starts a new episode only when its
+    reference bar is past the whole horizon of the episode's first one."""
+    ordered = sorted(theses, key=lambda t: (_at(t), t.ref))
+    episodes: list[list[Thesis]] = []
+    started: dt.datetime | None = None
+    for thesis in ordered:
+        at = _at(thesis)
+        if started is None or at > started + dt.timedelta(hours=horizon_hours):
+            episodes.append([thesis])
+            started = at
+        else:
+            episodes[-1].append(thesis)
+    return episodes
 
 
 def _unconditional_base_rate(session: Session, scored: list[Thesis]) -> Decimal | None:
@@ -34,12 +74,20 @@ def _unconditional_base_rate(session: Session, scored: list[Thesis]) -> Decimal 
     close ``h`` bars later was above their own close. What a forecaster who
     knew only the drift would have said, scored against what happened.
     """
+    briers = _base_rate_briers(session, scored)
+    if not briers:
+        return None
+    return (sum(briers, Decimal(0)) / len(briers)).quantize(Decimal("0.0001"))
+
+
+def _base_rate_briers(session: Session, scored: list[Thesis]) -> list[Decimal]:
+    """The base-rate forecaster's Brier for each scored prediction, in order."""
     from aurelis.intel.snapshots import MarketSnapshot, Snapshots
 
     if not scored:
-        return None
+        return []
     frequencies: dict[tuple[str, int], Decimal] = {}
-    total = Decimal(0)
+    out: list[Decimal] = []
     for thesis in scored:
         key = (thesis.instrument, thesis.horizon_hours)
         if key not in frequencies:
@@ -65,8 +113,14 @@ def _unconditional_base_rate(session: Session, scored: list[Thesis]) -> Decimal 
                 frequencies[key] = (Decimal(ups) / Decimal(span)).quantize(Decimal("0.0001"))
         p = frequencies[key]
         realised = Decimal(1) if thesis.outcome else Decimal(0)
-        total += (p - realised) ** 2
-    return (total / len(scored)).quantize(Decimal("0.0001"))
+        out.append((p - realised) ** 2)
+    return out
+
+
+def _mean(values: list[Decimal]) -> Decimal | None:
+    if not values:
+        return None
+    return (sum(values, Decimal(0)) / len(values)).quantize(Decimal("0.0001"))
 
 
 def seal_of(row: Mechanism) -> str:
@@ -124,10 +178,26 @@ class MechanismStatus:
     calibration: AgentCalibration
     retired: bool
     base_rate_brier: Decimal | None = None
+    episodes: int = 0
+    """Independent episodes among the scored predictions: see MIN_EPISODES."""
+
+    episode_brier: Decimal | None = None
+    """Mean over episodes of each episode's mean Brier, so an afternoon with
+    thirty predictions weighs the same as a morning with one."""
+
+    episode_base_rate_brier: Decimal | None = None
 
     @property
     def enough(self) -> bool:
-        return self.scored >= MIN_SCORED_PREDICTIONS
+        return self.scored >= MIN_SCORED_PREDICTIONS and self.episodes >= MIN_EPISODES
+
+    @property
+    def beats_base_rate_by_episode(self) -> bool:
+        return (
+            self.episode_brier is not None
+            and self.episode_base_rate_brier is not None
+            and self.episode_brier < self.episode_base_rate_brier
+        )
 
     @property
     def is_scheme(self) -> bool:
@@ -146,10 +216,14 @@ class MechanismStatus:
 
     @property
     def beats_base_rate(self) -> bool:
+        """By prediction and by episode both. A mechanism that beats the drift
+        on thirty predictions from one hour and loses to it on the other nine
+        hours has not beaten the drift."""
         return (
             self.calibration.mean_brier is not None
             and self.base_rate_brier is not None
             and self.calibration.mean_brier < self.base_rate_brier
+            and self.beats_base_rate_by_episode
         )
 
     @property
@@ -157,11 +231,12 @@ class MechanismStatus:
         if self.retired:
             return "retired"
         if not self.enough:
-            return f"gathering ({self.scored}/{MIN_SCORED_PREDICTIONS})"
+            return (
+                f"gathering ({self.scored}/{MIN_SCORED_PREDICTIONS} predictions, "
+                f"{self.episodes}/{MIN_EPISODES} episodes)"
+            )
         if self.is_scheme:
             return "candidate scheme"
-        if self.calibration.informative and not self.beats_base_rate:
-            return "beats a coin toss, not the base rate"
         if self.calibration.informative:
             return "beats a coin toss, not the base rate"
         return "no better than a coin toss"
@@ -169,9 +244,10 @@ class MechanismStatus:
     def describe(self) -> str:
         return (
             f"{self.mechanism.ref} {self.mechanism.title!r}: {self.predictions} "
-            f"prediction(s), {self.scored} scored, Brier "
+            f"prediction(s), {self.scored} scored over {self.episodes} episode(s), Brier "
             f"{self.calibration.mean_brier} (coin toss {COIN_TOSS}, base rate "
-            f"{self.base_rate_brier}) — {self.verdict}"
+            f"{self.base_rate_brier}; by episode {self.episode_brier} against "
+            f"{self.episode_base_rate_brier}) — {self.verdict}"
         )
 
 
@@ -315,13 +391,26 @@ class Mechanisms:
             if not (t.instrument == row.found_on_instrument and t.mechanism_training)
         ]
         scored = [t for t in out_of_sample if t.scored_at is not None]
+        base_briers = _base_rate_briers(session, scored)
+        base_by_ref = {t.ref: b for t, b in zip(scored, base_briers, strict=True)}
+        episodes = episodes_of(scored, row.horizon_hours)
+        episode_briers = [
+            _mean([Decimal(str(t.brier)) for t in episode if t.brier is not None]) or Decimal(0)
+            for episode in episodes
+        ]
+        episode_base = [
+            _mean([base_by_ref[t.ref] for t in episode]) or Decimal(0) for episode in episodes
+        ]
         return MechanismStatus(
             mechanism=row,
             predictions=len(out_of_sample),
             scored=len(scored),
             calibration=calibration_over(ref, out_of_sample),
             retired=row.retired_at is not None,
-            base_rate_brier=_unconditional_base_rate(session, scored),
+            base_rate_brier=_mean(base_briers),
+            episodes=len(episodes),
+            episode_brier=_mean(episode_briers),
+            episode_base_rate_brier=_mean(episode_base),
         )
 
     def schemes(self, session: Session) -> list[MechanismStatus]:
@@ -351,10 +440,12 @@ class Mechanisms:
                         session,
                         status.mechanism.ref,
                         reason=(
-                            f"{status.scored} out-of-sample predictions, Brier "
+                            f"{status.scored} out-of-sample predictions over "
+                            f"{status.episodes} episodes, Brier "
                             f"{status.calibration.mean_brier} against a base rate of "
-                            f"{status.base_rate_brier}: the mechanism did not "
-                            "beat knowing only how often the instrument moved"
+                            f"{status.base_rate_brier} (by episode {status.episode_brier} "
+                            f"against {status.episode_base_rate_brier}): the mechanism did "
+                            "not beat knowing only how often the instrument moved"
                         ),
                         at=at,
                     )
