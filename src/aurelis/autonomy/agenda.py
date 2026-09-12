@@ -466,7 +466,7 @@ AGENDA: tuple[Action, ...] = (
     ),
     Action(
         key="source",
-        condition="scheme",
+        condition="sourced",
         intent=(
             "show a market-intelligence agent the catalogue of free, official, "
             "keyless sources and record which it wants the company to read, and why"

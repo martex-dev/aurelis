@@ -2090,7 +2090,10 @@ service reads the union under a `news` grant a person records once, matched
 against the grant's spot symbols, and fetches no bars under it. A headline
 is `news.mention` on every instrument it names at its own published time;
 `news.burst` is derived with its threshold in the event; a mechanism can
-fire on it and the judges see the headlines.
+fire on it and the judges see the headlines. The mandate gained its
+thirteenth condition, `sourced`: do the analysts choose what the company
+reads, and is it read; the reading says which half is missing, and the half
+that needs a person says so.
 
 See [ADR-0042](adr/0042-the-agents-ask-for-the-sources-they-need.md).
 

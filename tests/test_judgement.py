@@ -606,7 +606,7 @@ def test_views_on_fixtures_do_not_count_toward_the_mandate(settings: Settings) -
 
 
 def test_the_standard_has_twelve_conditions_and_calibrated_is_second() -> None:
-    assert len(STANDARD) == 12
+    assert len(STANDARD) == 13
     assert STANDARD[1].key == "calibrated"
 
 

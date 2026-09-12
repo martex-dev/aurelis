@@ -50,6 +50,10 @@ The same headline read on ten wakes is one event.
 
 ## Consequences
 
+- **The mandate has a thirteenth condition, `sourced`**, with its own loop
+  action, because an action serves one condition: met when an analyst has
+  asked for a source and a person has granted the class.
+
 - **The judges see headlines** beside the book, the tape and the funding,
   by the newest-per-kind rule, and can cite them.
 

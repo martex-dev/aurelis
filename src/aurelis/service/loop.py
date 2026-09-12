@@ -398,8 +398,23 @@ class Service:
 
         news_grants = [g for g in grants if g.is_news]
         if news_grants:
-            with runtime.database.session() as session:
-                wanted = active_sources(session)
+            try:
+                with runtime.database.session() as session:
+                    wanted = active_sources(session)
+            except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                wanted = []
+                incidents.append(
+                    self._incident(
+                        severity=Severity.CRITICAL,
+                        source="service.news",
+                        subject=news_grants[0].ref,
+                        desk=news_grants[0].desk,
+                        message=f"reading the source requests: {type(error).__name__}: {error}",
+                        action="No source was read this wake. Run `aurelis db init` if the "
+                        "schema is behind the code; the next wake retries.",
+                        at=moment,
+                    )
+                )
             symbols = tuple(dict.fromkeys(str(s) for g in news_grants for s in g.instruments))
             read = mentions = bursts = 0
             for name in wanted:

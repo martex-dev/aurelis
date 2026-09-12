@@ -36,6 +36,7 @@ from aurelis.portfolio import tables as _portfolio
 from aurelis.research import tables as _research
 from aurelis.risk import tables as _risk
 from aurelis.service import tables as _service
+from aurelis.sources import tables as _sources
 from aurelis.strategy import tables as _strategy
 from aurelis.trading import tables as _trading
 from aurelis.training import tables as _training
@@ -68,6 +69,7 @@ TABLE_MODULES = (
     _judgement,
     _mechanism,
     _service,
+    _sources,
     _world,
 )
 """Every module that defines tables, in dependency order.

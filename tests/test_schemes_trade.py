@@ -328,7 +328,7 @@ def test_the_loop_brings_mined_conjunctions_to_agents_and_stops_when_all_are_ans
 
 
 def test_the_mandate_reads_the_scheme_condition_from_the_record(company: Runtime) -> None:
-    assert len(STANDARD) == 12 and any(c.key == "scheme" for c in STANDARD)
+    assert len(STANDARD) == 13 and any(c.key == "scheme" for c in STANDARD)
     before = next(f for f in assess(company).findings if f.criterion.key == "scheme")
     assert not before.met and "no mechanism" in before.reading
     company.clock.set(dt.datetime.fromtimestamp(_START + 30 * _HOUR, tz=dt.UTC))

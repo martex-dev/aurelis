@@ -166,6 +166,28 @@ def _calibrated(session: Session) -> tuple[bool, str]:
     )
 
 
+def _sourced(session: Session) -> tuple[bool, str]:
+    """Do its analysts choose what the company reads, and is it read?
+
+    Two halves, and the reading says which is missing: an analyst's request
+    for a source from the free catalogue, which the loop can produce, and a
+    news grant under which the service reads it, which only a person can.
+    """
+    from aurelis.service.grants import Grants
+    from aurelis.sources.seat import active_sources
+
+    wanted = active_sources(session)
+    grants = [g for g in Grants.active(session) if g.is_news]
+    if not wanted:
+        return False, "no analyst has asked for a source from the free catalogue"
+    if not grants:
+        return False, (
+            f"analysts asked for {', '.join(wanted)}; no news grant is recorded, and "
+            "recording one is a person's decision"
+        )
+    return True, f"reads {', '.join(wanted)} under {', '.join(g.ref for g in grants)}"
+
+
 def _scheme(session: Session) -> tuple[bool, str]:
     """Has a mechanism the agents stated beaten the base rate out of sample?
 
@@ -357,6 +379,14 @@ STANDARD: tuple[Criterion, ...] = (
         "the company found something is a mechanism whose sealed, out-of-sample "
         "predictions beat knowing only the drift.",
         _scheme,
+    ),
+    Criterion(
+        "sourced",
+        "Do its analysts choose what the company reads, and is it read?",
+        "A source nobody asked for is noise the judges have to wade through; a "
+        "source an analyst asked for, with a reason, and the service reads under "
+        "a grant a person recorded, is the company deciding what it needs to know.",
+        _sourced,
     ),
     Criterion(
         "authored",
