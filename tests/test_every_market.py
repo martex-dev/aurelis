@@ -304,7 +304,8 @@ def test_an_agent_is_shown_the_catalogue_by_market_and_may_ask_for_a_keyed_sourc
 ) -> None:
     monkeypatch.delenv(_REDDIT_ID, raising=False)
     monkeypatch.delenv(_REDDIT_SECRET, raising=False)
-    _grant(company, "coinbase", instruments=("BTC-USD", "ETH-USD"))
+    # Only the news grant: a coinbase grant would send the wake to the real
+    # vendor for bars, and one CI runner could not reach it.
     _grant(company, "news", instruments=("BTC-USD", "ETH-USD"))
     provider = _Direct(
         "SOURCES: reddit_memecoins, stocktwits\n"

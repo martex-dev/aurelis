@@ -93,10 +93,38 @@ def company(settings: Settings, clock: FrozenClock) -> Any:
         built.close()
 
 
+class _NoCatalogue:
+    """A vendor catalogue with nothing in it, so no wake here reaches a vendor."""
+
+    name = "coinbase"
+    endpoint = "stand-in://catalogue"
+
+    def products(self) -> list[dict[str, Any]]:
+        return []
+
+
+class _Book:
+    name = "coinbase"
+    endpoint = "stand-in://book"
+
+    def book(self, symbol: str) -> dict[str, Any]:  # noqa: ARG002
+        return {"bids": [["99", "1", 1]], "asks": [["101", "1", 1]]}
+
+
+class _Trades:
+    def trades(self, symbol: str) -> list[dict[str, Any]]:  # noqa: ARG002
+        return []
+
+
 def _service(company: Runtime, clock: FrozenClock, feed: _GrowingFeed, **kwargs: Any) -> Service:
+    # Every vendor the wake would reach is stood in for: the bars by the
+    # growing feed, the catalogue and the book by stubs. One CI runner could
+    # not reach the real catalogue and counted the outage as incidents.
     return Service(
         company,
         feeds=lambda _grant: CoinbaseCandles(opener=feed, pause=0),
+        catalogues=kwargs.pop("catalogues", lambda _grant: _NoCatalogue()),
+        microstructure=kwargs.pop("microstructure", lambda _grant: (_Book(), _Trades())),
         cycles_per_wake=kwargs.pop("cycles_per_wake", 30),
         **kwargs,
     )
