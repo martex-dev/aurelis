@@ -28,13 +28,16 @@ __all__ = [
     "stats_for",
 ]
 
-KNOWN_SOURCES: tuple[str, ...] = ("coinbase", "bybit", "news")
+KNOWN_SOURCES: tuple[str, ...] = ("coinbase", "bybit", "news", "dex")
 """Vendors the service can fetch from. A fixture desk is ``fixture:<desk>``.
 ``coinbase`` grants read bars, the book and the tape; ``bybit`` grants read
 the leverage of the same spot symbols' perpetuals (see
-:data:`aurelis.service.tables.LEVERAGE_SOURCES`); ``news`` grants read the
-free-catalogue feeds the agents asked for, matched against the spot symbols
-(see :data:`aurelis.service.tables.NEWS_SOURCES`)."""
+:data:`aurelis.service.tables.LEVERAGE_SOURCES`); ``news`` grants read
+whichever catalogue sources the agents asked for -- headlines, social posts,
+on-chain attention -- matched against the spot symbols where a source is about
+instruments (see :data:`aurelis.service.tables.NEWS_SOURCES`); ``dex`` grants
+record bars for the tokens the attention sources surfaced on the granted
+networks, by the rule on the grant (see :data:`aurelis.service.tables.DEX_SOURCES`)."""
 
 
 class Grants:
@@ -276,6 +279,10 @@ def feed_for(grant: DataGrant, *, clock: Clock | None = None) -> Any:
         from aurelis.intel.live import CoinbaseCandles
 
         return CoinbaseCandles()
+    if grant.is_dex:
+        from aurelis.intel.dex import GeckoTerminalCandles
+
+        return GeckoTerminalCandles()
     if grant.source.startswith("fixture:"):
         from aurelis.intel.fixturefeed import FixtureFeed
         from aurelis.org.desks import Desk

@@ -31,6 +31,7 @@ import datetime as dt
 import io
 import json
 import re
+import urllib.error
 from decimal import Decimal
 from typing import Any
 
@@ -56,6 +57,7 @@ from aurelis.intel.social import (
     BlueskySearch,
     RedditListing,
     StocktwitsStream,
+    bluesky_queries,
     bluesky_query,
     record_posts,
     stocktwits_symbol,
@@ -66,6 +68,7 @@ from aurelis.platform.llm.types import LlmRequest
 from aurelis.runtime import Runtime
 from aurelis.service.loop import Service, cycle_once
 from aurelis.sources.catalogue import KEY_PREFIX, KINDS, key_status, markets_of
+from aurelis.sources.reading import fetch_source
 from aurelis.sources.seat import request_sources
 from aurelis.world.store import World
 from aurelis.world.tables import Entity, WorldEvent
@@ -410,6 +413,24 @@ def test_a_bluesky_search_result_is_recorded_the_same_way_and_the_query_is_the_c
 ) -> None:
     assert bluesky_query("BTC-USD") == "$BTC"
     assert bluesky_query("PUMP-USD") == '"pump.fun"', "a ticker that is a word searches by name"
+    assert bluesky_queries("ETH-USD") == ("$ETH", '"ethereum"', '"ether"')
+    # The app view refuses some cashtags outright; the name is tried next.
+    refusing = _Route(
+        {
+            "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=%24ETH": urllib.error.HTTPError(
+                "https://api.bsky.app/",
+                403,
+                "Forbidden",
+                {},
+                None,  # type: ignore[arg-type]
+            ),
+            "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=%22ethereum%22": _bluesky(2),
+        }
+    )
+    fetched = fetch_source(
+        CATALOGUE["bluesky"], BlueskySearch(CATALOGUE["bluesky"], opener=refusing), ("ETH-USD",)
+    )
+    assert len(fetched.posts_on["ETH-USD"]) == 2 and fetched.failures == {}
     route = _Route({"https://api.bsky.app/xrpc/app.bsky.feed.searchPosts": _bluesky(3)})
     search = BlueskySearch(CATALOGUE["bluesky"], opener=route)
     posts = search.posts(bluesky_query("BTC-USD"))

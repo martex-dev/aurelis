@@ -133,7 +133,7 @@ def ensure_version(runtime: Any, session: Session, mechanism: Mechanism, *, at: 
         strategy_ref=strategy.ref,
         components=(component,),
         universe={"instruments": "any the trigger fires on", "desk": mechanism.desk},
-        cost_model={"fee_bps": "10", "spread_bps": "5"},
+        cost_model=_cost_model_of(mechanism.desk),
         known_weaknesses=(mechanism.decay,),
         author=architect,
         risk_assumptions=mechanism.other_side,
@@ -145,6 +145,23 @@ def ensure_version(runtime: Any, session: Session, mechanism: Mechanism, *, at: 
 
 
 _ARCHITECT_CHARTERS: tuple[str, ...] = ("strategy.architect", "strategy.synthesizer")
+
+
+def _cost_model_of(desk: str) -> dict[str, str]:
+    """The desk's own costs on the version, so the record of what the paper
+    fills paid and the record of what the version declared agree."""
+    from aurelis.desks.costs import costs_for
+
+    try:
+        model = costs_for(desk)
+    except (KeyError, ValueError):
+        model = costs_for("crypto")
+    return {
+        "fee_bps": str(model.commission_bps),
+        "spread_bps": str(model.spread_bps),
+        "impact_bps": str(model.slippage_bps),
+        "desk": desk,
+    }
 
 
 def _architect(runtime: Any, session: Session) -> str:

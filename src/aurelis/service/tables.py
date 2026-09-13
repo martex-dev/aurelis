@@ -23,12 +23,18 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from aurelis.platform.db.tables import Base
 
-__all__ = ["LEVERAGE_SOURCES", "NEWS_SOURCES", "DataGrant", "ServiceCycle"]
+__all__ = ["DEX_SOURCES", "LEVERAGE_SOURCES", "NEWS_SOURCES", "DataGrant", "ServiceCycle"]
 
 NEWS_SOURCES: tuple[str, ...] = ("news",)
 """The grant class for headlines: the service may read whichever feeds in the
 free catalogue an agent asked for, matched against the spot symbols the
 grant names. A person grants the class once; the agents choose inside it."""
+
+DEX_SOURCES: tuple[str, ...] = ("dex",)
+"""The grant class for tokens on the memecoin desk: the service may record
+bars, from the pool each trades in, for the tokens its attention sources
+surfaced, by the rule printed on the grant. The instruments a dex grant names
+are the *networks* followed, not tokens: a token list is dead in a week."""
 
 LEVERAGE_SOURCES: tuple[str, ...] = ("bybit",)
 """Vendors a grant reads *leverage* from — funding and open interest of the
@@ -92,6 +98,11 @@ class DataGrant(Base):
     def is_news(self) -> bool:
         """Read the headlines the agents asked for, not bars, under this grant."""
         return self.source in NEWS_SOURCES
+
+    @property
+    def is_dex(self) -> bool:
+        """Record bars for the tokens the rule follows on these networks."""
+        return self.source in DEX_SOURCES
 
 
 class ServiceCycle(Base):

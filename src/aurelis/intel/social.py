@@ -41,6 +41,7 @@ __all__ = [
     "Post",
     "RedditListing",
     "StocktwitsStream",
+    "bluesky_queries",
     "bluesky_query",
     "record_posts",
     "stocktwits_symbol",
@@ -153,12 +154,19 @@ class StocktwitsStream:
 def bluesky_query(instrument: str) -> str:
     """The search that finds posts about an instrument: its cashtag, or its
     name for the tickers that are English words."""
+    return bluesky_queries(instrument)[0]
+
+
+def bluesky_queries(instrument: str) -> tuple[str, ...]:
+    """Every search worth trying for an instrument, best first: the cashtag,
+    then each name it is known by. The app view refuses some cashtags
+    outright (``$ETH``, ``$DOGE``: "forbidden by administrative rules"),
+    and the name still answers."""
     base = instrument.split("-", 1)[0].upper()
+    names = tuple(f'"{alias}"' for alias in ALIASES.get(base, ()))
     if base in _TICKER_IS_A_WORD:
-        aliases = ALIASES.get(base)
-        if aliases:
-            return f'"{aliases[0]}"'
-    return f"${base}"
+        return names or (f"${base}",)
+    return (f"${base}", *names)
 
 
 @dataclass(frozen=True, slots=True)

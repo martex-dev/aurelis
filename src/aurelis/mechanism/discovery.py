@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from aurelis.agents.interpret import (
@@ -239,6 +240,19 @@ def _material(
     }
 
 
+def _desk_of(session: Session, instrument: str) -> str | None:
+    """The desk of the newest recording of an instrument, or ``None``."""
+    from aurelis.intel.snapshots import MarketSnapshot
+
+    desk = session.execute(
+        sa.select(MarketSnapshot.desk)
+        .where(MarketSnapshot.symbol == instrument)
+        .order_by(MarketSnapshot.fetched_at.desc(), MarketSnapshot.ref.desc())
+        .limit(1)
+    ).scalar()
+    return str(desk) if desk else None
+
+
 def propose_mechanism(
     provider: Any,
     session: Session,
@@ -247,7 +261,7 @@ def propose_mechanism(
     agent_ref: str,
     trigger_kind: str,
     second_kind: str,
-    desk: str,
+    desk: str | None = None,
     window_hours: int = 24,
     tier: ModelTier = ModelTier.HIGH,
     identity: str = "",
@@ -276,6 +290,10 @@ def propose_mechanism(
         counts[pair.entity_key] = counts.get(pair.entity_key, 0) + 1
     found_on = max(sorted(counts), key=lambda k: counts[k])
     found_pair = next(p for p in pairs if p.entity_key == found_on)
+    # The desk is the one the pattern fired on, read from the recording of
+    # the instrument it was found on; only a pattern on an instrument with
+    # no recording falls back to the caller's desk, or to crypto.
+    desk = _desk_of(session, found_on) or desk or "crypto"
 
     system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
     rendered = f"{render_material(material)}\n\n{DISCOVERY_FORM}"
@@ -359,7 +377,7 @@ def seat_discovery(
     agent_handle: str,
     trigger_kind: str = "price.volume_spike",
     second_kind: str = "price.range_break",
-    desk: str = "crypto",
+    desk: str | None = None,
     window_hours: int = 24,
     at: dt.datetime | None = None,
 ) -> Mechanism | None:

@@ -63,14 +63,38 @@ class Fetched:
         return shown + (f"; and {more} more" if more > 0 else "")
 
 
-def _per_instrument(source: Source, feed: Any, instruments: tuple[str, ...], query: Any) -> Fetched:
+def _per_instrument(
+    source: Source,
+    feed: Any,
+    instruments: tuple[str, ...],
+    query: Any,
+    names: dict[str, str] | None = None,
+) -> Fetched:
     posts_on: dict[str, list[Any]] = {}
     failures: dict[str, str] = {}
     for instrument in instruments:
-        try:
-            posts_on[instrument] = list(feed.posts(query(instrument)))
-        except FeedUnavailable as error:
-            failures[instrument] = str(error)[:120]
+        asked = instrument
+        if ":" in instrument:
+            # A token keyed by chain and contract is searched by its ticker,
+            # as a crypto pair would be; a token nobody has named yet is not
+            # searched at all, and the wake says so.
+            ticker = (names or {}).get(instrument)
+            if not ticker:
+                failures[instrument] = "no ticker for this token yet; not searched"
+                continue
+            asked = f"{ticker}-USD"
+        alternatives = query(asked)
+        if isinstance(alternatives, str):
+            alternatives = (alternatives,)
+        last = ""
+        for attempt in alternatives:
+            try:
+                posts_on[instrument] = list(feed.posts(attempt))
+                break
+            except FeedUnavailable as error:
+                last = str(error)[:120]
+        else:
+            failures[instrument] = last
     if instruments and not posts_on:
         raise FeedUnavailable(
             f"{source.name} failed on every instrument; first: {next(iter(failures.values()))}"
@@ -78,20 +102,27 @@ def _per_instrument(source: Source, feed: Any, instruments: tuple[str, ...], que
     return Fetched(source, posts_on=posts_on, failures=failures)
 
 
-def fetch_source(source: Source, feed: Any, instruments: tuple[str, ...]) -> Fetched:
+def fetch_source(
+    source: Source,
+    feed: Any,
+    instruments: tuple[str, ...],
+    *,
+    names: dict[str, str] | None = None,
+) -> Fetched:
     """The network step. Raises :class:`FeedUnavailable` as the reader does,
-    except per instrument, where it collects."""
+    except per instrument, where it collects. ``names`` gives a token keyed
+    by chain and contract the ticker a social reader searches by."""
     kind = source.kind
     if kind in ("rss", "cryptopanic"):
         return Fetched(source, entries=list(feed.entries()))
     if kind == "stocktwits":
         from aurelis.intel.social import stocktwits_symbol
 
-        return _per_instrument(source, feed, instruments, stocktwits_symbol)
+        return _per_instrument(source, feed, instruments, stocktwits_symbol, names)
     if kind == "bluesky":
-        from aurelis.intel.social import bluesky_query
+        from aurelis.intel.social import bluesky_queries
 
-        return _per_instrument(source, feed, instruments, bluesky_query)
+        return _per_instrument(source, feed, instruments, bluesky_queries, names)
     if kind == "reddit":
         return Fetched(source, posts=list(feed.posts(source.url)))
     if kind == "dexscreener":

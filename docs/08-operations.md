@@ -220,6 +220,24 @@ to the grant's spot symbols and recorded as events on them; paid boosts and
 trending pools are recorded on token entities. A news grant fetches no bars,
 and nothing is read until an agent asks.
 
+Tokens on the memecoin desk are a fourth grant, for the *class* of tokens the
+attention sources surface:
+
+```bash
+aurelis service grant -w live --source dex --network solana --network base --top 20 --days 7     --reason "follow the tokens the attention sources name, so a mechanism on attention can be tested" --by <you> --yes
+```
+
+The grant names the networks and a rule — follow up to twenty tokens the
+attention sources named in the last seven days, with pool liquidity between
+$20,000 and $5,000,000, newest attention first — and the
+wake evaluates the rule each time: a token boosted or trending on a granted
+network is followed, its pool's hourly bars are recorded like any
+instrument's, its price events are derived, and after seven days without
+new attention it drops off. Nothing follows a token the agents' chosen
+sources did not surface, so a dex grant does nothing until an agent has
+asked for `dexscreener_boosts` or `geckoterminal_trending` and a news grant
+lets the service read them.
+
 **Keys.** A source that needs a credential its vendor issues free (Reddit,
 CryptoPanic) is read only once the variable it names is set in the
 environment the service runs in. The variables are `AURELIS_KEY_REDDIT_CLIENT_ID`,

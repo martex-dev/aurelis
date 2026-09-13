@@ -2160,6 +2160,36 @@ See [ADR-0044](adr/0044-sources-for-every-market-keyed-by-a-person.md).
 
 ---
 
+## M44 — The memecoin desk opens: a price recording per token, followed by rule ✅
+
+M43 put a memecoin's attention on the record and nothing could test it:
+no token had a price. Now a token's bars come from the deepest pool it
+trades in, on GeckoTerminal's public API, through the same ingestion as
+any recording, keyed by chain and contract so its attention and its
+price are events on one entity. A `dex` grant names networks and a rule
+— follow up to N tokens the attention sources named in the last K days,
+with pool liquidity inside a band that excludes dust and wrapped ether
+alike, newest attention first — printed on the grant and evaluated by the
+wake: the
+person grants the class and the caps, the agents' chosen sources decide
+the names, and a token list that would be dead in a week is never
+written down.
+
+A paper fill now pays its desk's own cost model (a memecoin round trip is
+nearly eight percent), the version a mechanism trades under declares the
+same numbers, a mechanism is stated on the desk its pattern fired on
+rather than on crypto by default, and the social readers search a
+followed token by its ticker.
+
+Not done: the desk is not formally opened through the M12 checklist; no
+alias table for tokens, so headlines reach a token only through the
+cashtag search; nothing weighs a token's liquidity against the desk's
+material size when a paper position is sized.
+
+See [ADR-0045](adr/0045-the-memecoin-desk-opens-with-a-price-per-token.md).
+
+---
+
 ## Sequencing
 
 ```

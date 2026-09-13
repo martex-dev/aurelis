@@ -53,8 +53,9 @@ def service_grant(
         str,
         typer.Option(
             help=(
-                "coinbase (bars, book, tape), bybit (funding and open interest), "
-                "or fixture:<desk>."
+                "coinbase (bars, book, tape), bybit (funding and open interest), news "
+                "(the catalogue sources the agents ask for), dex (tokens the attention "
+                "sources surface, by rule), or fixture:<desk>."
             )
         ),
     ] = "coinbase",
@@ -84,7 +85,16 @@ def service_grant(
             )
         ),
     ] = None,
-    top: Annotated[int, typer.Option(help="With --universe: how many instruments.")] = 30,
+    top: Annotated[
+        int, typer.Option(help="With --universe or --source dex: how many instruments.")
+    ] = 30,
+    network: Annotated[
+        list[str] | None,
+        typer.Option(help="With --source dex: a network to follow tokens on. Repeatable."),
+    ] = None,
+    days: Annotated[
+        int, typer.Option(help="With --source dex: follow a token this long after its attention.")
+    ] = 7,
     min_range: Annotated[
         float,
         typer.Option(
@@ -101,6 +111,15 @@ def service_grant(
     and the ranking go on the record and the list is as fixed as a typed one.
     """
     instruments = tuple(instrument or [])
+    dex_rule: str | None = None
+    if source == "dex":
+        from aurelis.intel.dex import DexRule
+
+        networks = tuple(n.lower() for n in (network or ["solana", "base"]))
+        instruments = networks
+        dex_rule = DexRule(networks=networks, top=top, days=days).describe()
+        if desk == "crypto":
+            desk = "memecoin"
     if sum(1 for chosen in (universe, from_grant, instruments) if chosen) > 1:
         console.print(
             "[red]Name instruments, draw a universe, or follow a grant — one of the three.[/red]"
@@ -149,6 +168,8 @@ def service_grant(
         listed = (
             ", ".join(instruments) if len(instruments) <= 8 else f"{len(instruments)} instruments"
         )
+        if dex_rule:
+            listed = dex_rule
         console.print(
             f"[yellow]This lets the service fetch {escape(listed)} from "
             f"{escape(source)} on its own, every wake, until revoked.[/yellow] "
@@ -180,6 +201,7 @@ def service_grant(
                     granted_by=by,
                     reason=reason,
                     bars=bars,
+                    rule=dex_rule,
                 )
             ref = row.ref
             rule_text = row.rule

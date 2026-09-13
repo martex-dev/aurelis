@@ -150,7 +150,6 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
                 agent_handle=agent.handle,
                 trigger_kind=pair.first,
                 second_kind=pair.second,
-                desk="crypto",
                 window_hours=24,
                 at=at,
             )

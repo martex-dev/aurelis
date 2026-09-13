@@ -42,6 +42,36 @@ from aurelis.trading.tables import Order
 
 __all__ = ["Intent", "CycleOutcome", "GAP_QUESTION", "PaperCycle", "record_gap_forecast"]
 
+
+def _desk_of_instrument(session: Session, symbol: str) -> str | None:
+    """The desk of the newest recording of the instrument being traded, or
+    ``None``. A fill pays the costs of the market it is filled in: a
+    crypto-desk mechanism whose event fired on a memecoin token pays the
+    memecoin desk's costs on that token, not its own desk's."""
+    from aurelis.intel.snapshots import MarketSnapshot
+
+    desk = session.execute(
+        sa.select(MarketSnapshot.desk)
+        .where(MarketSnapshot.symbol == symbol)
+        .order_by(MarketSnapshot.fetched_at.desc(), MarketSnapshot.ref.desc())
+        .limit(1)
+    ).scalar()
+    return str(desk) if desk else None
+
+
+def _costs_of(desk: str) -> tuple[Decimal, Decimal, Decimal]:
+    """What a paper fill on this desk pays: commission, spread, impact, in
+    basis points, from the desk's own cost model (M44). A desk with no model
+    -- ``unknown``, when an intent's version names none -- pays the crypto
+    desk's, the most conservative default the company had before."""
+    from aurelis.desks.costs import costs_for
+
+    try:
+        model = costs_for(desk)
+    except (KeyError, ValueError):
+        model = costs_for("crypto")
+    return model.commission_bps, model.spread_bps, model.slippage_bps
+
 Intent = (
     tuple[str, str, OrderSide, Decimal, Decimal]
     | tuple[str, str, OrderSide, Decimal, Decimal, Decimal]
@@ -205,6 +235,7 @@ class PaperCycle:
                 notes.append(f"{proposal.ref}: approved size rounds to zero at {price}")
                 continue
 
+            costs = _costs_of(_desk_of_instrument(session, symbol) or desk)
             executed = self._execution.submit(
                 session,
                 approval_ref=approval.ref,
@@ -213,6 +244,9 @@ class PaperCycle:
                 quantity=quantity,
                 expected_price=price,
                 submitted_by=executor,
+                fee_bps=costs[0],
+                spread_bps=costs[1],
+                impact_bps=costs[2],
                 at=moment,
             )
             if not executed.filled:
@@ -262,6 +296,7 @@ class PaperCycle:
 
     @staticmethod
     def _desk_of(session: Session, version_ref: str) -> str:
+        """The desk of the version an intent trades under; ``unknown`` without one."""
         from aurelis.strategy.tables import StrategyVersion
 
         desk = session.execute(

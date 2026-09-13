@@ -114,6 +114,7 @@ class Service:
         microstructure: Callable[[DataGrant], tuple[Any, Any]] | None = None,
         leverage: Callable[[DataGrant], Any] | None = None,
         news: Callable[[str], Any] | None = None,
+        dex: Callable[[DataGrant], Any] | None = None,
         research_source: Any | None = None,
     ) -> None:
         self.runtime = runtime
@@ -124,6 +125,7 @@ class Service:
         self._microstructure = microstructure or microstructure_for
         self._leverage = leverage or leverage_for
         self._news = news or news_for
+        self._dex = dex or (lambda grant: feed_for(grant, clock=runtime.clock))
         self._research_source = research_source
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -151,6 +153,7 @@ class Service:
                 not grant.is_live
                 or grant.is_leverage
                 or grant.is_news
+                or grant.is_dex
                 or grant.source in catalogue_done
             ):
                 continue
@@ -182,7 +185,7 @@ class Service:
         fetched_once: set[tuple[str, str]] = set()
         duplicates = 0
         for grant in grants:
-            if grant.is_leverage or grant.is_news:
+            if grant.is_leverage or grant.is_news or grant.is_dex:
                 continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in fetched_once:
@@ -225,6 +228,62 @@ class Service:
                             at=moment,
                         )
                     )
+
+        # 1a. tokens, under a dex grant: the rule on the grant names how many
+        #     of the tokens the attention sources surfaced are followed, on
+        #     which networks, for how long; each followed token's pool bars
+        #     are recorded like any instrument's. A token with no pool is one
+        #     incident for that token; the wake goes on.
+        from aurelis.intel.dex import DexRule, followed_tokens
+
+        followed_keys: list[str] = []
+        for grant in grants:
+            if not grant.is_dex:
+                continue
+            rule = DexRule.parse(grant.rule, tuple(str(n) for n in grant.instruments))
+            with runtime.database.session() as session:
+                following = followed_tokens(session, rule=rule, at=moment)
+            recorded = 0
+            for key, _liquidity in following:
+                if key in followed_keys:
+                    continue
+                followed_keys.append(key)
+                try:
+                    feed = self._dex(grant)
+                    with runtime.database.session() as session:
+                        snapshot = runtime.snapshots.ingest(
+                            session,
+                            feed,
+                            desk=grant.desk,
+                            symbol=key,
+                            interval=grant.interval,
+                            bars=grant.bars,
+                            is_live=grant.is_live,
+                            actor=SERVICE_ACTOR,
+                            at=moment,
+                        )
+                        fetched.append(snapshot.ref)
+                        derived += derive_price_events(session, runtime.world, snapshot, at=moment)
+                    recorded += 1
+                except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                    failures += 1
+                    incidents.append(
+                        self._incident(
+                            severity=Severity.WARNING
+                            if isinstance(error, FeedUnavailable)
+                            else Severity.CRITICAL,
+                            source="service.fetch",
+                            subject=f"{grant.ref}:{key}",
+                            desk=grant.desk,
+                            message=f"{key} from {grant.source}: {type(error).__name__}: {error}",
+                            action=(
+                                "Nothing was stored for this token. The next wake retries "
+                                "while the rule still follows it."
+                            ),
+                            at=moment,
+                        )
+                    )
+            notes.append(f"dex: {len(following)} token(s) followed, {recorded} recorded")
 
         # 2. settle what a recording now covers
         from aurelis.judgement.resolution import resolve_due
@@ -289,7 +348,7 @@ class Service:
         micro_events = 0
         read_once: set[tuple[str, str]] = set()
         for grant in grants:
-            if not grant.is_live or grant.is_leverage or grant.is_news:
+            if not grant.is_live or grant.is_leverage or grant.is_news or grant.is_dex:
                 continue
             for symbol in grant.instruments:
                 if (grant.source, str(symbol)) in read_once:
@@ -419,7 +478,17 @@ class Service:
                         at=moment,
                     )
                 )
-            symbols = tuple(dict.fromkeys(str(s) for g in news_grants for s in g.instruments))
+            symbols = tuple(
+                dict.fromkeys(
+                    [str(s) for g in news_grants for s in g.instruments] + followed_keys
+                )
+            )
+            names: dict[str, str] = {}
+            if followed_keys:
+                from aurelis.intel.dex import names_of
+
+                with runtime.database.session() as session:
+                    names = names_of(session, tuple(followed_keys))
             read = events = bursts = 0
             for name in wanted:
                 source = CATALOGUE[name]
@@ -430,7 +499,7 @@ class Service:
                     )
                     continue
                 try:
-                    brought = fetch_source(source, self._news(name), symbols)
+                    brought = fetch_source(source, self._news(name), symbols, names=names)
                     with runtime.database.session() as session:
                         new_events, new_bursts = record_source(
                             session,
