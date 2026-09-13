@@ -21,12 +21,39 @@ from sqlalchemy.orm import Session
 from aurelis.world.store import World
 from aurelis.world.tables import WorldEvent
 
-__all__ = ["Effect", "MinedPair", "effect_of", "effect_over", "mine_pairs"]
+__all__ = [
+    "READINGS",
+    "Effect",
+    "MinedPair",
+    "effect_of",
+    "effect_over",
+    "is_reading",
+    "mine_pairs",
+]
 
-_NOT_A_TRIGGER: frozenset[str] = frozenset({"listing.seen"})
-"""Kinds that are facts about the company seeing the catalogue rather than
-about a market moving. A first-sync sighting of 837 products is not a
-trigger anything should fire on."""
+READINGS: frozenset[str] = frozenset(
+    {
+        "listing.seen",
+        "book.snapshot",
+        "flow.trades",
+        "leverage.funding",
+        "leverage.open_interest",
+    }
+)
+"""Kinds the service records as a *reading* on every wake for every followed
+instrument, rather than because something happened: the catalogue sighting,
+the book snapshot, the hour's trades, the funding rate and the open interest.
+A reading co-occurs with everything, so a pair built on one fires on every
+bar, and its in-sample "effect" is only the period the reading has been
+recorded for. The first live mechanism stated on one (trades followed by an
+open-interest reading, 676 predictions in a day, six right of the first
+hundred and four) is why this set exists. Derived kinds -- ``book.bid_heavy``,
+``funding.extreme_*``, ``oi.surge`` -- are events and stay in."""
+
+
+def is_reading(kind: str | None) -> bool:
+    """Whether a kind is a reading the service takes every wake, not an event."""
+    return bool(kind) and kind in READINGS
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +78,7 @@ def mine_pairs(
     kinds = [
         str(k)
         for (k,) in session.execute(sa.select(WorldEvent.kind).distinct().order_by(WorldEvent.kind))
-        if str(k) not in _NOT_A_TRIGGER
+        if not is_reading(str(k))
     ]
     out: list[MinedPair] = []
     for first in kinds:
@@ -88,15 +115,21 @@ class Effect:
     up_rate_after: Decimal
     unconditional_mean_return: Decimal
     unconditional_up_rate: Decimal
+    since: dt.datetime | None = None
+    """The instant of the earliest occurrence. The unconditional figures are
+    over the bars from here on, not the whole recording: a kind recorded only
+    since Thursday, compared against every bar since June, would show the
+    effect of Thursday's weather, not of the kind."""
 
     @property
     def lift(self) -> Decimal:
         return (self.up_rate_after - self.unconditional_up_rate).quantize(Decimal("0.0001"))
 
     def describe(self) -> str:
+        span = f" since {self.since:%Y-%m-%d %H:%M}" if self.since is not None else ""
         return (
             f"after {self.trigger}, {self.horizon_hours}h later: n {self.n}, "
-            f"mean {self.mean_return_after}%, up {self.up_rate_after}; any bar: "
+            f"mean {self.mean_return_after}%, up {self.up_rate_after}; any bar{span}: "
             f"mean {self.unconditional_mean_return}%, up {self.unconditional_up_rate}"
         )
 
@@ -127,7 +160,14 @@ def effect_over(
     session: Session, events: list[WorldEvent], *, label: str, horizon_hours: int
 ) -> Effect | None:
     """The in-sample effect after these events — a trigger's occurrences, or
-    the second events of a conjunction's pairs — labelled as the caller says."""
+    the second events of a conjunction's pairs — labelled as the caller says.
+
+    The unconditional column is over the same recordings **from the earliest
+    occurrence on**. Before M42 it was over every bar of the recording, and
+    a kind the service had only recorded for two days read as a strong
+    effect against a baseline of four hundred bars because those two days
+    went up. The comparison is now between the same days.
+    """
     from aurelis.intel.snapshots import MarketSnapshot, Snapshots
 
     if not events:
@@ -135,6 +175,7 @@ def effect_over(
     bars_by_symbol: dict[str, list[Any]] = {}
     index_by_symbol: dict[str, dict[dt.datetime, int]] = {}
     after: list[Decimal] = []
+    since = min(_aware(event.at) for event in events)
     for event in events:
         symbol = event.entity_key
         if symbol not in bars_by_symbol:
@@ -152,7 +193,7 @@ def effect_over(
             bars_by_symbol[symbol] = bars
             index_by_symbol[symbol] = {b.timestamp: i for i, b in enumerate(bars)}
         bars = bars_by_symbol[symbol]
-        at = event.at if event.at.tzinfo else event.at.replace(tzinfo=dt.UTC)
+        at = _aware(event.at)
         idx = index_by_symbol[symbol].get(at)
         if idx is None:
             earlier = [i for b, i in index_by_symbol[symbol].items() if b <= at]
@@ -168,6 +209,8 @@ def effect_over(
     every: list[Decimal] = []
     for bars in bars_by_symbol.values():
         for i in range(len(bars) - horizon_hours):
+            if _aware(bars[i].timestamp) < since:
+                continue
             if bars[i].close > 0:
                 every.append((bars[i + horizon_hours].close / bars[i].close - 1) * 100)
     q = Decimal("0.0001")
@@ -185,4 +228,9 @@ def effect_over(
             if every
             else Decimal("0.5")
         ),
+        since=since,
     )
+
+
+def _aware(moment: dt.datetime) -> dt.datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)

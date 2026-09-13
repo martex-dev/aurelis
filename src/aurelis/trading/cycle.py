@@ -40,7 +40,13 @@ from aurelis.trading.posttrade import Gap, PostTrade
 from aurelis.trading.states import OrderSide
 from aurelis.trading.tables import Order
 
-__all__ = ["CycleOutcome", "GAP_QUESTION", "PaperCycle", "record_gap_forecast"]
+__all__ = ["Intent", "CycleOutcome", "GAP_QUESTION", "PaperCycle", "record_gap_forecast"]
+
+Intent = (
+    tuple[str, str, OrderSide, Decimal, Decimal]
+    | tuple[str, str, OrderSide, Decimal, Decimal, Decimal]
+)
+"""``(version_ref, symbol, side, exposure, price)``, optionally ``(..., quantity)``."""
 
 GAP_QUESTION = (
     "Will this deployment's realised return be at least as good as its "
@@ -115,7 +121,7 @@ class PaperCycle:
         *,
         portfolio_ref: str,
         broker: BrokerAdapter,
-        intents: tuple[tuple[str, str, OrderSide, Decimal, Decimal], ...],
+        intents: tuple[Intent, ...],
         proposer: str,
         assessor: str,
         approver: str,
@@ -127,7 +133,11 @@ class PaperCycle:
 
         ``intents`` are ``(version_ref, symbol, side, exposure, price)`` — what
         the strategies would like. Nothing in that tuple is a decision: every
-        one of them goes to Risk before it becomes anything.
+        one of them goes to Risk before it becomes anything. A sixth element,
+        a quantity, caps the order at that many units: a close wants exactly
+        what the book holds, and an approval a cent above its notional is
+        the room the database's floating-point check needs to agree that
+        equal is not more (M42).
         """
         moment = at or self._clock.now()
         proposals: list[str] = []
@@ -137,7 +147,9 @@ class PaperCycle:
         raised: list[str] = []
         notes: list[str] = []
 
-        for version_ref, symbol, side, exposure, price in intents:
+        for intent in intents:
+            version_ref, symbol, side, exposure, price = intent[:5]
+            at_most = intent[5] if len(intent) > 5 else None
             desk = self._desk_of(session, version_ref)
             proposal = TradeProposal(
                 proposal_id=uuid7(),
@@ -161,9 +173,7 @@ class PaperCycle:
             )
             if assessment.allowed_exposure <= 0:
                 refused.append(proposal.ref)
-                notes.append(
-                    f"{proposal.ref} {assessment.decision}: {assessment.reason[:90]}"
-                )
+                notes.append(f"{proposal.ref} {assessment.decision}: {assessment.reason[:90]}")
                 alert = self._alerts.raise_alert(
                     session,
                     severity=Severity.WARNING,
@@ -171,8 +181,7 @@ class PaperCycle:
                     subject=version_ref,
                     desk=desk,
                     message=(
-                        f"Risk {assessment.decision} the paper intent for "
-                        f"{version_ref} on {symbol}"
+                        f"Risk {assessment.decision} the paper intent for {version_ref} on {symbol}"
                     ),
                     recommended_action=(
                         "Read the assessment's reason; if the limit is stale, "
@@ -189,6 +198,8 @@ class PaperCycle:
                 session, proposal_ref=proposal.ref, approver=approver, at=moment
             )
             quantity = approved_quantity(approval.final_target, price)
+            if at_most is not None:
+                quantity = min(quantity, at_most)
             if quantity <= 0:
                 refused.append(proposal.ref)
                 notes.append(f"{proposal.ref}: approved size rounds to zero at {price}")

@@ -213,8 +213,9 @@ def _material(
                     f"n {after_pair.n}, mean {after_pair.mean_return_after}%, "
                     f"up {after_pair.up_rate_after}"
                 )
+            span = f", since {effect.since:%Y-%m-%d}" if effect.since is not None else ""
             evidence[f"{horizon}h after any bar"] = (
-                f"mean {effect.unconditional_mean_return}%, up {effect.unconditional_up_rate}"
+                f"mean {effect.unconditional_mean_return}%, up {effect.unconditional_up_rate}{span}"
             )
     return {
         "pattern": {

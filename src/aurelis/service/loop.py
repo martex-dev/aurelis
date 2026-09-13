@@ -470,7 +470,13 @@ class Service:
             notes.append(f"{len(retired)} mechanism(s) retired")
 
         # A candidate scheme trades its firings on paper, through Risk.
-        from aurelis.mechanism.paper import close_settled, has_open_trades, trade_firings
+        from aurelis.mechanism.paper import (
+            books_with_trades,
+            close_settled,
+            flatten_book,
+            has_open_trades,
+            trade_firings,
+        )
 
         traded_open = traded_closed = 0
         with runtime.database.session() as session:
@@ -499,8 +505,33 @@ class Service:
                     continue
                 traded_open += len(result.opened)
                 traded_closed += len(result.closed)
-        if traded_open or traded_closed:
-            notes.append(f"schemes: opened {traded_open}, closed {traded_closed} paper position(s)")
+            # Whatever the closes left behind: a book is flat in every
+            # instrument no open trade accounts for, or the wake says why not.
+            flattened = 0
+            for book in books_with_trades(session):
+                try:
+                    swept = flatten_book(runtime, session, book, at=moment)
+                except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                    incidents.append(
+                        self._incident(
+                            severity=Severity.WARNING,
+                            source="service.scheme",
+                            subject=book,
+                            desk="",
+                            message=f"flattening {book}: {type(error).__name__}: {error}",
+                            action="The residual stays on the book; the next wake retries.",
+                            at=moment,
+                        )
+                    )
+                    continue
+                flattened += len(swept.closed)
+                if swept.note:
+                    notes.append(f"book {book}: {swept.note}")
+        if traded_open or traded_closed or flattened:
+            notes.append(
+                f"schemes: opened {traded_open}, closed {traded_closed}, "
+                f"flattened {flattened} paper position(s)"
+            )
 
         # 4. write it down, whatever it was
         note = "; ".join(notes)

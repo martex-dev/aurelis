@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_UP, Decimal
 from typing import Any
 
 import sqlalchemy as sa
@@ -43,6 +43,8 @@ from aurelis.trading.tables import Fill, Order
 
 __all__ = [
     "DEFAULT_WEIGHT",
+    "books_with_trades",
+    "flatten_book",
     "PaperResult",
     "close_settled",
     "ensure_version",
@@ -294,7 +296,7 @@ def trade_firings(
             },
             at=moment,
         )
-    closing = close_settled(runtime, session, mechanism, equity=equity, weight=weight, at=moment)
+    closing = close_settled(runtime, session, mechanism, at=moment)
     return PaperResult(
         mechanism.ref,
         tuple(opened),
@@ -357,8 +359,6 @@ def close_settled(
     session: Session,
     mechanism: Mechanism,
     *,
-    equity: Decimal = Decimal("100000"),
-    weight: Decimal = DEFAULT_WEIGHT,
     at: dt.datetime | None = None,
 ) -> PaperResult:
     """Close every open paper position whose prediction has scored.
@@ -366,7 +366,9 @@ def close_settled(
     Called for *any* mechanism with open trades, scheme or not. A position
     opened while the mechanism was a candidate scheme is closed at its horizon
     even if the record has since demoted the mechanism: the alternative was a
-    position nothing would ever close, which is how M39 found this.
+    position nothing would ever close, which is how M39 found this. The close
+    is sized by the quantity the opening fill bought, so the book is flat in
+    that instrument afterwards (M42).
     """
     moment = at or runtime.clock.now()
     to_close = list(
@@ -385,7 +387,6 @@ def close_settled(
     actors = _actors(runtime, session)
     version_ref = mechanism.version_ref or ensure_version(runtime, session, mechanism, at=moment)
     broker = runtime.brokers[BrokerKind.PAPER]
-    exposure = equity * weight
     closed: list[str] = []
     refused: list[str] = []
     notes: list[str] = []
@@ -400,12 +401,22 @@ def close_settled(
             continue
         price, bar_at = known
         side = OrderSide.SELL if thesis.direction == "up" else OrderSide.BUY
+        # Sized by what the opening fill bought, at the price it closes at:
+        # the same dollar exposure at a different price is a different
+        # quantity, and the difference stayed on the book. The first two
+        # live round trips left a short of 129 RAY and a long of 1 HYPE.
+        opened = _fill(session, trade.open_order_ref)
+        if opened is None:
+            refused.append(thesis.ref)
+            notes.append(f"{thesis.ref}: its opening order has no fill; not closed")
+            continue
+        held = Decimal(str(opened[1].quantity))
         broker.marks[thesis.instrument] = price
         outcome = runtime.cycle.run(
             session,
             portfolio_ref=trade.portfolio_ref,
             broker=broker,
-            intents=((version_ref, thesis.instrument, side, exposure, price),),
+            intents=((version_ref, thesis.instrument, side, _room(held, price), price, held),),
             proposer=actors["proposer"],
             assessor=actors["assessor"],
             approver=actors["approver"],
@@ -440,6 +451,124 @@ def close_settled(
             at=moment,
         )
     return PaperResult(mechanism.ref, (), tuple(closed), tuple(refused), "; ".join(notes))
+
+
+def books_with_trades(session: Session) -> list[str]:
+    """Every paper book a mechanism has traded in, by portfolio ref."""
+    return sorted(
+        {str(ref) for (ref,) in session.execute(sa.select(MechanismTrade.portfolio_ref).distinct())}
+    )
+
+
+def flatten_book(
+    runtime: Any, session: Session, portfolio_ref: str, *, at: dt.datetime | None = None
+) -> PaperResult:
+    """Flatten every position in a mechanism book that no open trade accounts for.
+
+    A residual is a quantity the book holds in an instrument with no open
+    mechanism trade in it: what a close sized by exposure rather than by
+    quantity left behind (the two before M42), or what a partial fill would
+    leave. It is closed at the newest price the wake can see, through the
+    same chain as any order, under the version of the mechanism that last
+    traded the instrument, and the flattening is on the ledger. A book that
+    is flat returns an empty result and writes nothing.
+    """
+    moment = at or runtime.clock.now()
+    open_symbols = {
+        str(instrument)
+        for (instrument,) in session.execute(
+            sa.select(Thesis.instrument)
+            .join(MechanismTrade, MechanismTrade.thesis_ref == Thesis.ref)
+            .where(
+                MechanismTrade.portfolio_ref == portfolio_ref,
+                MechanismTrade.close_order_ref.is_(None),
+            )
+        )
+    }
+    residuals = [
+        p
+        for p in runtime.execution.positions(session, portfolio_ref)
+        if Decimal(str(p.quantity)) != 0 and p.symbol not in open_symbols
+    ]
+    if not residuals:
+        return PaperResult(portfolio_ref, (), (), (), "")
+    actors = _actors(runtime, session)
+    broker = runtime.brokers[BrokerKind.PAPER]
+    flattened: list[str] = []
+    refused: list[str] = []
+    notes: list[str] = []
+    for position in residuals:
+        quantity = Decimal(str(position.quantity))
+        known = _executable_price(session, position.symbol, moment)
+        if known is None:
+            refused.append(position.symbol)
+            notes.append(f"{position.symbol}: no recorded price; residual {quantity} stays")
+            continue
+        price, _ = known
+        last = session.execute(
+            sa.select(Order.version_ref)
+            .where(Order.portfolio_ref == portfolio_ref, Order.symbol == position.symbol)
+            .order_by(Order.submitted_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if last is None:
+            refused.append(position.symbol)
+            notes.append(f"{position.symbol}: no order ever placed under a version; residual stays")
+            continue
+        side = OrderSide.SELL if quantity > 0 else OrderSide.BUY
+        broker.marks[position.symbol] = price
+        outcome = runtime.cycle.run(
+            session,
+            portfolio_ref=portfolio_ref,
+            broker=broker,
+            intents=(
+                (
+                    str(last),
+                    position.symbol,
+                    side,
+                    _room(abs(quantity), price),
+                    price,
+                    abs(quantity),
+                ),
+            ),
+            proposer=actors["proposer"],
+            assessor=actors["assessor"],
+            approver=actors["approver"],
+            executor=actors["executor"],
+            analyst=actors["analyst"],
+            at=moment,
+        )
+        if not outcome.orders:
+            refused.append(position.symbol)
+            notes.append(f"{position.symbol}: the chain refused the flattening order")
+            continue
+        flattened.append(position.symbol)
+        notes.append(f"{position.symbol}: residual {quantity} flattened at {price}")
+    if flattened:
+        runtime.ledger.append(
+            session,
+            kind=EventKind.MECHANISM_TRADED,
+            actor=actors["executor"],
+            subject=portfolio_ref,
+            payload={
+                "book": portfolio_ref,
+                "opened": 0,
+                "closed": 0,
+                "flattened": flattened,
+                "refused": len(refused),
+                "at": isoformat(moment),
+            },
+            at=moment,
+        )
+    return PaperResult(portfolio_ref, (), tuple(flattened), tuple(refused), "; ".join(notes))
+
+
+def _room(quantity: Decimal, price: Decimal) -> Decimal:
+    """The exposure to ask Risk for when the order is exactly ``quantity`` units:
+    a cent above the notional, so the database's floating-point check that an
+    order does not exceed its approval has room to agree that equal is not
+    more. The order itself is capped at ``quantity``."""
+    return (quantity * price).quantize(Decimal("0.01"), rounding=ROUND_UP) + Decimal("0.01")
 
 
 def _fill(session: Session, order_ref: str) -> tuple[Order, Fill] | None:

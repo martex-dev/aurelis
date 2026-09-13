@@ -423,16 +423,48 @@ class Mechanisms:
     def sweep_retirements(
         self, session: Session, *, at: dt.datetime | None = None
     ) -> list[Mechanism]:
-        """Retire mechanisms that gathered enough predictions and failed.
+        """Retire mechanisms that gathered enough predictions and failed,
+        and any stated on a reading.
 
         A mechanism with at least :data:`MIN_SCORED_PREDICTIONS` scored
         predictions that does not beat the base rate is not a scheme, and
         leaving it active would let it keep generating predictions the company
-        already knows are noise. Retired, with the reason.
+        already knows are noise. Retired, with the reason. A mechanism whose
+        trigger or second kind is a reading (:data:`aurelis.mechanism.mining.READINGS`)
+        is retired without waiting for predictions, with the reason.
         """
+        from aurelis.mechanism.mining import is_reading
+
         retired: list[Mechanism] = []
         for status in self.statuses(session):
-            if status.retired or not status.enough:
+            if status.retired:
+                continue
+            mechanism = status.mechanism
+            # A mechanism stated on a reading fires on every bar the reading
+            # was taken on. It is retired at once, whatever its predictions
+            # say so far: the evidence it would gather is the calendar's.
+            readings = [
+                k
+                for k in (mechanism.trigger_kind, mechanism.then_kind)
+                if k is not None and is_reading(k)
+            ]
+            if readings:
+                retired.append(
+                    self.retire(
+                        session,
+                        mechanism.ref,
+                        reason=(
+                            f"fires on {' and '.join(readings)}, a reading the service "
+                            "records every wake for every instrument rather than "
+                            "something that happened: every bar is an occurrence, and a "
+                            "mechanism that fires on every bar predicts the calendar, not "
+                            "the market"
+                        ),
+                        at=at,
+                    )
+                )
+                continue
+            if not status.enough:
                 continue
             if not status.beats_base_rate:
                 retired.append(

@@ -2099,6 +2099,35 @@ See [ADR-0042](adr/0042-the-agents-ask-for-the-sources-they-need.md).
 
 ---
 
+## M42 — A reading is not a trigger, and the book closes flat ✅
+
+The morning status check found two things on the live workspace. A real
+agent had stated **MEC-0005** on `flow.trades ⇒ leverage.open_interest`, a
+pair of *readings* the service records every wake for every instrument, so
+the conjunction completed on every bar since leverage recording began:
+676 predictions in a day, six right of the first hundred and four, and an
+in-sample "effect" that was the two days the reading had existed for
+compared against four hundred bars. Eight other agents had spent a quarter
+of the day's budget declining thirty-five sibling pairs on `book.snapshot`.
+And the first two live paper round trips, closed at the right price with
+the right P&L, had left a short of 129 RAY and a long of 1 HYPE on the
+book: the close was sized by dollars at a different price.
+
+Now: `READINGS` names the kinds taken as a reading; the miner offers no
+pair with one on either side; the sweep retires any mechanism stated on
+one at once, with the reason. The in-sample baseline spans the bars from
+the trigger's earliest occurrence on, and says since when. A close is sized
+by the quantity the opening fill bought. After the closes, the wake
+flattens any position in a mechanism book that no open trade accounts for,
+through the chain, and records it.
+
+The first wake on this code retires MEC-0005 and flattens the two
+residuals.
+
+See [ADR-0043](adr/0043-a-reading-is-not-a-trigger-and-the-book-closes-flat.md).
+
+---
+
 ## Sequencing
 
 ```
