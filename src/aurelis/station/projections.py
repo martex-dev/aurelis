@@ -1234,6 +1234,7 @@ class ServiceView:
 
 
 def service_view(session: Session, *, limit: int = 40) -> ServiceView:
+    from aurelis.sources.catalogue import CATALOGUE
     from aurelis.sources.tables import SourceRequest
 
     requests = [
@@ -1244,6 +1245,7 @@ def service_view(session: Session, *, limit: int = 40) -> ServiceView:
             "wanted": bool(r.wanted),
             "reason": r.reason,
             "at": r.requested_at,
+            "key": CATALOGUE[r.source].key if r.source in CATALOGUE else "",
         }
         for r in session.execute(
             sa.select(SourceRequest)

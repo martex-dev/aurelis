@@ -214,12 +214,42 @@ def leverage_for(grant: DataGrant) -> Any:
 
 
 def news_for(name: str) -> Any:
-    """The feed for one catalogue source, by name. Built here and nowhere else."""
-    from aurelis.intel.news import CATALOGUE, RssFeed
+    """The reader for one catalogue source, by name and kind. Built here and
+    nowhere else; the service fetches it with :func:`aurelis.sources.reading.fetch_source`."""
+    from aurelis.sources.catalogue import CATALOGUE
 
     if name not in CATALOGUE:
         raise IntegrityViolation(f"{name!r} is not in the free source catalogue")
-    return RssFeed(CATALOGUE[name])
+    source = CATALOGUE[name]
+    if source.kind == "rss":
+        from aurelis.intel.news import RssFeed
+
+        return RssFeed(source)
+    if source.kind == "cryptopanic":
+        from aurelis.intel.news import CryptoPanicFeed
+
+        return CryptoPanicFeed(source)
+    if source.kind == "stocktwits":
+        from aurelis.intel.social import StocktwitsStream
+
+        return StocktwitsStream(source)
+    if source.kind == "bluesky":
+        from aurelis.intel.social import BlueskySearch
+
+        return BlueskySearch(source)
+    if source.kind == "reddit":
+        from aurelis.intel.social import RedditListing
+
+        return RedditListing(source)
+    if source.kind == "dexscreener":
+        from aurelis.intel.onchain import DexScreenerBoosts
+
+        return DexScreenerBoosts(source)
+    if source.kind == "geckoterminal":
+        from aurelis.intel.onchain import GeckoTerminalTrending
+
+        return GeckoTerminalTrending(source)
+    raise IntegrityViolation(f"no reader for source kind {source.kind!r}")
 
 
 def stats_for(source: str) -> Any:

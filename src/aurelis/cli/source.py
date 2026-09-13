@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 import typer
@@ -39,21 +39,54 @@ def _runtime(workspace: Path | None, *, seated: bool = False) -> Runtime:
 
 @source_app.command("catalogue")
 def source_catalogue() -> None:
-    """Every source the company could read. All free, official, keyless."""
-    from aurelis.intel.news import CATALOGUE
+    """Every source the company could read, for every market. All free and official."""
+    from aurelis.sources.catalogue import CATALOGUE
 
     table = Table(title="free source catalogue")
-    for column in ("name", "kind", "cost", "key", "covers", "url"):
+    for column in ("name", "kind", "markets", "key", "covers"):
         table.add_column(column, overflow="fold")
     for source in CATALOGUE.values():
         table.add_row(
-            source.name, source.kind, source.cost, source.key, escape(source.covers), source.url
+            source.name,
+            source.kind,
+            ", ".join(source.markets),
+            _key_pill(source),
+            escape(source.covers),
         )
     console.print(table)
     console.print(
-        "[dim]A source is in the catalogue only if it is an official feed that needs no "
-        "key and costs nothing. Which of them the company reads is an agent's "
+        "[dim]A source is in the catalogue only if it is an official interface that costs "
+        "nothing; a key it needs is one its vendor issues free and a person supplies "
+        "(`aurelis source keys`). Which sources the company reads is an agent's "
         "decision: `aurelis source seat`.[/dim]"
+    )
+
+
+def _key_pill(source: Any) -> str:
+    if source.keyless:
+        return "[green]none[/green]"
+    return "[green]supplied[/green]" if source.available else "[yellow]not supplied[/yellow]"
+
+
+@source_app.command("keys")
+def source_keys() -> None:
+    """Which keyed sources are set up, by variable name. Values are never shown."""
+    from aurelis.sources.catalogue import KEY_PREFIX, key_status
+
+    table = Table(title="keys a person supplies")
+    for column in ("source", "variable", "set"):
+        table.add_column(column, overflow="fold")
+    for row in key_status():
+        table.add_row(
+            row["source"],
+            row["variable"],
+            "[green]yes[/green]" if row["set"] == "yes" else "[yellow]no[/yellow]",
+        )
+    console.print(table)
+    console.print(
+        f"[dim]Set a variable in the environment the service runs in "
+        f"(PowerShell: `$env:{KEY_PREFIX}REDDIT_CLIENT_ID = \"...\"` before `aurelis service "
+        "start`). The value is read at fetch time and is never written to the record.[/dim]"
     )
 
 

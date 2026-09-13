@@ -390,10 +390,14 @@ class Service:
                 f"{lev_without} without a perpetual"
             )
 
-        # 1d. news, under its own grant: the free-catalogue feeds the agents
-        #     asked for, matched against the grant's spot symbols. No request,
-        #     nothing read; a feed that is down is one incident.
-        from aurelis.intel.news import CATALOGUE, record_news
+        # 1d. sources, under the news grant: whichever catalogue sources the
+        #     agents asked for, of any kind, matched against the grant's spot
+        #     symbols where the source is about instruments. No request,
+        #     nothing read; a keyed source with no key is a note for a person;
+        #     a source that is down is one incident. Fetched outside a session,
+        #     recorded inside one.
+        from aurelis.sources.catalogue import CATALOGUE
+        from aurelis.sources.reading import fetch_source, record_source
         from aurelis.sources.seat import active_sources
 
         news_grants = [g for g in grants if g.is_news]
@@ -416,24 +420,36 @@ class Service:
                     )
                 )
             symbols = tuple(dict.fromkeys(str(s) for g in news_grants for s in g.instruments))
-            read = mentions = bursts = 0
+            read = events = bursts = 0
             for name in wanted:
+                source = CATALOGUE[name]
+                if not source.available:
+                    notes.append(
+                        f"{name}: not read, needs {', '.join(source.missing_keys)} in the "
+                        "service's environment"
+                    )
+                    continue
                 try:
-                    entries = self._news(name).entries()
+                    brought = fetch_source(source, self._news(name), symbols)
                     with runtime.database.session() as session:
-                        new_mentions, new_bursts = record_news(
+                        new_events, new_bursts = record_source(
                             session,
                             runtime.world,
                             runtime.artifacts,
-                            source=CATALOGUE[name],
-                            entries=entries,
+                            fetched=brought,
                             instruments=symbols,
                             clock=runtime.clock,
                             at=moment,
                         )
                     read += 1
-                    mentions += new_mentions
+                    events += new_events
                     bursts += new_bursts
+                    if brought.failures:
+                        asked = brought.requests + len(brought.failures)
+                        notes.append(
+                            f"{name}: {len(brought.failures)} of {asked} not read "
+                            f"({brought.describe_failures()})"
+                        )
                 except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                     incidents.append(
                         self._incident(
@@ -447,11 +463,9 @@ class Service:
                         )
                     )
             if wanted:
-                notes.append(
-                    f"news: {read} source(s) read, {mentions} mention(s), {bursts} burst(s)"
-                )
+                notes.append(f"sources: {read} read, {events} event(s), {bursts} burst(s)")
             else:
-                notes.append("news: no source requested by an agent yet")
+                notes.append("sources: no source requested by an agent yet")
 
         # After new events and settlements, every active mechanism seals
         # predictions on any occurrence it has not yet, and mechanisms that

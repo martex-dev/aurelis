@@ -124,10 +124,15 @@ def _grant(company: Runtime, source: str, *instruments: str) -> Any:
 
 
 def test_the_catalogue_holds_only_free_official_keyless_feeds_and_they_parse() -> None:
+    from aurelis.sources.catalogue import KINDS
+
     assert CATALOGUE, "an empty catalogue asks the agents nothing"
     for source in CATALOGUE.values():
-        assert source.cost == "free" and source.key == "none" and source.kind == "rss"
+        # Free and official, always; keyless, or keyed by a person (M43).
+        assert source.cost == "free" and source.kind in KINDS
+        assert source.keyless or all(k.startswith("AURELIS_KEY_") for k in source.keys)
         assert source.url.startswith("https://")
+    assert all(s.kind == "rss" and s.key == "none" for s in list(CATALOGUE.values())[:4])
     entries = parse_rss(_rss(_headlines(_NOW)))
     assert [e.title for e in entries][0].startswith("Bitcoin")
     assert entries[0].published == _NOW - dt.timedelta(hours=1)
@@ -284,7 +289,7 @@ def test_the_service_reads_only_what_was_asked_for_under_a_news_grant(
         )
     second = cycle_once(company, service=service)
     assert asked == ["coindesk"], "only the source that was asked for"
-    assert "news: 1 source(s) read, 2 mention(s), 0 burst(s)" in second.note
+    assert "sources: 1 read, 2 event(s), 0 burst(s)" in second.note
     assert second.incidents == ()
 
     feeds["coindesk"] = RssFeed(CATALOGUE["coindesk"], opener=_Xml(OSError("refused")))
@@ -317,7 +322,7 @@ def test_a_burst_carries_its_threshold_and_a_mechanism_can_fire_on_it(
     many = [
         (f"Bitcoin headline number {i}", now - dt.timedelta(minutes=10 * i))
         for i in range(BURST_MIN + 1)
-    ]
+    ] + [("Bitcoin, two days ago", now - dt.timedelta(days=2))]  # a rate needs history
     with company.database.session() as session:
         company.snapshots.ingest(
             session,
@@ -356,7 +361,7 @@ def test_a_burst_carries_its_threshold_and_a_mechanism_can_fire_on_it(
             model="test",
         )
         run = generate_predictions(session, mechanism, clock=clock)
-    assert new == BURST_MIN + 1 and bursts == 1
+    assert new == BURST_MIN + 2 and bursts == 1
     assert burst.payload["mentions_6h"] == BURST_MIN + 1
     assert "trailing week" in burst.payload["threshold"]
     assert len(run.sealed) == 1, "the mechanism sealed against the spot close at the burst"

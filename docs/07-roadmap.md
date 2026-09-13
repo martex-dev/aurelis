@@ -2128,6 +2128,38 @@ See [ADR-0043](adr/0043-a-reading-is-not-a-trigger-and-the-book-closes-flat.md).
 
 ---
 
+## M43 — Sources for every market, chosen by the agents, keyed by a person ✅
+
+The operator's instruction: the agents decide what news and social media
+they need for every market; the sources stay free; where a free source
+needs a key, the operator supplies it. The catalogue grew from four crypto
+RSS feeds to twenty sources across seven kinds, each naming the desks it
+bears on: publishers' feeds for crypto, equities, FX, energy and macro
+(SEC, the Fed, the Bank of England, EIA, CNBC, MarketWatch, Yahoo Finance,
+OilPrice, FXStreet); Stocktwits symbol streams and Bluesky post search,
+per followed instrument, keyless; DEX Screener paid boosts and
+GeckoTerminal trending pools, where a memecoin's attention shows first,
+keyless, recorded on token entities; Reddit and CryptoPanic, free with a
+key the person sets as `AURELIS_KEY_*` in the service's environment.
+
+The seat shows every source with its markets and key status and the
+instruments the company follows per desk; an agent may ask for a keyed
+source, and the wake notes which variable is missing until it is there.
+`aurelis source keys` lists variables and whether each is set, never a
+value. Posts land as `social.post` with the poster's own tag and burst by
+the one rule headlines use; a boost is `attention.boost` once per total
+paid, a pool `dex.trending` once a day it enters the list. Every reader
+was run against its live endpoint on the 13th; nothing in the suite
+touches the network.
+
+Not done: X and Telegram, for the reasons in the ADR; no sentiment is
+inferred from text; tokens have no price recording yet, so no mechanism
+seals on them until the memecoin desk opens (M44).
+
+See [ADR-0044](adr/0044-sources-for-every-market-keyed-by-a-person.md).
+
+---
+
 ## Sequencing
 
 ```

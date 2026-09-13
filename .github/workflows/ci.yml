@@ -240,6 +240,7 @@ jobs:
           # asked which of it the company should read. Nothing is fetched here:
           # a news grant reaches the publishers and is not recorded in CI.
           aurelis source catalogue
+          aurelis source keys
           aurelis source seat -w "$workspace" --agent INTEL
           aurelis source requests -w "$workspace"
           aurelis mandate standard

@@ -1,12 +1,12 @@
-"""Headlines from free, keyless, official feeds, recorded as events on instruments.
+"""Headlines from official feeds, recorded as events on instruments.
 
 The brief names social posts and news as raw material for the mechanisms the
 company should be able to state, and the operator's constraint is that every
-source be official and free. What exists on those terms without a credential
-is the publishers' own RSS feeds: each is the outlet's official syndication,
-public, and rate-limited only by courtesy. They are the catalogue. Nothing
-here scrapes a page, and a source that starts to require a key leaves the
-catalogue rather than acquiring one.
+source be official and free. Publishers' own RSS feeds are the outlet's
+official syndication, public, and rate-limited only by courtesy; an
+aggregator's developer API is free with a token a person supplies. The
+catalogue of all of them, for every market, is :mod:`aurelis.sources.catalogue`;
+this module reads the headline kinds. Nothing here scrapes a page.
 
 Which sources the company reads is not decided here. An agent from Market
 Intelligence is shown the catalogue and the instruments the company follows,
@@ -30,19 +30,21 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from aurelis.core.clock import Clock
+from aurelis.intel.bursts import BURST_FACTOR, BURST_MIN, derive_burst
 from aurelis.intel.live import USER_AGENT, FeedUnavailable
+from aurelis.sources.catalogue import CATALOGUE, KEY_PREFIX, Source
 from aurelis.world.store import World
 
 __all__ = [
     "BURST_FACTOR",
     "BURST_MIN",
     "CATALOGUE",
+    "CryptoPanicFeed",
     "Entry",
     "RssFeed",
     "Source",
@@ -50,56 +52,8 @@ __all__ = [
     "record_news",
 ]
 
-BURST_MIN = 3
-"""Fewer mentions than this in six hours is never a burst, whatever the rate."""
-
-BURST_FACTOR = Decimal("3")
-"""Mentions in the last six hours at or past this multiple of the trailing
-week's six-hour rate is ``news.burst``."""
-
-_WINDOW = dt.timedelta(hours=6)
-_BASELINE = dt.timedelta(days=7)
 
 
-@dataclass(frozen=True, slots=True)
-class Source:
-    """One feed in the catalogue. Everything in it is free and keyless."""
-
-    name: str
-    url: str
-    covers: str
-    kind: str = "rss"
-    cost: str = "free"
-    key: str = "none"
-
-    def describe(self) -> dict[str, str]:
-        return {"covers": self.covers, "kind": self.kind, "cost": self.cost, "key": self.key}
-
-
-CATALOGUE: dict[str, Source] = {
-    "coindesk": Source(
-        "coindesk",
-        "https://www.coindesk.com/arc/outboundfeeds/rss",
-        "CoinDesk headlines: markets, policy, exchanges, across crypto assets",
-    ),
-    "cointelegraph": Source(
-        "cointelegraph",
-        "https://cointelegraph.com/rss",
-        "Cointelegraph headlines: markets, altcoins, regulation, across crypto assets",
-    ),
-    "theblock": Source(
-        "theblock",
-        "https://www.theblock.co/rss.xml",
-        "The Block headlines: exchanges, funding, on-chain data, policy",
-    ),
-    "decrypt": Source(
-        "decrypt",
-        "https://decrypt.co/feed",
-        "Decrypt headlines: crypto, memecoins, culture, policy",
-    ),
-}
-"""Official RSS feeds, no credential, no charge. A source is listed here
-only on those terms; the seat shows the agent exactly this."""
 
 ALIASES: dict[str, tuple[str, ...]] = {
     "BTC": ("bitcoin",),
@@ -316,44 +270,77 @@ def record_news(
 
     bursts = 0
     for symbol in sorted(mentioned):
-        recent = World.events_for(
-            session,
-            entity_kind="instrument",
-            entity_key=symbol,
-            since=moment - _BASELINE,
-            kinds=("news.mention",),
-            limit=5000,
-        )
-        last_six = [e for e in recent if _aware(e.at) > moment - _WINDOW]
-        earlier = [e for e in recent if _aware(e.at) <= moment - _WINDOW]
-        baseline_hours = Decimal((_BASELINE - _WINDOW).total_seconds()) / Decimal(3600)
-        baseline_six = (Decimal(len(earlier)) / baseline_hours * Decimal(6)).quantize(
-            Decimal("0.01")
-        )
-        count = len(last_six)
-        if count >= BURST_MIN and Decimal(count) >= BURST_FACTOR * max(
-            baseline_six, Decimal("0.5")
-        ):
-            _, created = world.record(
+        bursts += int(
+            derive_burst(
                 session,
-                kind="news.burst",
-                at=moment,
+                world,
                 entity_kind="instrument",
                 entity_key=symbol,
-                payload={
-                    "mentions_6h": count,
-                    "baseline_6h": str(baseline_six),
-                    "threshold": (
-                        f">= {BURST_MIN} and >= {BURST_FACTOR}x the trailing week's 6h rate"
-                    ),
-                    "raw": raw.digest[:16],
-                },
+                kind_in="news.mention",
+                kind_out="news.burst",
                 source=source.url,
-                recorded_at=moment,
+                moment=moment,
+                minimum=BURST_MIN,
+                factor=BURST_FACTOR,
+                extra={"raw": raw.digest[:16]},
             )
-            bursts += int(created)
+        )
     return new, bursts
 
 
-def _aware(moment: dt.datetime) -> dt.datetime:
-    return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)
+@dataclass(frozen=True, slots=True)
+class CryptoPanicFeed:
+    """CryptoPanic's developer API, read with the token a person supplied.
+
+    Each post names the coins it is about by code; those codes are put in
+    the entry's summary as words, so :func:`mentions_of` matches them like
+    any headline. The token is read from the environment at fetch time and
+    is in the request only.
+    """
+
+    source: Source
+    timeout: int = 25
+    opener: Any = None
+
+    @property
+    def name(self) -> str:
+        return self.source.name
+
+    def entries(self) -> list[Entry]:
+        import json
+        import os
+        import urllib.parse
+
+        token = os.environ.get(f"{KEY_PREFIX}CRYPTOPANIC_TOKEN", "")
+        if not token:
+            raise FeedUnavailable(
+                f"cryptopanic needs {KEY_PREFIX}CRYPTOPANIC_TOKEN in the service's environment"
+            )
+        query = urllib.parse.urlencode({"auth_token": token, "public": "true"})
+        request = urllib.request.Request(
+            f"{self.source.url}?{query}",
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        )
+        fetch = self.opener or urllib.request.urlopen
+        try:
+            with fetch(request, timeout=self.timeout) as response:
+                data = json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            raise FeedUnavailable(f"{self.name} refused the request ({error.code})") from error
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+            raise FeedUnavailable(f"{self.name} could not be reached: {error}") from error
+        entries: list[Entry] = []
+        for post in data.get("results", []) or []:
+            codes = [
+                str(c.get("code", "")).upper()
+                for c in (post.get("instruments") or post.get("currencies") or [])
+            ]
+            entries.append(
+                Entry(
+                    title=_strip_tags(str(post.get("title", ""))),
+                    link=str(post.get("original_url") or post.get("url") or ""),
+                    published=_when(str(post.get("published_at", ""))),
+                    summary=("coins: " + " ".join(c for c in codes if c))[:400],
+                )
+            )
+        return [e for e in entries if e.title]

@@ -201,19 +201,42 @@ them as events on the spot instrument, with extreme funding and open-interest
 surges derived. A symbol with no perpetual is counted in the wake's note; a
 venue that is down is one warning incident. A leverage grant fetches no bars.
 
-Headlines are a third grant, for the *class* of free sources:
+Headlines, social posts and on-chain attention are a third grant, for the
+*class* of free sources, whatever their kind:
 
 ```bash
-aurelis source catalogue                                  # the free, official, keyless feeds
-aurelis service grant -w live --source news --from-grant GRT-0002     --reason "the agents may read whichever free feeds they ask for" --by <you> --yes
+aurelis source catalogue                                  # every free, official source, for every market
+aurelis source keys                                       # which keyed sources a person has set up
+aurelis service grant -w live --source news --from-grant GRT-0002     --reason "the agents may read whichever free sources they ask for" --by <you> --yes
 aurelis source requests -w live                           # what the agents asked for, and why
 ```
 
-Which feeds are read is decided by the agents: the loop's `source` action
-shows each market-intelligence agent the catalogue and records what it wants
-and why. The service reads the union every wake, matches headlines to the
-grant's spot symbols, and records them as events. A news grant fetches no
-bars, and nothing is read until an agent asks.
+Which sources are read is decided by the agents: the loop's `source` action
+shows each market-intelligence agent the catalogue — what each source
+covers, which markets it bears on, whether it needs a key — and the
+instruments the company follows on each desk, and records what it wants and
+why. The service reads the union every wake: headlines and posts are matched
+to the grant's spot symbols and recorded as events on them; paid boosts and
+trending pools are recorded on token entities. A news grant fetches no bars,
+and nothing is read until an agent asks.
+
+**Keys.** A source that needs a credential its vendor issues free (Reddit,
+CryptoPanic) is read only once the variable it names is set in the
+environment the service runs in. The variables are `AURELIS_KEY_REDDIT_CLIENT_ID`,
+`AURELIS_KEY_REDDIT_CLIENT_SECRET` and `AURELIS_KEY_CRYPTOPANIC_TOKEN`. In
+PowerShell, before `aurelis service start`:
+
+```powershell
+$env:AURELIS_KEY_REDDIT_CLIENT_ID = "..."
+$env:AURELIS_KEY_REDDIT_CLIENT_SECRET = "..."
+```
+
+The value is read at fetch time and put in the request only; nothing writes
+it to the record, and `aurelis source keys` prints names and yes/no. Until a
+key is set, the wake's note says which variable is missing and the mandate's
+`sourced` reading names it. X and Telegram are not in the catalogue: X's
+free tier cannot read posts, and a Telegram channel is readable only as a
+person's own account.
 
 The grant is the one decision a person makes: it names the vendor, the
 instruments, who and why, goes on the ledger, and cannot be widened — only

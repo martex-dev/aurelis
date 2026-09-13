@@ -1,16 +1,18 @@
 """The seat where an agent chooses which sources the company reads.
 
-The operator's constraint is that the company read only free, official,
-keyless sources; the brief's is that the agents decide what they need. So
-the catalogue is fixed by a person and the choice inside it is an agent's:
-a Market Intelligence agent is shown every source with what it covers, the
-instruments the company follows, and what is already being read, and states
+The operator's constraint is that the company read only free, official
+sources; the brief's is that the agents decide what they need. So the
+catalogue is fixed by a person and the choice inside it is an agent's: a
+Market Intelligence agent is shown every source with what it covers, which
+markets it bears on and whether it waits on a key, the instruments the
+company follows on each desk, and what is already being read, and states
 which sources it wants and why, or ``none`` and why. Every answer is a row
 and a ledger event, the same as a stated or declined mechanism.
 
 The service reads the union of what was wanted, under a grant for the source
 class that a person recorded once. An agent cannot add a source to the
-catalogue, and the catalogue cannot contain anything that needs a key.
+catalogue, and a keyed source is read only once a person has supplied its
+key in the service's environment (M43).
 """
 
 from __future__ import annotations
@@ -27,10 +29,10 @@ from aurelis.agents.interpret import render_material
 from aurelis.core.canonical import sha256_of
 from aurelis.core.enums import Actor, EventKind, ModelTier
 from aurelis.core.ids import RefKind, uuid7
-from aurelis.intel.news import CATALOGUE, Source
 from aurelis.platform.db.refs import allocate_ref
 from aurelis.platform.llm.routing import model_for
 from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
+from aurelis.sources.catalogue import CATALOGUE, Source
 from aurelis.sources.tables import SourceRequest
 
 __all__ = [
@@ -46,14 +48,18 @@ __all__ = [
 
 SYSTEM = (
     "You are a market-intelligence analyst at a quantitative company. The "
-    "company reads only free, official, keyless sources, and it reads only what "
-    "its analysts ask for. You are shown the catalogue of sources it could read, "
-    "what each covers, and the instruments the company follows. Ask for the "
-    "sources whose content bears on those instruments and on the mechanisms the "
-    "company tests -- listings, halts, flows, crowding, forced sellers -- and say "
-    "why. Ask for none if none would. A source the company reads costs a fetch "
-    "every hour and fills the event stream the judges and the miner read, so a "
-    "source that adds noise is worse than no source."
+    "company reads only free, official sources, and it reads only what its "
+    "analysts ask for. You are shown the catalogue of sources it could read, "
+    "what each covers, which markets each bears on, whether it needs a key a "
+    "person has yet to supply, and the instruments the company follows on each "
+    "desk. Ask, for every market the company follows, for the sources whose "
+    "content bears on those instruments and on the mechanisms the company tests "
+    "-- listings, halts, flows, crowding, forced sellers, attention forming "
+    "before a move -- and say why. You may ask for a source whose key is not "
+    "supplied; the company reads it once a person supplies the key. Ask for "
+    "none if none would help. A source the company reads costs a fetch every "
+    "hour and fills the event stream the judges and the miner read, so a source "
+    "that adds noise is worse than no source."
 )
 
 SOURCE_FORM = (
@@ -141,6 +147,7 @@ def request_sources(
     agent_ref: str,
     instruments: tuple[str, ...],
     catalogue: dict[str, Source] | None = None,
+    desks: dict[str, str] | None = None,
     tier: ModelTier = ModelTier.MID,
     identity: str = "",
     task_ref: str | None = None,
@@ -153,13 +160,24 @@ def request_sources(
     moment = at or (clock.now() if clock is not None else dt.datetime.now(dt.UTC))
     digest = catalogue_digest(the_catalogue)
     already = active_sources(session)
+    by_desk: dict[str, list[str]] = {}
+    for symbol in instruments:
+        by_desk.setdefault((desks or {}).get(symbol, "unassigned"), []).append(symbol)
     material = {
-        "catalogue": {name: source.describe() for name, source in the_catalogue.items()},
-        "instruments_followed": list(instruments),
+        "catalogue": {
+            name: (
+                f"{source.covers} [kind: {source.kind}; markets: "
+                f"{', '.join(source.markets)}; key: {source.key}]"
+            )
+            for name, source in the_catalogue.items()
+        },
+        "instruments_followed": {desk: ", ".join(symbols) for desk, symbols in by_desk.items()},
         "already_read": already or ["nothing yet"],
         "note": (
-            "Every source above is free, official and keyless; that is why it is "
-            "in the catalogue. Nothing outside it can be asked for."
+            "Every source above is free and official; that is why it is in the "
+            "catalogue. A key marked 'not supplied' is one a person has to set; ask "
+            "for the source anyway if it would help. Nothing outside the catalogue "
+            "can be asked for."
         ),
     }
     system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
@@ -243,10 +261,12 @@ def seat_sources(
     with runtime.database.session() as session:
         seated = runtime.roster.by_handle(session, agent_handle)
         instruments: list[str] = []
+        desks: dict[str, str] = {}
         for grant in Grants.active(session):
             for symbol in grant.instruments:
                 if str(symbol) not in instruments:
                     instruments.append(str(symbol))
+                    desks[str(symbol)] = str(grant.desk)
         task = runtime.queue.enqueue(
             session,
             kind="sources.choice",
@@ -263,6 +283,7 @@ def seat_sources(
                 session,
                 agent_ref=seated.ref,
                 instruments=tuple(instruments),
+                desks=desks,
                 tier=seated.authority.tier
                 if seated.authority.tier is not ModelTier.NONE
                 else ModelTier.MID,

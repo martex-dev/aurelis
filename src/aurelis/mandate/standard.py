@@ -174,6 +174,7 @@ def _sourced(session: Session) -> tuple[bool, str]:
     news grant under which the service reads it, which only a person can.
     """
     from aurelis.service.grants import Grants
+    from aurelis.sources.catalogue import CATALOGUE
     from aurelis.sources.seat import active_sources
 
     wanted = active_sources(session)
@@ -185,7 +186,17 @@ def _sourced(session: Session) -> tuple[bool, str]:
             f"analysts asked for {', '.join(wanted)}; no news grant is recorded, and "
             "recording one is a person's decision"
         )
-    return True, f"reads {', '.join(wanted)} under {', '.join(g.ref for g in grants)}"
+    readable = [w for w in wanted if CATALOGUE[w].available]
+    waiting = sorted({k for w in wanted if w not in readable for k in CATALOGUE[w].missing_keys})
+    if not readable:
+        return False, (
+            f"analysts asked for {', '.join(wanted)}; none can be read until a person "
+            f"supplies {', '.join(waiting)}"
+        )
+    reading = f"reads {', '.join(readable)} under {', '.join(g.ref for g in grants)}"
+    if waiting:
+        reading += f"; {', '.join(waiting)} not supplied"
+    return True, reading
 
 
 def _scheme(session: Session) -> tuple[bool, str]:
