@@ -27,7 +27,7 @@ from aurelis.core.config import Settings
 from aurelis.platform.db.tables import Base
 from aurelis.platform.db.triggers import install_invariants
 
-__all__ = ["Database", "create_engine"]
+__all__ = ["BUSY_TIMEOUT", "Database", "create_engine"]
 
 
 def _configure_sqlite(dbapi_connection: Any, _record: Any) -> None:
@@ -40,9 +40,21 @@ def _configure_sqlite(dbapi_connection: Any, _record: Any) -> None:
         cursor.close()
 
 
-def create_engine(url: str, *, echo: bool = False) -> sa.Engine:
+BUSY_TIMEOUT = 120.0
+"""Seconds a connection waits for SQLite's write lock before giving up.
+
+The service holds a write transaction for as long as a seat's model call
+takes, and SQLite's default is five seconds: a grant recorded from another
+window during a wake died on ``database is locked``. Two minutes outlasts
+any one call; a command issued mid-wake waits for the wake."""
+
+
+def create_engine(
+    url: str, *, echo: bool = False, busy_timeout: float = BUSY_TIMEOUT
+) -> sa.Engine:
     """Build an engine with Aurelis's connection settings applied."""
-    engine = sa.create_engine(url, echo=echo, future=True)
+    connect_args = {"timeout": busy_timeout} if url.startswith("sqlite") else {}
+    engine = sa.create_engine(url, echo=echo, future=True, connect_args=connect_args)
     if engine.dialect.name == "sqlite":
         sa.event.listen(engine, "connect", _configure_sqlite)
     return engine
