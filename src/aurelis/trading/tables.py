@@ -25,6 +25,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aurelis.platform.db.tables import Base
+from aurelis.platform.db.types import Price
 from aurelis.trading.states import OrderStatus
 
 __all__ = [
@@ -58,9 +59,9 @@ class Order(Base):
     symbol: Mapped[str] = mapped_column(sa.String(32), index=True)
     side: Mapped[str] = mapped_column(sa.String(8))
     quantity: Mapped[Decimal] = mapped_column()
-    limit_price: Mapped[Decimal | None] = mapped_column()
+    limit_price: Mapped[Decimal | None] = mapped_column(Price)
 
-    expected_price: Mapped[Decimal] = mapped_column()
+    expected_price: Mapped[Decimal] = mapped_column(Price)
     """What the strategy assumed it would pay. Recorded before submission so
     slippage is a comparison rather than a reconstruction."""
 
@@ -99,7 +100,7 @@ class Fill(Base):
     order_ref: Mapped[str] = mapped_column(sa.ForeignKey("orders.ref"), index=True)
 
     quantity: Mapped[Decimal] = mapped_column()
-    price: Mapped[Decimal] = mapped_column()
+    price: Mapped[Decimal] = mapped_column(Price)
     fee: Mapped[Decimal] = mapped_column(default=Decimal("0"))
     broker: Mapped[str] = mapped_column(sa.String(16))
     venue_detail: Mapped[str] = mapped_column(sa.Text, default="")
@@ -124,7 +125,7 @@ class Position(Base):
     symbol: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
 
     quantity: Mapped[Decimal] = mapped_column(default=Decimal("0"))
-    average_price: Mapped[Decimal] = mapped_column(default=Decimal("0"))
+    average_price: Mapped[Decimal] = mapped_column(Price, default=Decimal("0"))
     realised_pnl: Mapped[Decimal] = mapped_column(default=Decimal("0"))
     fees_paid: Mapped[Decimal] = mapped_column(default=Decimal("0"))
 
@@ -148,8 +149,8 @@ class PostTradeReport(Base):
     order_ref: Mapped[str] = mapped_column(sa.ForeignKey("orders.ref"), index=True)
     version_ref: Mapped[str] = mapped_column(sa.String(24), index=True)
 
-    expected_price: Mapped[Decimal] = mapped_column()
-    fill_price: Mapped[Decimal] = mapped_column()
+    expected_price: Mapped[Decimal] = mapped_column(Price)
+    fill_price: Mapped[Decimal] = mapped_column(Price)
     slippage: Mapped[Decimal] = mapped_column()
     slippage_bps: Mapped[Decimal] = mapped_column()
     fees: Mapped[Decimal] = mapped_column(default=Decimal("0"))

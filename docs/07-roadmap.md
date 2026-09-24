@@ -2190,6 +2190,28 @@ See [ADR-0045](adr/0045-the-memecoin-desk-opens-with-a-price-per-token.md).
 
 ---
 
+## M45 — The service survives what killed it ✅
+
+On 15 September a paper order on a memecoin priced at $0.00058782 was stored
+with its price rounded to eight places, read as over its approval, poisoned
+the wake's session, raised out of the service loop, and took the service
+down for nine days. Prices on orders, fills and positions are now exact to
+eighteen places. The order-size rule tolerates float noise and is replaced on
+existing workspaces. Every paper order runs in a savepoint, so a failed order
+is refused alone with the rule's reason. Each mechanism trades in a savepoint
+of its own. A wake that raises is a critical incident and the next wake runs;
+three in a row stop the service with the reason. A token position is capped
+at 2% of its pool's reported liquidity. `scripts/run-aurelis.ps1` keeps the
+service and station running and restarts them, and
+`scripts/install-autostart.ps1` starts them at logon.
+
+Replayed on a copy of the live database, the failed step opened all 18
+firings, and the token with a $64,745 pool got $1,294.90 instead of $5,000.
+
+See [ADR-0046](adr/0046-the-service-survives-what-killed-it.md).
+
+---
+
 ## Sequencing
 
 ```

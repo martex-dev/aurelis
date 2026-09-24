@@ -565,14 +565,17 @@ class Service:
         with runtime.database.session() as session:
             for status in runtime.mechanisms.statuses(session):
                 try:
-                    if status.is_scheme:
-                        result = trade_firings(runtime, session, status.mechanism, at=moment)
-                    elif has_open_trades(session, status.mechanism.ref):
-                        # No longer a scheme, still holding: close what has
-                        # settled. A position nothing closes is a leak.
-                        result = close_settled(runtime, session, status.mechanism, at=moment)
-                    else:
-                        continue
+                    # One mechanism's failure is that mechanism's: its work
+                    # is rolled back to a savepoint and the others trade.
+                    with session.begin_nested():
+                        if status.is_scheme:
+                            result = trade_firings(runtime, session, status.mechanism, at=moment)
+                        elif has_open_trades(session, status.mechanism.ref):
+                            # No longer a scheme, still holding: close what has
+                            # settled. A position nothing closes is a leak.
+                            result = close_settled(runtime, session, status.mechanism, at=moment)
+                        else:
+                            continue
                 except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                     incidents.append(
                         self._incident(
@@ -748,6 +751,40 @@ def _operations_director(runtime: Any) -> str | None:
             return None
 
 
+MAX_FAILED_WAKES = 3
+"""Consecutive failed wakes after which the service stops and says why.
+
+One failure is an incident and the next wake retries. Three in a row is
+something a retry will not fix, and a service that failed every hour for a
+week would fill the record with the same incident."""
+
+
+def _wake_failed(
+    service: Service, service_ref: str, error: BaseException, *, at: dt.datetime
+) -> None:
+    """Record a wake that raised, as a critical incident, and print it."""
+    import sys
+    import traceback
+
+    traceback.print_exception(error, file=sys.stderr)
+    try:
+        service._incident(  # noqa: SLF001 - the service's own incident writer
+            severity=Severity.CRITICAL,
+            source="service.wake",
+            subject=service_ref,
+            desk=None,
+            message=f"the wake raised {type(error).__name__}: {error}",
+            action=(
+                "The work the wake had committed stands; what it had not is rolled "
+                "back. The next wake runs on schedule. If this repeats, read the "
+                "message and the traceback in the service window."
+            ),
+            at=at,
+        )
+    except Exception as nested:  # noqa: BLE001 - the database itself may be the failure
+        print(f"could not record the failed wake: {nested}", file=sys.stderr)
+
+
 def cycle_once(
     runtime: Any, *, service: Service | None = None, at: dt.datetime | None = None
 ) -> Wake:
@@ -807,11 +844,30 @@ def serve(
 
     wakes: list[Wake] = []
     why = "the duration was reached"
+    failed_in_a_row = 0
+    attempts = 0
     try:
         while True:
             at = runtime.clock.now()
-            wakes.append(the_service.wake(service_ref=service_ref, at=at))
-            if max_wakes is not None and len(wakes) >= max_wakes:
+            attempts += 1
+            try:
+                wakes.append(the_service.wake(service_ref=service_ref, at=at))
+                failed_in_a_row = 0
+            except KeyboardInterrupt:
+                raise
+            except Exception as error:  # noqa: BLE001 - a failed wake is an incident, not the end
+                # On 15 September one wake raised and took the service down
+                # with it, and nothing was recorded for nine days. A wake that
+                # fails is now an incident; the next wake runs on schedule.
+                failed_in_a_row += 1
+                _wake_failed(the_service, service_ref, error, at=at)
+                if failed_in_a_row >= MAX_FAILED_WAKES:
+                    why = (
+                        f"{failed_in_a_row} wakes in a row failed; the last: "
+                        f"{type(error).__name__}: {str(error)[:200]}"
+                    )
+                    break
+            if max_wakes is not None and attempts >= max_wakes:
                 why = f"{max_wakes} wake(s), as asked"
                 break
             next_at = at + dt.timedelta(seconds=interval_seconds)

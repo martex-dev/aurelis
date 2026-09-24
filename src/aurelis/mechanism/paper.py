@@ -43,6 +43,8 @@ from aurelis.trading.tables import Fill, Order
 
 __all__ = [
     "DEFAULT_WEIGHT",
+    "LIQUIDITY_SHARE",
+    "MIN_POSITION_USD",
     "books_with_trades",
     "flatten_book",
     "PaperResult",
@@ -52,6 +54,17 @@ __all__ = [
     "pnl_of",
     "trade_firings",
 ]
+
+LIQUIDITY_SHARE = Decimal("0.02")
+"""The most of a token's pool a paper position may claim to have traded.
+
+A memecoin pool with $20,000 in it does not fill a $5,000 order at the
+price on the screen; claiming it did would make every token round trip a
+fiction. A position in a token keyed by chain and contract is capped at
+this share of the liquidity its newest attention event reported (M45)."""
+
+MIN_POSITION_USD = Decimal("100")
+"""Below this, the capped position is too small to be worth its fees."""
 
 DEFAULT_WEIGHT = Decimal("0.05")
 """Share of the paper book one scheme is given. Small on purpose: a scheme
@@ -265,36 +278,60 @@ def trade_firings(
             notes.append(f"{thesis.ref}: no recorded price as new as the trigger; not opened")
             continue
         price, bar_at = known
+        size = exposure
+        if ":" in thesis.instrument:
+            liquidity = _liquidity_of(session, thesis.instrument)
+            if liquidity is None:
+                refused.append(thesis.ref)
+                notes.append(f"{thesis.ref}: no pool liquidity on record for the token; not opened")
+                continue
+            size = min(exposure, (liquidity * LIQUIDITY_SHARE).quantize(Decimal("0.01")))
+            if size < MIN_POSITION_USD:
+                refused.append(thesis.ref)
+                notes.append(
+                    f"{thesis.ref}: the pool (${liquidity:,.0f}) supports only ${size} at "
+                    f"{LIQUIDITY_SHARE:.0%} of its depth; not opened"
+                )
+                continue
         side = OrderSide.BUY if thesis.direction == "up" else OrderSide.SELL
         broker.marks[thesis.instrument] = price
-        outcome = runtime.cycle.run(
-            session,
-            portfolio_ref=book,
-            broker=broker,
-            intents=((version_ref, thesis.instrument, side, exposure, price),),
-            proposer=actors["proposer"],
-            assessor=actors["assessor"],
-            approver=actors["approver"],
-            executor=actors["executor"],
-            analyst=actors["analyst"],
-            at=moment,
-        )
-        if not outcome.orders:
+        # One firing's failure is that firing's: a savepoint rolls back its
+        # order and nothing else. On 15 September one bad order poisoned the
+        # session, the wake, and the service (M45).
+        try:
+            with session.begin_nested():
+                outcome = runtime.cycle.run(
+                    session,
+                    portfolio_ref=book,
+                    broker=broker,
+                    intents=((version_ref, thesis.instrument, side, size, price),),
+                    proposer=actors["proposer"],
+                    assessor=actors["assessor"],
+                    approver=actors["approver"],
+                    executor=actors["executor"],
+                    analyst=actors["analyst"],
+                    at=moment,
+                )
+                if not outcome.orders:
+                    refused.append(thesis.ref)
+                    continue
+                session.add(
+                    MechanismTrade(
+                        trade_id=uuid7(),
+                        mechanism_ref=mechanism.ref,
+                        thesis_ref=thesis.ref,
+                        portfolio_ref=book,
+                        open_order_ref=outcome.orders[0],
+                        opened_at=moment,
+                        entry_price=str(price),
+                        entry_bar_at=bar_at,
+                    )
+                )
+                session.flush()
+        except sa.exc.SQLAlchemyError as error:
             refused.append(thesis.ref)
+            notes.append(f"{thesis.ref}: the order failed and was rolled back ({_why(error)})")
             continue
-        session.add(
-            MechanismTrade(
-                trade_id=uuid7(),
-                mechanism_ref=mechanism.ref,
-                thesis_ref=thesis.ref,
-                portfolio_ref=book,
-                open_order_ref=outcome.orders[0],
-                opened_at=moment,
-                entry_price=str(price),
-                entry_bar_at=bar_at,
-            )
-        )
-        session.flush()
         opened.append(thesis.ref)
 
     if opened:
@@ -429,27 +466,36 @@ def close_settled(
             continue
         held = Decimal(str(opened[1].quantity))
         broker.marks[thesis.instrument] = price
-        outcome = runtime.cycle.run(
-            session,
-            portfolio_ref=trade.portfolio_ref,
-            broker=broker,
-            intents=((version_ref, thesis.instrument, side, _room(held, price), price, held),),
-            proposer=actors["proposer"],
-            assessor=actors["assessor"],
-            approver=actors["approver"],
-            executor=actors["executor"],
-            analyst=actors["analyst"],
-            at=moment,
-        )
-        if not outcome.orders:
+        try:
+            with session.begin_nested():
+                outcome = runtime.cycle.run(
+                    session,
+                    portfolio_ref=trade.portfolio_ref,
+                    broker=broker,
+                    intents=(
+                        (version_ref, thesis.instrument, side, _room(held, price), price, held),
+                    ),
+                    proposer=actors["proposer"],
+                    assessor=actors["assessor"],
+                    approver=actors["approver"],
+                    executor=actors["executor"],
+                    analyst=actors["analyst"],
+                    at=moment,
+                )
+                if not outcome.orders:
+                    refused.append(thesis.ref)
+                    continue
+                trade.close_order_ref = outcome.orders[0]
+                trade.closed_at = moment
+                trade.exit_price = str(price)
+                trade.exit_bar_at = bar_at
+                trade.pnl = _round_trip_pnl(session, trade.open_order_ref, trade.close_order_ref)
+                session.flush()
+        except sa.exc.SQLAlchemyError as error:
+            session.refresh(trade)
             refused.append(thesis.ref)
+            notes.append(f"{thesis.ref}: the close failed and was rolled back ({_why(error)})")
             continue
-        trade.close_order_ref = outcome.orders[0]
-        trade.closed_at = moment
-        trade.exit_price = str(price)
-        trade.exit_bar_at = bar_at
-        trade.pnl = _round_trip_pnl(session, trade.open_order_ref, trade.close_order_ref)
-        session.flush()
         closed.append(thesis.ref)
     if closed:
         runtime.ledger.append(
@@ -534,27 +580,35 @@ def flatten_book(
             continue
         side = OrderSide.SELL if quantity > 0 else OrderSide.BUY
         broker.marks[position.symbol] = price
-        outcome = runtime.cycle.run(
-            session,
-            portfolio_ref=portfolio_ref,
-            broker=broker,
-            intents=(
-                (
-                    str(last),
-                    position.symbol,
-                    side,
-                    _room(abs(quantity), price),
-                    price,
-                    abs(quantity),
-                ),
-            ),
-            proposer=actors["proposer"],
-            assessor=actors["assessor"],
-            approver=actors["approver"],
-            executor=actors["executor"],
-            analyst=actors["analyst"],
-            at=moment,
-        )
+        try:
+            with session.begin_nested():
+                outcome = runtime.cycle.run(
+                    session,
+                    portfolio_ref=portfolio_ref,
+                    broker=broker,
+                    intents=(
+                        (
+                            str(last),
+                            position.symbol,
+                            side,
+                            _room(abs(quantity), price),
+                            price,
+                            abs(quantity),
+                        ),
+                    ),
+                    proposer=actors["proposer"],
+                    assessor=actors["assessor"],
+                    approver=actors["approver"],
+                    executor=actors["executor"],
+                    analyst=actors["analyst"],
+                    at=moment,
+                )
+        except sa.exc.SQLAlchemyError as error:
+            refused.append(position.symbol)
+            notes.append(
+                f"{position.symbol}: the flattening failed and was rolled back ({_why(error)})"
+            )
+            continue
         if not outcome.orders:
             refused.append(position.symbol)
             notes.append(f"{position.symbol}: the chain refused the flattening order")
@@ -578,6 +632,37 @@ def flatten_book(
             at=moment,
         )
     return PaperResult(portfolio_ref, (), tuple(flattened), tuple(refused), "; ".join(notes))
+
+
+def _why(error: BaseException) -> str:
+    """A database error in one line: the rule that refused, not the SQL."""
+    return str(getattr(error, "orig", error)).splitlines()[0][:160]
+
+
+def _liquidity_of(session: Session, instrument: str) -> Decimal | None:
+    """The pool liquidity the newest attention event reported for a token."""
+    from aurelis.world.tables import WorldEvent
+
+    rows = session.execute(
+        sa.select(WorldEvent.payload)
+        .where(
+            WorldEvent.entity_kind == "instrument",
+            WorldEvent.entity_key == instrument,
+            WorldEvent.kind.in_(("attention.boost", "dex.trending")),
+        )
+        .order_by(WorldEvent.at.desc())
+        .limit(5)
+    ).scalars()
+    for payload in rows:
+        raw = (payload or {}).get("liquidity_usd") or (payload or {}).get("reserve_usd")
+        if raw:
+            try:
+                value = Decimal(str(raw))
+            except ArithmeticError:
+                continue
+            if value > 0:
+                return value
+    return None
 
 
 def _room(quantity: Decimal, price: Decimal) -> Decimal:

@@ -18,7 +18,7 @@ from sqlalchemy.engine import Dialect
 
 from aurelis.core.clock import ensure_utc
 
-__all__ = ["GUID", "Money", "UtcDateTime"]
+__all__ = ["GUID", "Money", "Price", "UtcDateTime"]
 
 
 class UtcDateTime(sa.TypeDecorator[dt.datetime]):
@@ -81,6 +81,24 @@ class Money(sa.TypeDecorator[Decimal]):
 
     def process_result_value(self, value: str | None, dialect: Dialect) -> Any:
         return None if value is None else Decimal(value)
+
+
+class Price(Money):
+    """An exact price per unit, stored as text to eighteen places.
+
+    :class:`Money` rounds to eight places, which is right for dollars and
+    wrong for the price of a memecoin: a token at $0.000000031 would be
+    stored as $0.00000003, and one at $0.000000004 as zero. On 15 September
+    an order at $0.00058782, rounded on the way into the database, read as
+    over its approval, and the refusal took the service down (M45). Prices
+    on orders, fills and positions carry eighteen places; amounts of money
+    keep eight.
+    """
+
+    impl = sa.String(64)
+    cache_ok = True
+
+    _QUANTUM = Decimal("1E-18")
 
 
 class GUID(sa.TypeDecorator[uuid.UUID]):

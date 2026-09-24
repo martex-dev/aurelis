@@ -164,6 +164,30 @@ toward the mandate.
 
 ## 4b. Running it for days
 
+**Use the supervisor.** It starts the station, runs the service, and
+restarts the service a minute after it stops for any reason:
+
+```powershell
+.\scriptsun-aurelis.ps1
+```
+
+To have it start by itself every time you log in to Windows, run this once:
+
+```powershell
+.\scripts\install-autostart.ps1
+```
+
+Keys for free sources that need one go in `live\keys.ps1`, one line per key,
+for example `$env:AURELIS_KEY_REDDIT_CLIENT_ID = "..."`. The supervisor loads
+the file on start. The `live` folder is ignored by git.
+
+A wake that raises is recorded as a critical incident and the next wake runs
+on schedule; three failed wakes in a row stop the service with the reason,
+and the supervisor starts it again. The machine must stay awake for the
+company to record anything: set Windows to never sleep while plugged in.
+
+### Running the service by hand
+
 ```bash
 aurelis service grant -w live --source coinbase --instrument BTC-USD --instrument ETH-USD \
     --reason "the forward record needs fresh recordings every wake" --by <you> --yes

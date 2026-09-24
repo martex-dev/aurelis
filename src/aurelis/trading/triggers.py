@@ -54,14 +54,21 @@ def _sqlite_statements() -> Iterator[str]:
         "assessment of its own proposal'); END"
     )
 
+    # Dropped and recreated on every initialise, so a workspace created under
+    # an older version of the rule gets the current one. SQLite compares in
+    # binary floating point: an order sized exactly to its approval at a price
+    # of $0.00058782 read as 6e-13 over it and killed the service on 15
+    # September (M45). The tolerance is one part in a billion of the approval,
+    # which is float noise, not an excess anyone could trade on.
+    yield "DROP TRIGGER IF EXISTS aurelis_order_may_not_exceed_approval"
     yield (
-        "CREATE TRIGGER IF NOT EXISTS aurelis_order_may_not_exceed_approval "
+        "CREATE TRIGGER aurelis_order_may_not_exceed_approval "
         "BEFORE INSERT ON orders FOR EACH ROW "
         "WHEN EXISTS ("
         "  SELECT 1 FROM trade_approvals ap "
         "  WHERE ap.ref = NEW.approval_ref "
         "    AND CAST(NEW.quantity AS REAL) * CAST(NEW.expected_price AS REAL) "
-        "        > CAST(ap.final_target AS REAL)) "
+        "        > CAST(ap.final_target AS REAL) * (1 + 1e-9)) "
         "BEGIN SELECT RAISE(ABORT, "
         "'Aurelis: an order may not exceed the notional Risk approved'); END"
     )
