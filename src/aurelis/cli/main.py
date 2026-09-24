@@ -24,6 +24,7 @@ from rich.table import Table
 import aurelis.intel.briefing  # noqa: F401  -- registers the briefing handler
 import aurelis.research.triage  # noqa: F401  -- registers question and triage
 from aurelis import __version__
+from aurelis.cli.brain import brain_app
 from aurelis.cli.company import agent_app, org_app
 from aurelis.cli.data import data_app
 from aurelis.cli.demo import run_demo
@@ -80,6 +81,7 @@ app.add_typer(service_app, name="service")
 app.add_typer(world_app, name="world")
 app.add_typer(mechanism_app, name="mechanism")
 app.add_typer(source_app, name="source")
+app.add_typer(brain_app, name="brain")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

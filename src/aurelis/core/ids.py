@@ -133,6 +133,10 @@ class RefKind(StrEnum):
     because a thesis is cited by its own score, and the wrong ones are cited
     more often than the right ones."""
 
+    NOTE = "NOTE"
+    """One note in the shared brain, from an agent or the operator. Its own
+    prefix because notes are cited by other agents and linked in the vault."""
+
     SOURCE_REQUEST = "SRQ"
     """One agent's answer about one source in the catalogue: wanted or
     declined, with the reason. Its own prefix because the answers are what

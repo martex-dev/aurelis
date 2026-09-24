@@ -223,6 +223,11 @@ class StationApp:
         with self.runtime.database.session() as session:
             return self._render("Knowledge", pages.knowledge_page(session), "")
 
+    def _brain(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
+        with self.runtime.database.session() as session:
+            body = pages.brain_page(session)
+        return self._render("Shared brain", body, "")
+
     def _room(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
         room = self.facility.room(rest[0]) if rest else None
         if room is None:
@@ -269,6 +274,7 @@ _ROUTES: dict[str, Route] = {
     "service": StationApp._service,
     "world": StationApp._world,
     "mechanisms": StationApp._mechanisms,
+    "brain": StationApp._brain,
     "mechanism": StationApp._mechanism,
     "thesis": StationApp._thesis,
     "workshop": StationApp._workshop,

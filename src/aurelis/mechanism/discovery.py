@@ -32,6 +32,8 @@ from aurelis.agents.interpret import (
     render_material,
     unsourced_numerals,
 )
+from aurelis.brain.briefing import briefing, system_with_brain, topic_block
+from aurelis.brain.notes import NOTE_LINE, leave_note
 from aurelis.core.enums import Actor, EventKind, ModelTier
 from aurelis.mechanism.library import Mechanisms
 from aurelis.mechanism.tables import Mechanism
@@ -70,15 +72,17 @@ DISCOVERY_FORM = (
     "  (`trigger`: the prediction seals whenever the trigger event fires, on its "
     "own. `conjunction`: it seals only when the second event follows the trigger "
     "inside the window, at the instant of the second event -- the pattern you "
-    "were shown, as one occurrence.)\n\n"
+    "were shown, as one occurrence.)\n"
+    f"{NOTE_LINE}\n\n"
     "Or, if you cannot give a causal reason:\n"
     "MECHANISM: nothing\n"
-    "BECAUSE: <why not, in one or two sentences>\n\n"
+    "BECAUSE: <why not, in one or two sentences>\n"
+    f"{NOTE_LINE}\n\n"
     f"{FIGURE_RULE}"
 )
 
 _FIELD = re.compile(
-    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY|FIRES_ON|BECAUSE)"
+    r"^\s*(MECHANISM|DIRECTION|HORIZON|CONFIDENCE|WHY|OTHER_SIDE|DECAY|FIRES_ON|BECAUSE|NOTE)"
     r"\s*:\s*(.*)$",
     re.I,
 )
@@ -105,6 +109,9 @@ class MechanismProposal:
     """``trigger`` or ``conjunction``: whether the mechanism fires on the
     trigger alone or only when the pattern it was shown completes."""
 
+    note: str = ""
+    """What the agent chose to leave in the shared brain, if anything (M46)."""
+
     @property
     def declined(self) -> bool:
         return self.title is None
@@ -122,13 +129,14 @@ def _parse(text: str) -> MechanismProposal:
         if match:
             current = match.group(1).upper()
             fields[current] = match.group(2).strip()
-        elif current in ("WHY", "OTHER_SIDE", "DECAY", "BECAUSE") and line.strip():
+        elif current in ("WHY", "OTHER_SIDE", "DECAY", "BECAUSE", "NOTE") and line.strip():
             fields[current] = f"{fields[current]} {line.strip()}".strip()
 
+    note = fields.get("NOTE", "").strip()
     title = fields.get("MECHANISM", "").strip()
     if title.lower() == "nothing" or not title:
         return MechanismProposal(
-            None, "up", 0, Decimal("1"), "", "", "", fields.get("BECAUSE", "").strip()
+            None, "up", 0, Decimal("1"), "", "", "", fields.get("BECAUSE", "").strip(), note=note
         )
 
     direction = fields.get("DIRECTION", "").strip().lower()
@@ -170,6 +178,7 @@ def _parse(text: str) -> MechanismProposal:
         other,
         decay,
         fires_on=fires_on,
+        note=note,
     )
 
 
@@ -295,8 +304,16 @@ def propose_mechanism(
     # no recording falls back to the caller's desk, or to crypto.
     desk = _desk_of(session, found_on) or desk or "crypto"
 
-    system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
-    rendered = f"{render_material(material)}\n\n{DISCOVERY_FORM}"
+    # Every agent reads the shared brain; notes on these kinds come first (M46).
+    brain = briefing(session, topics=(trigger_kind, second_kind))
+    system = system_with_brain(SYSTEM, identity, brain)
+    on_these = topic_block(session, [trigger_kind, second_kind, found_on])
+    brain_notes = (
+        f"\n\nShared brain, notes on these events (opinions, not evidence):\n{on_these}"
+        if on_these
+        else ""
+    )
+    rendered = f"{render_material(material)}{brain_notes}\n\n{DISCOVERY_FORM}"
     model_id = model_for(provider.name, tier)
     response = provider.complete(
         session,
@@ -309,7 +326,19 @@ def propose_mechanism(
         ),
     )
     proposal = _parse(response.text)
+    permitted = allowed_figures(material, {"form": DISCOVERY_FORM, "brain": brain.record})
+    topics = (trigger_kind, second_kind, found_on)
     if proposal.declined:
+        leave_note(
+            session,
+            author=agent_ref,
+            text=proposal.note,
+            topics=topics,
+            source_ref=f"declined {trigger_kind} then {second_kind}",
+            permitted=permitted,
+            ledger=ledger,
+            at=moment,
+        )
         if ledger is not None:
             ledger.append(
                 session,
@@ -324,7 +353,6 @@ def propose_mechanism(
                 at=moment,
             )
         return None
-    permitted = allowed_figures(material, {"form": DISCOVERY_FORM})
     invented = unsourced_numerals(
         f"{proposal.why}\n{proposal.other_side}\n{proposal.decay}", permitted
     )
@@ -346,7 +374,7 @@ def propose_mechanism(
     # of the strongest instrument's first pair, or -- on a conjunction -- the
     # second event that completed it.
     found_event = found_pair.second.digest if proposal.on_conjunction else found_pair.first.digest
-    return mechanisms.state(
+    stated = mechanisms.state(
         session,
         agent_ref=agent_ref,
         title=proposal.title or "",
@@ -369,6 +397,17 @@ def propose_mechanism(
         then_kind=second_kind if proposal.on_conjunction else None,
         within_hours=window_hours if proposal.on_conjunction else None,
     )
+    leave_note(
+        session,
+        author=agent_ref,
+        text=proposal.note,
+        topics=(*topics, stated.ref),
+        source_ref=stated.ref,
+        permitted=permitted,
+        ledger=ledger,
+        at=moment,
+    )
+    return stated
 
 
 def seat_discovery(

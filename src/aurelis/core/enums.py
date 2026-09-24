@@ -170,6 +170,7 @@ class EventKind(StrEnum):
     MECHANISM_RETIRED = "mechanism.retired"
     """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
 
+    BRAIN_NOTED = "brain.noted"
     SOURCE_REQUESTED = "source.requested"
     """An agent asked the company to read a source from the free catalogue, and
     said why. The service reads it under the source-class grant."""

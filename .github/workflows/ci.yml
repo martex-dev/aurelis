@@ -243,6 +243,11 @@ jobs:
           aurelis source keys
           aurelis source seat -w "$workspace" --agent INTEL
           aurelis source requests -w "$workspace"
+          # M46: the shared brain every agent reads, an operator note, the vault.
+          aurelis brain note "CI rehearsal: the operator can write to the shared brain." -w "$workspace" --topic BTC-USD
+          aurelis brain show -w "$workspace"
+          aurelis brain notes -w "$workspace"
+          aurelis brain export -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

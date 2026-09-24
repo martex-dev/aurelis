@@ -162,13 +162,35 @@ Offline, `aurelis data record-fixture` records a desk fixture as a snapshot
 marked as not a market. Views on it are shown and labelled, and never counted
 toward the mandate.
 
+## 4a½. The shared brain, in Obsidian
+
+Every wake writes the shared brain every agent reads as an Obsidian vault in
+`liverain`. Open that folder as a vault in Obsidian (*Open folder as
+vault*). `Home` is exactly what the agents read. Each mechanism, agent, note
+and instrument has its own page, and the graph view shows how they connect.
+
+To tell the agents something, drop a Markdown file into `liverain\Inbox`.
+Link what it is about, for example `[[BTC-USD]]` or `[[MEC-0001]]`, or tag it
+`#memecoin`. The next wake reads it in as a note from the operator and moves
+it to `Inbox\Read`. From then on, every agent reads it at every seat. From a
+terminal:
+
+```powershell
+.\.venv\Scriptsurelis.exe brain note "Memecoins that trend on two chains at once are worth a look." -w live --topic memecoin
+.\.venv\Scriptsurelis.exe brain show -w live      # the brain exactly as an agent reads it
+.\.venv\Scriptsurelis.exe brain notes -w live     # every note, newest first
+```
+
+Every other page in the vault is rewritten each wake, so edits there are lost.
+
 ## 4b. Running it for days
 
 **Use the supervisor.** It starts the station, runs the service, and
 restarts the service a minute after it stops for any reason:
 
 ```powershell
-.\scriptsun-aurelis.ps1
+.\scripts
+un-aurelis.ps1
 ```
 
 To have it start by itself every time you log in to Windows, run this once:

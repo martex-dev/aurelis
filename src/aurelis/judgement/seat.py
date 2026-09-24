@@ -50,6 +50,8 @@ from aurelis.agents.interpret import (
     render_material,
     unsourced_numerals,
 )
+from aurelis.brain.briefing import briefing, system_with_brain, topic_block
+from aurelis.brain.notes import NOTE_LINE, leave_note
 from aurelis.core.canonical import sha256_of
 from aurelis.core.clock import Clock, SystemClock, isoformat
 from aurelis.core.enums import Actor, EventKind, ModelTier
@@ -111,7 +113,9 @@ _HOURS: dict[str, int] = {c.key: int(c.key[:-1]) for c in HORIZONS}
 _LOOKBACKS: tuple[int, ...] = (6, 24, 72, 168)
 _SHOWN_BARS = 24
 
-_FIELD = re.compile(r"^\s*(HORIZON|DIRECTION|CONFIDENCE|THESIS|WRONG_IF)\s*:\s*(.*)$", re.I)
+_FIELD = re.compile(
+    r"^\s*(HORIZON|DIRECTION|CONFIDENCE|THESIS|WRONG_IF|NOTE)\s*:\s*(.*)$", re.I
+)
 
 
 class JudgementRefused(RuntimeError):
@@ -222,6 +226,8 @@ class View:
     confidence: Decimal
     thesis: str
     wrong_if: str
+    note: str = ""
+    """What the agent chose to leave in the shared brain, if anything (M46)."""
 
     @property
     def declined(self) -> bool:
@@ -247,9 +253,11 @@ def view_question(instrument: str) -> str:
         "CONFIDENCE: <a probability strictly above 0.5 and at most 1, that the "
         "close at the horizon is on the side you named>\n"
         "THESIS: <why, in one to three sentences>\n"
-        "WRONG_IF: <what would make this wrong, in one sentence>\n\n"
+        "WRONG_IF: <what would make this wrong, in one sentence>\n"
+        f"{NOTE_LINE}\n\n"
         "`DIRECTION: nothing` means you have no view; the other lines may then "
-        "be empty. Do not restate your confidence inside THESIS or WRONG_IF.\n\n"
+        "be empty, and a NOTE may still say why. Do not restate your confidence "
+        "inside THESIS or WRONG_IF.\n\n"
         f"{FIGURE_RULE}"
     )
 
@@ -268,12 +276,13 @@ def parse_view(text: str) -> View:
         if match:
             current = match.group(1).upper()
             fields[current] = match.group(2).strip()
-        elif current in ("THESIS", "WRONG_IF") and line.strip():
+        elif current in ("THESIS", "WRONG_IF", "NOTE") and line.strip():
             fields[current] = f"{fields[current]} {line.strip()}".strip()
 
+    note = fields.get("NOTE", "").strip()
     direction = fields.get("DIRECTION", "").strip().lower()
     if direction == NOTHING:
-        return View(NOTHING, NOTHING, Decimal("1"), "", "")
+        return View(NOTHING, NOTHING, Decimal("1"), "", "", note)
     if direction not in ("up", "down"):
         raise JudgementRefused(
             "direction", f"got {direction or '<empty>'!r}, expected up, down or {NOTHING}"
@@ -307,7 +316,9 @@ def parse_view(text: str) -> View:
         raise JudgementRefused(
             "wrong_if", "a view whose holder cannot say what would make it wrong is unfalsifiable"
         )
-    return View(horizon, direction, confidence.quantize(Decimal("0.01")), thesis, wrong_if)
+    return View(
+        horizon, direction, confidence.quantize(Decimal("0.01")), thesis, wrong_if, note
+    )
 
 
 # ------------------------------------------------------------ the seal
@@ -456,7 +467,9 @@ class Seat:
         whose members are the same prompt with different names is one agent.
         """
         moment = at or self._clock.now()
-        system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
+        # Every agent reads the same shared brain before it answers (M46).
+        brain = briefing(session)
+        system = system_with_brain(SYSTEM, identity, brain)
         candidates = tuple(r for r in resolvable(session) if r.snapshot.symbol not in exclude)
         if not candidates:
             raise JudgementRefused(
@@ -498,7 +511,17 @@ class Seat:
 
         # -------------------------------------------------- the view itself
         material = _view_material(picked, moment, record, session=session)
-        rendered = f"{render_material(material)}\n\n{view_question(picked.snapshot.symbol)}"
+        on_this = topic_block(session, [picked.snapshot.symbol])
+        brain_notes = (
+            f"\n\nShared brain, notes on {picked.snapshot.symbol} (opinions, not evidence):\n"
+            f"{on_this}"
+            if on_this
+            else ""
+        )
+        rendered = (
+            f"{render_material(material)}{brain_notes}\n\n"
+            f"{view_question(picked.snapshot.symbol)}"
+        )
         model_id = model_for(self._provider.name, tier)
         response = self._provider.complete(
             session,
@@ -517,11 +540,24 @@ class Seat:
         except JudgementRefused:
             raise
 
+        permitted = allowed_figures(
+            material,
+            {"question": view_question(picked.snapshot.symbol), "brain": brain.record},
+        )
         if view.declined:
             self._declined(session, agent_ref, picked.snapshot.symbol, "", moment)
+            leave_note(
+                session,
+                author=agent_ref,
+                text=view.note,
+                topics=(picked.snapshot.symbol,),
+                source_ref=f"declined view on {picked.snapshot.symbol}",
+                permitted=permitted,
+                ledger=self._ledger,
+                at=moment,
+            )
             return None
 
-        permitted = allowed_figures(material, {"question": view_question(picked.snapshot.symbol)})
         invented = unsourced_numerals(f"{view.thesis}\n{view.wrong_if}", permitted)
         if invented:
             cause = (
@@ -669,6 +705,16 @@ class Seat:
                 else str(row.confidence_stated),
                 "response": row.response,
             },
+            at=moment,
+        )
+        leave_note(
+            session,
+            author=agent_ref,
+            text=view.note,
+            topics=(row.instrument,),
+            source_ref=ref,
+            permitted=permitted,
+            ledger=self._ledger,
             at=moment,
         )
         return SealedThesis(

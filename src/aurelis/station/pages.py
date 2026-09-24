@@ -1034,6 +1034,41 @@ def service_page(session: Session) -> str:
     )
 
 
+def brain_page(session: Session) -> str:
+    """The shared brain: what every agent reads before it answers, and the notes."""
+    from aurelis.brain.briefing import briefing
+    from aurelis.brain.notes import recent_notes
+
+    brain = briefing(session)
+    notes = _rows(
+        ["ref", "at", "author", "about", "note"],
+        [
+            [
+                escape_text(n.ref),
+                _when(n.written_at),
+                (
+                    "<span class='pill ok'>OPERATOR</span>"
+                    if n.kind == "operator"
+                    else f"<a href='/agent/{escape_text(n.author)}'>{escape_text(n.author)}</a>"
+                ),
+                escape_text(", ".join(n.topics or [])),
+                escape_text(n.text),
+            ]
+            for n in recent_notes(session, limit=60)
+        ],
+    )
+    return (
+        "<h1>Shared brain</h1>"
+        "<p class='mono'>Every agent reads this before it answers any seat. The record is "
+        "derived from the database and its figures may be cited; the notes are what agents "
+        "and the operator left for the company, and are opinions. The same brain is written "
+        "as an Obsidian vault in the workspace's <code>brain</code> folder every wake; drop "
+        "a Markdown file in its <code>Inbox</code> to add a note as the operator.</p>"
+        f"<h2>Record</h2><pre class='mono'>{escape_text(brain.record) or 'Nothing yet.'}</pre>"
+        f"<h2>Notes</h2>{notes}"
+    )
+
+
 def mechanisms_page(session: Session) -> str:
     from aurelis.mechanism.library import MIN_EPISODES, MIN_SCORED_PREDICTIONS
 

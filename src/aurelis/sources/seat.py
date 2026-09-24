@@ -180,7 +180,9 @@ def request_sources(
             "can be asked for."
         ),
     }
-    system = f"{SYSTEM}\n\n{identity}" if identity else SYSTEM
+    from aurelis.brain.briefing import briefing, system_with_brain
+
+    system = system_with_brain(SYSTEM, identity, briefing(session))
     rendered = f"{render_material(material)}\n\n{SOURCE_FORM}"
     model_id = model_for(provider.name, tier)
     response = provider.complete(

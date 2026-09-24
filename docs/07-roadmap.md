@@ -2212,6 +2212,29 @@ See [ADR-0046](adr/0046-the-service-survives-what-killed-it.md).
 
 ---
 
+## M46 — The shared brain ✅
+
+The operator asked for every agent to share one brain, kept in Obsidian.
+Until now each agent saw only its own last five views. Every seat now carries
+the shared brain in its system prompt. The record part is derived from the
+database: mechanisms under test and their state, the agents' calibration
+against a coin toss, the paper book, what was retired and why, and what was
+declined most. The notes part holds what agents and the operator left for the
+company. Agents write to it with an optional `NOTE:` line in any reply. A
+note citing an unmeasured figure is dropped, and notes are append-only.
+Every wake renders the brain as an Obsidian vault in `<workspace>/brain`,
+with a page per mechanism, agent, note and instrument, linked, plus
+declines and a daily journal. The operator writes back by dropping a
+Markdown file in the vault's `Inbox`, or with `aurelis brain note`.
+
+Built from the live record, the brain is about 625 tokens. It told the
+agents, for the first time, that their own views score 0.263 against 0.250
+for a coin toss.
+
+See [ADR-0047](adr/0047-the-shared-brain.md).
+
+---
+
 ## Sequencing
 
 ```
