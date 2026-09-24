@@ -45,7 +45,9 @@ __all__ = [
     "DEFAULT_WEIGHT",
     "LIQUIDITY_SHARE",
     "MIN_POSITION_USD",
+    "LATE_AFTER",
     "books_with_trades",
+    "is_late",
     "flatten_book",
     "PaperResult",
     "close_settled",
@@ -64,6 +66,15 @@ fiction. A position in a token keyed by chain and contract is capped at
 this share of the liquidity its newest attention event reported (M45)."""
 
 MIN_POSITION_USD = Decimal("100")
+
+LATE_AFTER = dt.timedelta(hours=3)
+"""A close whose exit bar is later than this, or than the mechanism's own
+horizon if that is longer, after the prediction resolved was held past its
+horizon: by an outage, not by the mechanism. When the service came back
+after nine days down in September, thirteen six-hour positions closed at
+once, nine days late, into a rally, for $18,000 of paper profit that the
+mechanism never predicted. Such a round trip is reported apart and does not
+count as the mechanism's P&L (M45)."""
 """Below this, the capped position is too small to be worth its fees."""
 
 DEFAULT_WEIGHT = Decimal("0.05")
@@ -702,14 +713,40 @@ def _round_trip_pnl(session: Session, open_ref: str, close_ref: str) -> Decimal:
     return (gross - fees).quantize(Decimal("0.01"))
 
 
+def is_late(trade: MechanismTrade, resolves_at: dt.datetime, horizon_hours: int) -> bool:
+    """Whether a closed round trip was held well past its prediction's horizon."""
+    if trade.close_order_ref is None or trade.exit_bar_at is None:
+        return False
+    allowed = max(LATE_AFTER, dt.timedelta(hours=int(horizon_hours)))
+    return _aware(trade.exit_bar_at) - _aware(resolves_at) > allowed
+
+
 def pnl_of(session: Session, mechanism_ref: str) -> dict[str, Any]:
+    """The mechanism's paper record. ``pnl`` and ``won`` count only round
+    trips closed at their horizon; one held past it by an outage is counted
+    in ``late`` and ``late_pnl`` instead, because its outcome is the outage's."""
     rows = list(
         session.execute(
             sa.select(MechanismTrade).where(MechanismTrade.mechanism_ref == mechanism_ref)
         ).scalars()
     )
+    resolving = {
+        ref: (resolves, hours)
+        for ref, resolves, hours in session.execute(
+            sa.select(Thesis.ref, Thesis.resolves_at, Thesis.horizon_hours).where(
+                Thesis.ref.in_([r.thesis_ref for r in rows])
+            )
+        ).all()
+    }
     closed = [r for r in rows if r.close_order_ref is not None]
-    total = sum((Decimal(str(r.pnl or 0)) for r in closed), Decimal(0))
+    late = [
+        r
+        for r in closed
+        if r.thesis_ref in resolving and is_late(r, *resolving[r.thesis_ref])
+    ]
+    on_time = [r for r in closed if r not in late]
+    total = sum((Decimal(str(r.pnl or 0)) for r in on_time), Decimal(0))
+    late_total = sum((Decimal(str(r.pnl or 0)) for r in late), Decimal(0))
     # Entry slippage against the trigger's close, in basis points, signed so
     # that positive is worse for the position: a long filled above the
     # reference paid it, a short filled below it did.
@@ -733,8 +770,10 @@ def pnl_of(session: Session, mechanism_ref: str) -> dict[str, Any]:
         "trades": len(rows),
         "open": len(rows) - len(closed),
         "closed": len(closed),
-        "won": sum(1 for r in closed if Decimal(str(r.pnl or 0)) > 0),
+        "won": sum(1 for r in on_time if Decimal(str(r.pnl or 0)) > 0),
         "pnl": total.quantize(Decimal("0.01")),
+        "late": len(late),
+        "late_pnl": late_total.quantize(Decimal("0.01")),
         "slippage_bps": (
             (sum(slips, Decimal(0)) / len(slips)).quantize(Decimal("0.1")) if slips else None
         ),

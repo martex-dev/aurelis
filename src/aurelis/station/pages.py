@@ -1100,7 +1100,12 @@ def mechanisms_page(session: Session) -> str:
                 escape_text(r["brier"]),
                 escape_text(r["base_rate"]),
                 escape_text(f"{r['paper']['closed']} closed, {r['paper']['open']} open"),
-                escape_text(str(r["paper"]["pnl"])),
+                escape_text(str(r["paper"]["pnl"]))
+                + (
+                    f" <span class='pill dim'>+{r['paper']['late']} HELD PAST HORIZON</span>"
+                    if r["paper"].get("late")
+                    else ""
+                ),
                 (
                     "<span class='pill ok'>SCHEME</span>"
                     if r["is_scheme"]
@@ -1280,7 +1285,8 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
                 escape_text(t["entry"] or "—"),
                 _when(t["closed_at"]),
                 escape_text(t["exit"] or "—"),
-                escape_text(t["pnl"] or "open"),
+                escape_text(t["pnl"] or "open")
+                + (" <span class='pill dim'>HELD PAST HORIZON</span>" if t.get("late") else ""),
             ]
             for t in view.trades
         ],
@@ -1289,7 +1295,9 @@ def mechanism_page(session: Session, ref: str, *, artifacts: Any = None) -> str 
         trades += (
             "<p class='mono'>Entry and exit are the newest closes the wake could see when "
             "it placed each order, not the trigger's close or the resolution bar's: an "
-            "order placed an hour after a trigger does not fill at the trigger.</p>"
+            "order placed an hour after a trigger does not fill at the trigger. A round "
+            "trip marked held past horizon was kept open by an outage; its P&L is not "
+            "counted as the mechanism's.</p>"
         )
     declines = _rows(
         ["at", "agent", "shown", "because"],

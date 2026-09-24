@@ -319,3 +319,38 @@ def test_three_failed_wakes_in_a_row_stop_the_service_and_say_why(
     assert outcome.wakes == ()
     assert outcome.stopped_because.startswith(f"{MAX_FAILED_WAKES} wakes in a row failed")
     assert "fell over" in outcome.stopped_because
+
+
+# ------------------------------------------------------------ an outage's positions
+
+
+def test_a_round_trip_held_past_its_horizon_by_an_outage_is_not_the_mechanisms_pnl(
+    company: Runtime,
+) -> None:
+    from aurelis.judgement.resolution import resolve_due
+    from aurelis.mechanism.paper import close_settled, pnl_of
+
+    _record(company, "BTC-USD", desk="crypto", base=100.0, step=1.0)
+    mechanism = _range_break(company)
+    with company.database.session() as session:
+        opened = trade_firings(company, session, mechanism, at=company.clock.now())
+    assert opened.opened
+    # The service is down for nine days. When it comes back, the recording
+    # covers them and every position closes at once, far past its horizon.
+    company.clock.advance(hours=9 * 24)
+    with company.database.session() as session:
+        snapshot = company.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Payload(_climbing(520)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=520,
+        )
+        assert snapshot.bars == 520
+        resolve_due(session, ledger=company.ledger, clock=company.clock)
+        closing = close_settled(company, session, mechanism, at=company.clock.now())
+        summary = pnl_of(session, mechanism.ref)
+    assert closing.closed and len(closing.closed) == len(opened.opened)
+    assert summary["late"] == len(closing.closed), "every one was held nine days, not six hours"
+    assert summary["pnl"] == 0 and summary["won"] == 0, "none of it is the mechanism's"
+    assert summary["late_pnl"] > 0, "the rally the outage held them through is still on record"

@@ -67,6 +67,19 @@ It loads source keys from `<workspace>/keys.ps1` when that file exists.
 the supervisor at logon. It changes a setting on the operator's machine, so
 the operator runs it; Aurelis does not.
 
+### A position held past its horizon by an outage is reported apart
+
+When the service returns after an outage, every position whose prediction
+resolved while it was down closes at once, at the price of the day it came
+back. A dry run of the first wake on this code, on a copy of the live record,
+closed thirteen six-hour positions nine days late into a rally, for $18,240.88
+of paper profit the mechanism never predicted. A round trip whose exit bar is
+later than three hours, or than the mechanism's own horizon if longer, after
+its prediction resolved is now counted in `late` and `late_pnl`, not in the
+mechanism's P&L or its wins. The CLI shows it in its own column, the station
+marks it, and the shared brain says so. The prediction's score is untouched:
+it was settled at its own horizon, on its own bar.
+
 ## Consequences
 
 - Replaying the failed step on a copy of the live database opened all 18

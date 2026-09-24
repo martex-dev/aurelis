@@ -2207,6 +2207,9 @@ service and station running and restarts them, and
 
 Replayed on a copy of the live database, the failed step opened all 18
 firings, and the token with a $64,745 pool got $1,294.90 instead of $5,000.
+A round trip held past its horizon by an outage is reported apart from the
+mechanism's P&L: the first wake back would otherwise have credited MEC-0001
+with $18,240.88 from nine days of a rally it never predicted.
 
 See [ADR-0046](adr/0046-the-service-survives-what-killed-it.md).
 

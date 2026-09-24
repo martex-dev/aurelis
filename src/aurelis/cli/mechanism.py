@@ -228,6 +228,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
         "closed",
         "won",
         "realised P&L",
+        "held past horizon",
         "entry slippage bps",
     ):
         table.add_column(column, overflow="fold")
@@ -241,6 +242,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
             str(summary["closed"]),
             str(summary["won"]),
             f"[{tone}]{summary['pnl']}[/{tone}]",
+            f"{summary['late']} ({summary['late_pnl']})" if summary["late"] else "—",
             str(summary["slippage_bps"]) if summary["slippage_bps"] is not None else "—",
         )
     console.print(table)
@@ -249,5 +251,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
         "reported and never judged: over a short window it is mostly luck. The "
         "calibration record is the measure. Fills are at the newest close the wake "
         "could see, not the trigger's; the slippage column is the difference, in "
-        "basis points, signed so that positive is worse.[/dim]"
+        "basis points, signed so that positive is worse. A round trip held past its "
+        "horizon by an outage is counted apart, in 'held past horizon', and not as the "
+        "mechanism's P&L.[/dim]"
     )

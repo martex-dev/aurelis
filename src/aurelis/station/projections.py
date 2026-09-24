@@ -1796,6 +1796,8 @@ def mechanism_detail(
         if settled:
             bucket["scored"] += 1
             bucket["hits"] += int(bool(hit))
+    from aurelis.mechanism.paper import is_late
+
     trades = [
         {
             "thesis": t.thesis_ref,
@@ -1805,12 +1807,14 @@ def mechanism_detail(
             "entry": t.entry_price or "",
             "exit": t.exit_price or "",
             "pnl": str(t.pnl) if t.pnl is not None else "",
+            "late": is_late(t, resolves, hours),
         }
-        for t in session.execute(
-            sa.select(MechanismTrade)
+        for t, resolves, hours in session.execute(
+            sa.select(MechanismTrade, Thesis.resolves_at, Thesis.horizon_hours)
+            .join(Thesis, Thesis.ref == MechanismTrade.thesis_ref)
             .where(MechanismTrade.mechanism_ref == ref)
             .order_by(MechanismTrade.opened_at.desc())
-        ).scalars()
+        ).all()
     ]
     calibration = status.calibration
     return MechanismDetail(

@@ -178,8 +178,6 @@ def _company_brief(session: Session) -> str:
     what was retired and what was declined."""
     from aurelis.judgement.tables import Thesis
     from aurelis.mechanism.library import Mechanisms
-    from aurelis.mechanism.tables import MechanismTrade
-
     lines: list[str] = []
     statuses = Mechanisms().statuses(session)
     active = [s for s in statuses if not s.retired]
@@ -229,20 +227,25 @@ def _company_brief(session: Session) -> str:
             line += f"; best calibrated {best[0]} at {_dec(best[2])} over {best[1]}"
         lines.append(line + ".")
 
-    trades = session.execute(
-        sa.select(
-            sa.func.count(),
-            sa.func.sum(sa.case((MechanismTrade.closed_at.is_not(None), 1), else_=0)),
-            sa.func.sum(sa.cast(MechanismTrade.pnl, sa.Float)),
-        ).select_from(MechanismTrade)
-    ).one()
-    if trades[0]:
-        closed = int(trades[1] or 0)
-        pnl = Decimal(str(trades[2] or 0)).quantize(Decimal("0.01"))
-        lines.append(
-            f"Paper book: {closed} round trips closed, realised P&L {pnl}; "
-            f"{int(trades[0]) - closed} open."
+    from aurelis.mechanism.paper import pnl_of
+
+    books = [pnl_of(session, s.mechanism.ref) for s in statuses]
+    trades = sum(b["trades"] for b in books)
+    if trades:
+        closed = sum(b["closed"] - b["late"] for b in books)
+        pnl = sum((b["pnl"] for b in books), Decimal(0))
+        late = sum(b["late"] for b in books)
+        line = (
+            f"Paper book: {closed} round trips closed at their horizon, realised P&L {pnl}; "
+            f"{sum(b['open'] for b in books)} open."
         )
+        if late:
+            late_pnl = sum((b["late_pnl"] for b in books), Decimal(0))
+            line += (
+                f" {late} more were held past their horizon by an outage ({late_pnl}) "
+                "and are not any mechanism's result."
+            )
+        lines.append(line)
 
     if retired:
         lines.append("Retired, and why (do not restate without a new reason):")
