@@ -98,8 +98,13 @@ class StationApp:
 
         if not parts:
             with self.runtime.database.session() as session:
-                body = pages.facility_page(session, self.facility)
+                body = pages.facility_page(session, self.facility, self.runtime.clock.now())
             return self._render("Facility", body, "")
+        if parts == ["now"]:
+            # The facility's changing part alone, for the page to refresh in place.
+            with self.runtime.database.session() as session:
+                fragment = pages.now_panel(session, self.facility, self.runtime.clock.now())
+            return Response(fragment.encode("utf-8"))
 
         head, rest = parts[0], parts[1:]
         handler = _ROUTES.get(head)
@@ -239,16 +244,32 @@ class StationApp:
     # ---------------------------------------------------------------- data
 
     def events_since(self, since: int) -> list[dict[str, Any]]:
-        """New ledger entries, for the SSE stream."""
+        """New ledger entries, for the SSE stream, each with its plain line
+        and whether the live feed lists it (M52)."""
+        import sqlalchemy as sa
+
+        from aurelis.agents.tables import Agent
+        from aurelis.station.activity import QUIET_KINDS, ROUTINE_KINDS, describe
+
         with self.runtime.database.session() as session:
             entries = proj.timeline(session, since=since)
+            handles = {
+                str(ref): str(handle)
+                for ref, handle in session.execute(
+                    sa.select(Agent.ref, Agent.handle)
+                ).all()
+            }
         return [
             {
                 "seq": entry.seq,
                 "at": entry.at.strftime("%m-%d %H:%M"),
+                "time": entry.at.strftime("%H:%M:%S"),
                 "actor": entry.actor,
+                "who": handles.get(entry.actor, entry.actor),
                 "kind": entry.kind,
                 "subject": entry.subject,
+                "line": describe(entry.kind, entry.subject, entry.payload),
+                "listed": entry.kind not in QUIET_KINDS | ROUTINE_KINDS,
             }
             for entry in entries
         ]

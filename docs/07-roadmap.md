@@ -2333,6 +2333,24 @@ See [ADR-0051](adr/0051-the-company-follows-social-media-through-the-device.md).
 
 See [ADR-0052](adr/0052-x-and-discord-through-a-signed-in-profile.md).
 
+## M52 — The station shows the company at work ✅
+
+Every room read IDLE while the agents sealed twenty views an hour, because
+the plates read `agents.state` and the seats never set it.
+
+- **Activity from the ledger.** An agent is working if it acted in the last
+  ten minutes. Rooms light by that, only the working figures move, and each
+  room shows its last act and its acts in the last hour.
+- **The current wake.** It shows the wake in progress with its calls and
+  decisions so far, or the last wake's note.
+- **Today's counts**, and **who is doing what**, one row per agent in plain
+  words.
+- **A live feed** of every decision, a line from each event's payload,
+  streamed as it is recorded. The facility refreshes in place every fifteen
+  seconds.
+
+See [ADR-0053](adr/0053-the-station-reads-the-ledger-for-what-is-happening.md).
+
 ---
 
 ## Sequencing

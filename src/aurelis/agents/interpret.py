@@ -44,6 +44,12 @@ __all__ = [
 #: ("two things stand out"), and everything else must be sourced.
 _FREE_NUMERALS = frozenset({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"})
 
+_COIN_TOSS = frozenset({"0.5", "0.50", "50%"})
+"""A coin toss (M52): the one probability every agent may name without a
+source, as the yardstick every view is scored against. Matched as written,
+so ``0.5%``, half a percent, is still a figure that needs a source. Two live
+refusals after M51 were an agent saying its call was no better than 0.5."""
+
 #: A figure is a digit run that stands on its own. One glued to a word -- the
 #: ``0001`` of ``MEC-0001``, the ``1`` of ``H1`` -- is part of a name, and a
 #: name is not a claim about the data. Before M48 the company's own refs read
@@ -68,7 +74,7 @@ def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
     for match in _NUMERAL.finditer(text):
         token = match.group(0)
         bare = token.rstrip("%").replace(",", "")
-        if bare in _FREE_NUMERALS or bare in allowed:
+        if bare in _FREE_NUMERALS or token in _COIN_TOSS or bare in allowed:
             continue
         # A zero-padded integer is a name, not a quantity: ``0007`` in
         # "MEC-0004/0007" is a ref, and nobody writes a measurement as 0007.

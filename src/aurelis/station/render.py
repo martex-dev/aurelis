@@ -127,6 +127,17 @@ def _draw_room(
     )
     if status is None:
         return
+    if status.last_active:
+        drawing.label(
+            Label(
+                f"last act {status.last_active} · {status.acts_last_hour} in the last hour",
+                room.x + 12,
+                room.y + 58,
+                size=9,
+                fill=colours.dim,
+                title="read off the ledger: every act is an event with the agent as actor",
+            )
+        )
 
     drawing.label(
         Label(
@@ -164,16 +175,20 @@ def _draw_staff(
     shown = min(headcount, 8)
     step = (room.w - 44) // max(1, shown)
 
-    # Busy staff move, in two frames, the way a sprite does; idle staff stand
-    # still. The motion is the state, so a still room is a true still room.
-    if status.busy:
-        drawing.add('<g class="busy">')
+    # Working staff move, in two frames, the way a sprite does; the others
+    # stand still. The motion is the state, so a still room is a true still
+    # room. Since M52 only as many figures move as agents acted in the last
+    # ten minutes, so a room with one of three at work shows one at work.
+    working = status.working.value if isinstance(status.working.value, int) else 0
     for index in range(shown):
         x = room.x + 24 + index * step
-        # Busy staff take the room's status colour; idle staff are still
+        at_work = index < working
+        if at_work:
+            drawing.add('<g class="busy">')
+        # Working staff take the room's status colour; the rest are still
         # clearly people, just unlit. Drawing them in the plant colour made
         # them read as furniture, which is the opposite of the point.
-        colour = tone if status.busy else colours.dim
+        colour = tone if at_work else colours.dim
         # Head, torso, legs: blocky on purpose.
         drawing.add(rect(x, floor - 27, 8, 8, fill=colour))
         drawing.add(rect(x + 2, floor - 24, 2, 2, fill=colours.ground))
@@ -181,8 +196,8 @@ def _draw_staff(
         drawing.add(rect(x, floor - 17, 8, 11, fill=colour, opacity=0.8))
         drawing.add(rect(x + 1, floor - 5, 2, 5, fill=colour, opacity=0.6))
         drawing.add(rect(x + 5, floor - 5, 2, 5, fill=colour, opacity=0.6))
-    if status.busy:
-        drawing.add("</g>")
+        if at_work:
+            drawing.add("</g>")
 
     if headcount > shown:
         drawing.label(
@@ -387,6 +402,14 @@ header.bar .brand::before {
 .bar.ok .fill { background:var(--ok); }
 .bar.bad .fill { background:var(--bad); }
 .bar-n { font-size:10px; color:var(--dim); margin-left:6px; }
+.tiles { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 14px; }
+.tile { background:var(--plate); border:1px solid var(--edge); padding:8px 12px;
+        min-width:110px; }
+.tile .n { font-size:20px; color:var(--ink); font-weight:bold; }
+.tile .l { font-size:10px; color:var(--dim); text-transform:none; }
+.panel.now.ok { border-left:3px solid var(--ok); }
+#feed li.fresh { animation: fresh 3s ease-out; }
+@keyframes fresh { from { background:#1f3a2f; } to { background:transparent; } }
 """
 
 _SSE = """
@@ -414,9 +437,33 @@ _SSE = """
         list.appendChild(li);
       });
       while (list.children.length > 200) list.removeChild(list.firstChild);
-      document.body.dataset.seq = data.entries[data.entries.length - 1].seq;
     }
+    var feed = document.getElementById("feed");
+    if (feed) {
+      data.entries.forEach(function (entry) {
+        if (!entry.listed) return;
+        var li = document.createElement("li");
+        li.className = "fresh";
+        li.innerHTML =
+          '<span>' + entry.time + '</span>' +
+          '<span class="kind"></span><span></span>';
+        li.children[1].textContent = entry.who;
+        li.children[2].textContent = entry.line;
+        feed.insertBefore(li, feed.firstChild);
+      });
+      while (feed.children.length > 200) feed.removeChild(feed.lastChild);
+    }
+    document.body.dataset.seq = data.entries[data.entries.length - 1].seq;
   };
+})();
+(function () {
+  var now = document.getElementById("now");
+  if (!now || !window.fetch) return;
+  setInterval(function () {
+    fetch("/now").then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) { if (html) now.innerHTML = html; })
+      .catch(function () {});
+  }, 15000);
 })();
 </script>
 """

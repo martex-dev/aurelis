@@ -123,12 +123,116 @@ def _when(moment: dt.datetime | None) -> str:
 # ------------------------------------------------------------------ views
 
 
-def facility_page(session: Session, facility: Facility) -> str:
-    """The building. Rooms laid out from the registry, lit by the record."""
-    statuses = proj.room_statuses(session)
-    svg = facility_svg(facility, statuses)
+def _today_counts(session: Session, now: dt.datetime) -> dict[str, int]:
+    """What the company did since midnight UTC, by event kind."""
+    from aurelis.platform.db.tables import Event
+    from aurelis.world.tables import WorldEvent
 
-    unstaffed = [s for s in statuses.values() if s.plate == "UNSTAFFED"]
+    midnight = now.astimezone(dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    counts = {
+        str(kind): int(n)
+        for kind, n in session.execute(
+            sa.select(Event.kind, sa.func.count())
+            .where(Event.created_at >= midnight)
+            .group_by(Event.kind)
+        ).all()
+    }
+    counts["social.post"] = int(
+        session.execute(
+            sa.select(sa.func.count()).where(
+                WorldEvent.kind == "social.post", WorldEvent.recorded_at >= midnight
+            )
+        ).scalar_one()
+    )
+    return counts
+
+
+def now_panel(session: Session, facility: Facility, now: dt.datetime | None = None) -> str:
+    """The part of the facility that changes every minute: the wake, the
+    building lit by who acted in the last ten minutes, and every agent's last
+    act. Served alone at ``/now`` so the page can refresh it in place (M52)."""
+    from aurelis.station.activity import _ago, activity, hour_words, wake_state
+
+    moment = now or dt.datetime.now(dt.UTC)
+    wake = wake_state(session, moment)
+    today = _today_counts(session, moment)
+    statuses = proj.room_statuses(session, moment)
+    svg = facility_svg(facility, statuses)
+    acts = activity(session, moment)
+
+    this_wake = wake.this_wake
+    wake_line = (
+        f"sealed {this_wake.get('judgement.thesis_sealed', 0)} view(s), declined "
+        f"{this_wake.get('judgement.thesis_declined', 0)}, refused "
+        f"{this_wake.get('judgement.thesis_refused', 0)}, left "
+        f"{this_wake.get('brain.noted', 0)} note(s), "
+        f"{this_wake.get('trading.order_filled', 0)} paper fill(s)"
+    )
+    tone = "ok" if wake.in_progress else ""
+    tiles = [
+        ("views sealed", today.get("judgement.thesis_sealed", 0)),
+        ("views scored", today.get("judgement.thesis_scored", 0)),
+        ("declined", today.get("judgement.thesis_declined", 0)),
+        ("refused", today.get("judgement.thesis_refused", 0)),
+        ("brain notes", today.get("brain.noted", 0)),
+        ("model calls", today.get("model.called", 0)),
+        ("social posts read", today.get("social.post", 0)),
+        ("mechanism predictions", today.get("mechanism.predicted", 0)),
+        ("paper fills", today.get("trading.order_filled", 0)),
+        ("alerts", today.get("ops.alert_raised", 0)),
+    ]
+    tile_html = "".join(
+        f"<div class='tile'><div class='n'>{n}</div><div class='l'>{escape_text(label)}</div></div>"
+        for label, n in tiles
+    )
+    rows = sorted(
+        acts.values(),
+        key=lambda a: a.last_at.timestamp() if a.last_at else 0.0,
+        reverse=True,
+    )
+    table = _rows(
+        ["agent", "room", "state", "last act", "what it did", "last hour"],
+        [
+            [
+                f"<a href='/agent/{escape_text(a.ref)}'>{escape_text(a.ref)}</a> "
+                f"{escape_text(a.handle)}",
+                escape_text(a.department.replace("_", " ")),
+                _pill("working" if a.working(moment) else "idle"),
+                escape_text(_ago(moment, a.last_at) if a.last_at else "never"),
+                escape_text(a.last_line[:160]),
+                escape_text(hour_words(a.last_hour) or "-"),
+            ]
+            for a in rows
+        ],
+    )
+    note = (
+        f"<p class='mono'>Last wake's note: {escape_text(wake.last_note[:600])}</p>"
+        if wake.last_note and not wake.in_progress
+        else ""
+    )
+    return (
+        f"<div class='panel now {tone}'>"
+        f"<p><b>{escape_text(wake.headline(moment))}</b></p>"
+        f"<p class='mono'>This wake so far: {escape_text(wake_line)}.</p>{note}</div>"
+        f"<h2>Today (UTC)</h2><div class='tiles'>{tile_html}</div>"
+        f"<div class='panel'>{svg}</div>"
+        f"<h2>Who is doing what</h2>{table}"
+        f"<p class='mono'>Refreshed {escape_text(moment.strftime('%H:%M:%S'))} UTC. "
+        "An agent is working if it acted in the last ten minutes; every line is read "
+        "off the ledger. A wake stamps each decision with the moment it woke, the time "
+        "a view is sealed against, so a decision can read older than the model call "
+        "that made it.</p>"
+    )
+
+
+def facility_page(
+    session: Session, facility: Facility, now: dt.datetime | None = None
+) -> str:
+    """The building, lit by what the record says happened in the last minutes,
+    and the company's live feed beside it."""
+    from aurelis.station.activity import feed
+
+    unstaffed = [s for s in proj.room_statuses(session, now).values() if s.plate == "UNSTAFFED"]
     note = ""
     if unstaffed:
         names = ", ".join(DEPARTMENTS[s.department].name for s in unstaffed)
@@ -138,13 +242,24 @@ def facility_page(session: Session, facility: Facility) -> str:
             "that hides its empty rooms is describing an org chart, not an "
             "organisation.</div>"
         )
+    lines = "".join(
+        f"<li><span>{escape_text(f.at.strftime('%H:%M:%S'))}</span>"
+        f"<span class='kind'>{escape_text(f.who)}</span>"
+        + (
+            f"<span><a href='{escape_text(f.href)}'>{escape_text(f.line)}</a></span>"
+            if f.href
+            else f"<span>{escape_text(f.line)}</span>"
+        )
+        + "</li>"
+        for f in feed(session, limit=60)
+    )
     return (
         "<h1>The facility</h1>"
-        "<p class='mono'>Rooms are generated from the department registry and "
-        "fixtures are placed by a hash of each room's id, so two builds of the "
-        "same state produce the same picture. The Registry and the Vault have "
-        "no corridor: you cannot walk into a process boundary.</p>"
-        f"{note}<div class='panel'>{svg}</div>"
+        f"{note}<div id='now'>{now_panel(session, facility, now)}</div>"
+        "<h2>Live feed</h2>"
+        "<p class='mono'>Every decision the company records, newest first, as it "
+        "happens. Market recordings and model calls are counted above, not listed.</p>"
+        f"<ul class='timeline' id='feed'>{lines}</ul>"
     )
 
 

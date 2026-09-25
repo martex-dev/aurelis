@@ -268,7 +268,10 @@ class RoomStatus:
 
     ``plate`` is one of the five words the station is allowed to show:
     ``WORKING``, ``IN MEETING``, ``IDLE``, ``UNSTAFFED``, ``NO DATA``. It is
-    read off the agent states in that department, never guessed.
+    read off the ledger: a room is working when one of its agents acted in the
+    last ten minutes (M52). Before M52 it was read off ``agents.state``, which
+    the service's seats never set, so every room read IDLE while its agents
+    sealed views.
     """
 
     department: Department
@@ -276,14 +279,28 @@ class RoomStatus:
     headcount: Figure
     working: Figure
     tone: str
+    last_active: str = ""
+    """How long ago the room's most recent act was, in words."""
+
+    acts_last_hour: int = 0
 
     @property
     def busy(self) -> bool:
         return self.plate in ("WORKING", "IN MEETING")
 
 
-def room_statuses(session: Session) -> dict[Department, RoomStatus]:
-    """Occupancy for every department in the registry, staffed or not."""
+def room_statuses(
+    session: Session, now: dt.datetime | None = None
+) -> dict[Department, RoomStatus]:
+    """Occupancy for every department in the registry, staffed or not.
+
+    Working means acted recently, by the ledger (M52); a meeting still reads
+    off the agent state, since a meeting holds its agents for its length.
+    """
+    from aurelis.station.activity import _ago, activity
+
+    moment = now or dt.datetime.now(dt.UTC)
+    acts = activity(session, moment)
     rows = Counter(
         (str(department), str(state))
         for department, state in session.execute(sa.select(Agent.department, Agent.state)).all()
@@ -293,8 +310,22 @@ def room_statuses(session: Session) -> dict[Department, RoomStatus]:
     for department in DEPARTMENTS:
         counts = {state: count for (dept, state), count in rows.items() if dept == department.value}
         headcount = sum(counts.values())
-        busy = counts.get(AgentState.WORKING.value, 0)
+        members = [a for a in acts.values() if a.department == department.value]
+        marked = set(
+            session.execute(
+                sa.select(Agent.ref).where(
+                    Agent.department == department.value,
+                    Agent.state == AgentState.WORKING.value,
+                )
+            ).scalars()
+        )
+        # Working: acted in the last ten minutes, or marked working by a loop
+        # that holds the agent for longer than one transaction.
+        busy = sum(1 for a in members if a.working(moment) or a.ref in marked)
         meeting = counts.get(AgentState.IN_MEETING.value, 0)
+        seen = [a.last_at for a in members if a.last_at is not None]
+        last_active = _ago(moment, max(seen)) if seen else ""
+        acts_last_hour = sum(sum(a.last_hour.values()) for a in members)
 
         if headcount == 0:
             plate, tone = "UNSTAFFED", "dim"
@@ -315,11 +346,14 @@ def room_statuses(session: Session) -> dict[Department, RoomStatus]:
             working=Figure(
                 busy + meeting,
                 Source.table(
-                    "agents",
-                    f"department = {department.value}, state in (working, in_meeting)",
+                    "events",
+                    f"department = {department.value}, acted in the last ten minutes, "
+                    "or in a meeting",
                 ),
             ),
             tone=tone,
+            last_active=last_active,
+            acts_last_hour=acts_last_hour,
         )
     return statuses
 
