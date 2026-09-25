@@ -53,7 +53,10 @@ if (Test-Path $keys) {
 }
 
 $station = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match "station serve -w $Workspace" }
+    Where-Object {
+        $_.CommandLine -match "station serve -w $Workspace" -and
+        ($_.Name -eq "aurelis.exe" -or $_.Name -eq "python.exe")
+    }
 if (-not $station) {
     Start-Process -FilePath $aurelis -ArgumentList @("station", "serve", "-w", $Workspace, "--port", "$Port") `
         -WorkingDirectory $root -WindowStyle Minimized
@@ -63,11 +66,18 @@ if (-not $station) {
 }
 
 while ($true) {
+    # Only an Aurelis process counts. A shell whose command line merely
+    # mentions the service -- a monitoring script, a search -- once kept the
+    # supervisor waiting for half an hour while nothing was running.
     $running = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match "service start -w $Workspace" -and $_.ProcessId -ne $PID }
+        Where-Object {
+            $_.CommandLine -match "service start -w $Workspace" -and
+            $_.ProcessId -ne $PID -and
+            ($_.Name -eq "aurelis.exe" -or ($_.Name -eq "python.exe" -and $_.CommandLine -match "aurelis"))
+        }
     if ($running) {
         Write-Host "A service for '$Workspace' is already running (pid $($running[0].ProcessId)). Waiting for it to stop."
-        Start-Sleep -Seconds 300
+        Start-Sleep -Seconds 60
         continue
     }
     Write-Host "$(Get-Date -Format s)  starting the service: $CallsPerDay model calls a day, at most $CallsPerWake a wake, a wake every hour."
