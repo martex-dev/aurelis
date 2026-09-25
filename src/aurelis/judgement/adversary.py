@@ -212,6 +212,11 @@ class Adversary:
         instrument: str,
         task_ref: str | None = None,
     ) -> Attack:
+        from aurelis.brain.briefing import briefing, system_with_brain
+
+        # The critic reads the same shared brain as the analyst it attacks,
+        # notes on this instrument first (M46).
+        brain = briefing(session, topics=(instrument,))
         shown = {**material, "the_view": view_section(view, instrument)}
         rendered = f"{render_material(shown)}\n\n{ATTACK_FORM}"
         model_id = model_for(self._provider.name, self.tier)
@@ -221,7 +226,7 @@ class Adversary:
                 model=ModelRef(
                     provider=self._provider.name, model=model_id, tier=self.tier, max_tokens=400
                 ),
-                system=f"{CRITIC_SYSTEM}\n\n{self.identity}",
+                system=system_with_brain(CRITIC_SYSTEM, self.identity, brain),
                 messages=(Message("user", rendered),),
                 actor=self.critic_ref,
                 task_ref=task_ref,
@@ -233,7 +238,9 @@ class Adversary:
             return Attack(
                 self.critic_ref, "unreadable", str(error), response.usage.total, response.usd, True
             )
-        invented = unsourced_numerals(text, allowed_figures(shown, {"form": ATTACK_FORM}))
+        invented = unsourced_numerals(
+            text, allowed_figures(shown, {"form": ATTACK_FORM, "brain": brain.record})
+        )
         if invented:
             return Attack(
                 self.critic_ref,

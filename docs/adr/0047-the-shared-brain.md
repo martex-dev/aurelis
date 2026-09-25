@@ -26,7 +26,8 @@ it shares has to arrive in its prompt.
 ### The brain is a briefing every seat carries
 
 Every seat's system prompt now carries the brain after the agent's identity:
-the judgement seat, the discovery seat and the sources seat. It has two parts.
+the judgement seat, the critic who attacks each view before it is sealed,
+the discovery seat and the sources seat. It has two parts.
 
 The **record** is derived from the database on every read: the mechanisms
 under test and their state, the agents' own calibration against a coin toss,
@@ -86,8 +87,10 @@ demand. The station has a `/brain` page.
 - The memory of the company is now load-bearing. An agent that restates a
   retired mechanism does so against a line telling it why that mechanism
   died.
+- The first live wake on this code, on 25 September, produced the first note
+  within two minutes: an agent read MEC-0001's state in the brain and warned
+  that on ONDO-USD its signal would be entered two hours late into a pullback.
 - **Not done.** Notes are not scored: nothing yet measures whether an agent's
   notes were useful to the agents that read them. Nothing summarises old notes
-  when there are too many; the newest win the budget. The critic's seat does
-  not read the brain yet. Agents cannot search the vault; they see only the
-  briefing.
+  when there are too many; the newest win the budget. Agents cannot search the
+  vault; they see only the briefing.

@@ -15,6 +15,7 @@ The acceptance criteria, each with a test named after it:
 * an operator note dropped in the vault's inbox is read into the brain with
   its links and tags as topics, attributed to the operator, and moved,
 * a note is append-only,
+* the critic reads the same brain as the analyst it attacks,
 * every wake syncs the brain and says so,
 * the CLI and the station show the brain, and the operator can add a note
   from the CLI.
@@ -337,6 +338,37 @@ def test_a_note_is_append_only(company: Runtime) -> None:
         connection.execute(sa.update(BrainNote).values(text="something else entirely"))
     with pytest.raises(sa.exc.IntegrityError, match="append-only"), engine.begin() as connection:
         connection.execute(sa.delete(BrainNote))
+
+
+def test_the_critic_reads_the_same_brain_as_the_analyst_it_attacks(company: Runtime) -> None:
+    from aurelis.judgement.adversary import Adversary
+    from aurelis.judgement.seat import View
+
+    seat_agent(company, agent_handle="INTEL")  # leaves the note on BTC-USD
+    seen: list[LlmRequest] = []
+
+    class _Critic:
+        name = "mock"
+
+        def complete(self, session: Any, request: LlmRequest) -> Any:  # noqa: ARG002
+            seen.append(request)
+            return MockProvider(
+                responder=lambda _r: "VERDICT: weak\nATTACK: the view ignores who sells the high.\n"
+            ).complete(request)
+
+    with company.database.session() as session:
+        critic = Adversary(
+            _Critic(), critic_ref=company.roster.by_handle(session, "QUANT").ref, identity="QUANT"
+        )
+        critic.attack(
+            session,
+            material={"symbol": "BTC-USD"},
+            view=View(
+                "24h", "up", Decimal("0.6"), "it keeps making new highs on flow.", "it breaks."
+            ),
+            instrument="BTC-USD",
+        )
+    assert seen and "SHARED BRAIN" in seen[0].system and _NOTE in seen[0].system
 
 
 # ------------------------------------------------------------ the wake, the CLI, the station
