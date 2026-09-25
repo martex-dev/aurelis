@@ -2283,6 +2283,22 @@ Nothing in the system could change how an agent reasons.
 
 See [ADR-0049](adr/0049-the-company-evolves-how-its-agents-think.md).
 
+## M49 — The judge sees what the mechanisms see ✅
+
+On the first M48 wake, five of seven judges declined for the same reason:
+the mechanisms that beat the drift key off book and flow, and the market
+stage showed only price.
+
+- **A market board.** Each market's line now carries its fresh readings (bid
+  share, taker buy share, funding, open-interest change), the signals that
+  fired in the last day, and the open mechanism calls on it.
+- **As of what the company knew.** Events count by `recorded_at`, and
+  readings older than three hours are left out.
+- **The view stage shows the picked market's board in full.**
+- **A clock time is not a figure.**
+
+See [ADR-0050](adr/0050-the-judge-sees-what-the-mechanisms-see.md).
+
 ---
 
 ## Sequencing

@@ -482,9 +482,19 @@ class Seat:
             )
 
         record = _own_record(session, agent_ref)
+        from aurelis.judgement.board import market_board
+
+        # Each market's readings, recent signals and open mechanism calls (M49):
+        # what the mechanisms that beat the drift key off, beside the price.
+        board = market_board(session, [r.snapshot.symbol for r in candidates], moment)
         choose_material: dict[str, Any] = {
             "now": isoformat(moment),
-            "markets": {r.snapshot.symbol: r.summary() for r in candidates},
+            "markets": {
+                r.snapshot.symbol: "; ".join(
+                    part for part in (r.summary(), board[r.snapshot.symbol].render()) if part
+                )
+                for r in candidates
+            },
             "your_record": record,
         }
         question = Question(
@@ -842,6 +852,13 @@ def _view_material(
 ) -> dict[str, Any]:
     step = interval_seconds(picked.snapshot.interval)
     events = _recent_events(session, picked.snapshot.symbol) if session is not None else []
+    from aurelis.judgement.board import market_board
+
+    board = (
+        market_board(session, [picked.snapshot.symbol], moment)[picked.snapshot.symbol]
+        if session is not None
+        else None
+    )
     return {
         "instrument": {
             "symbol": picked.snapshot.symbol,
@@ -868,6 +885,7 @@ def _view_material(
             if (change := picked.change_over(bars)) is not None
         },
         "recent_events": events or ["none recorded for this instrument"],
+        **({"board": board.as_material()} if board is not None else {}),
         "your_record": record,
     }
 

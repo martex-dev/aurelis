@@ -49,7 +49,8 @@ _FREE_NUMERALS = frozenset({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "1
 #: name is not a claim about the data. Before M48 the company's own refs read
 #: as figures (``MEC-0001`` as ``-0001``), and an agent that cited the shared
 #: brain by ref was refused for inventing a number.
-_NUMERAL = re.compile(r"(?<![\w.])(?<!\w-)-?\d+(?:[.,]\d+)*%?")
+#: A clock time is a time: the ``09`` and ``30`` of ``09:30`` are not figures (M49).
+_NUMERAL = re.compile(r"(?<![\w.:])(?<!\w-)-?\d+(?:[.,]\d+)*%?(?!:\d)")
 
 
 def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
