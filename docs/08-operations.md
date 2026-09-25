@@ -343,6 +343,19 @@ The agents must also ask for `x_browser` or `discord_browser` in the sources
 seat. Each wake reads up to twelve X accounts and eight rotating cashtag
 searches. Deleting `<workspace>\browser` signs Aurelis out of both sites.
 
+**Every department's daily duty (M56).** Once a day the wake runs five
+duties, each by the agent whose charter it is: the audit (ledger, round
+trips held late, agents mostly refused), the integrity check (seals and
+recordings), the health check (wakes, gaps, calls), a lesson from what the
+day closed, and the research director's memo. The first three raise alerts
+when something is wrong. The lesson and the memo go into the shared brain
+every agent reads.
+
+```powershell
+aurelis duty list -w live
+aurelis duty run -w live
+```
+
 **Whom the company follows (M54).** Once a day a market-intelligence agent
 reviews every voice the company has read. For each X account, Telegram
 channel and Discord channel it sees the instruments' move over the 24 hours

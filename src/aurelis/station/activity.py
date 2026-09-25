@@ -166,6 +166,10 @@ def describe(kind: str, subject: str | None, payload: dict[str, Any]) -> str:
     if kind in ("social.followed", "social.dropped"):
         verb = "followed" if kind == "social.followed" else "dropped"
         return f"{verb} {p.get('platform')}:{p.get('handle')}: {str(p.get('because', ''))[:100]}"
+    if kind == "org.duty_done":
+        found = p.get("findings") or []
+        tail = f"; {len(found)} finding(s)" if found else ""
+        return f"{p.get('duty')}: {str(p.get('done', ''))[:140]}{tail}"
     if kind == "mechanism.suspended":
         return (
             f"suspended {s} from paper: lost {p.get('pnl')} after fees over "

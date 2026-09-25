@@ -177,6 +177,11 @@ class EventKind(StrEnum):
     BRAIN_NOTED = "brain.noted"
     METHOD_ADOPTED = "agent.method_adopted"
     EVOLUTION_RAN = "org.evolution_ran"
+    DUTY_DONE = "org.duty_done"
+    """A department's daily duty ran: the audit, the integrity check, the health
+    check, the lesson or the memo, with what it found. The actor is the agent
+    whose charter it is (M56)."""
+
     SOCIAL_FOLLOWED = "social.followed"
     SOCIAL_DROPPED = "social.dropped"
     SOCIAL_CURATED = "social.curated"

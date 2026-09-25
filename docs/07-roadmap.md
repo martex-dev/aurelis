@@ -2409,6 +2409,27 @@ its fees and slippage.
 
 See [ADR-0056](adr/0056-money-is-judged-after-costs-by-episode.md).
 
+## M56 — Every department works, every day ✅
+
+Seven of the seventeen launch agents never acted in the service. Judging and
+discovery also stopped for good at their first success.
+
+- **Standing research.** `judge` and `discover` run whenever they have work,
+  not only while `calibrated` and `scheme` are unmet. Their no-repeat rules
+  still hold.
+- **A daily duty per department.** The auditor verifies the ledger, round
+  trips held late and agents mostly refused. Governance re-hashes seals and
+  recordings. Infrastructure counts wakes, gaps and calls. Knowledge writes a
+  lesson from what the day closed. The research director writes the memo
+  every seat reads.
+- **Real state, not roleplay.** Findings are alerts, lessons are lesson rows
+  and brain notes, and the memo is a brain note. A figure the agent was not
+  shown withholds the text. There are two model calls a day at most.
+
+`aurelis duty list`, `aurelis duty run`.
+
+See [ADR-0057](adr/0057-every-department-works-every-day.md).
+
 ---
 
 ## Sequencing
