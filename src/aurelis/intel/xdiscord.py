@@ -83,14 +83,26 @@ def x_posts(bodies: list[Any], *, venue: str) -> list[Post]:
     return out
 
 
-def _x_url(target: str) -> tuple[str, str]:
-    """``$MOON`` or ``"bitcoin"`` is a live search; anything else an account."""
-    if target.startswith("$") or target.startswith('"') or " " in target:
-        query = urllib.parse.quote(target)
-        return f"https://x.com/search?q={query}&src=typed_query&f=live", "SearchTimeline"
-    from aurelis.social.targets import normalise_handle
+_SEARCH_OPERATIONS = ("/SearchTimeline",)
 
-    return f"https://x.com/{normalise_handle('x', target)}", "UserTweets"
+
+def _x_url(target: str) -> tuple[str, tuple[str, ...]]:
+    """``$MOON`` or ``"bitcoin"`` is a live search; anything else an account,
+    read as the live search ``from:<account>``.
+
+    X's profile page stopped loading an account's posts for a headless reader
+    by 2026-09-25: it fetched "who to follow" and nothing else. The live
+    search for ``from:<account>`` answers with the account's newest posts
+    through the same request as a cashtag search (M51).
+    """
+    if target.startswith("$") or target.startswith('"') or " " in target:
+        query = target
+    else:
+        from aurelis.social.targets import normalise_handle
+
+        query = f"from:{normalise_handle('x', target)}"
+    encoded = urllib.parse.quote(query)
+    return f"https://x.com/search?q={encoded}&src=typed_query&f=live", _SEARCH_OPERATIONS
 
 
 @dataclass
@@ -118,8 +130,8 @@ class XBrowser:
         return self.opener
 
     def posts(self, target: str) -> list[Post]:
-        url, operation = _x_url(target)
-        bodies = self._reader().capture(url, lambda u: f"/{operation}" in u)
+        url, operations = _x_url(target)
+        bodies = self._reader().capture(url, lambda u: any(op in u for op in operations))
         if not bodies:
             raise FeedUnavailable(f"x {target}: the page loaded no posts")
         return x_posts(bodies, venue=f"x/{target}")

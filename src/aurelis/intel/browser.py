@@ -101,13 +101,16 @@ class BrowserReader:
         settle_ms: int = 1500,
     ) -> list[Any]:
         """Open ``url``; return every JSON body of a response whose URL
-        ``wanted`` accepts, in arrival order. Only GET responses count."""
+        ``wanted`` accepts, in arrival order. These are the responses to the
+        requests the site's own page made to show itself; this code sends
+        nothing. X fetches some timelines by POST, so the method does not
+        matter here (M51)."""
         bodies: list[Any] = []
         page = self._context.new_page()
 
         def keep(response: Any) -> None:
             try:
-                if response.request.method != "GET" or not wanted(response.url):
+                if not wanted(response.url):
                     return
                 bodies.append(response.json())
             except Exception:  # noqa: BLE001 - a body that is not JSON is not a post

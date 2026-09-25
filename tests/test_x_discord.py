@@ -146,9 +146,12 @@ def test_discord_channel_json_gives_each_message_once_with_embeds_and_reactions(
 def test_a_cashtag_is_a_live_search_and_anything_else_a_validated_account() -> None:
     assert _x_url("$MOON") == (
         "https://x.com/search?q=%24MOON&src=typed_query&f=live",
-        "SearchTimeline",
+        ("/SearchTimeline",),
     )
-    assert _x_url("@WhaleAlert") == ("https://x.com/whalealert", "UserTweets")
+    assert _x_url("@WhaleAlert") == (
+        "https://x.com/search?q=from%3Awhalealert&src=typed_query&f=live",
+        ("/SearchTimeline",),
+    )
     with pytest.raises(NotAHandle):
         _x_url("https://evil.example/phish")
 
@@ -279,7 +282,7 @@ def test_once_signed_in_the_wake_reads_accounts_and_cashtags_and_stops_at_a_sign
     at = _NOW - dt.timedelta(minutes=10)
     profile = _Profile(
         {
-            "https://x.com/whalealert": _timeline(
+            "https://x.com/search?q=from%3Awhalealert": _timeline(
                 _tweet(
                     "10", "2,699 BTC moved to an exchange", at, user="whale_alert", new_shape=True
                 )
