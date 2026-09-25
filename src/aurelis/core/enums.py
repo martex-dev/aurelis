@@ -170,6 +170,10 @@ class EventKind(StrEnum):
     MECHANISM_RETIRED = "mechanism.retired"
     """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
 
+    MECHANISM_SUSPENDED = "mechanism.suspended"
+    """A candidate scheme lost money on paper after costs, by episode, beyond
+    chance, and opens no new positions. Its predictions keep being scored (M54)."""
+
     BRAIN_NOTED = "brain.noted"
     METHOD_ADOPTED = "agent.method_adopted"
     EVOLUTION_RAN = "org.evolution_ran"

@@ -2375,6 +2375,26 @@ nobody measured whether it was worth reading.
 
 See [ADR-0054](adr/0054-the-company-chooses-whom-it-follows-by-their-lead-over-price.md).
 
+## M54 — Money is judged after costs, by episode ✅
+
+A candidate scheme was chosen on calibration and traded on paper, and its P&L
+was "reported, never judged". A scheme can beat the drift and still lose to
+its fees and slippage.
+
+- **Its record after costs.** Round trips closed at their horizon, after
+  fees, are grouped by independent episode and counted by a sign test, with
+  the drawdown alongside.
+- **Earning needs the family bar; losing does not.** A scheme is earning at
+  0.05 divided by the number of schemes measured. It is losing at 0.05
+  undivided, because a stop protects the book.
+- **A losing scheme stops.** Risk records the suspension once, with the
+  numbers. The scheme opens nothing more, and its predictions are still
+  scored.
+- **The mandate reads it.** A fourteenth condition, `earning`, sits right
+  after `scheme`.
+
+See [ADR-0055](adr/0055-money-is-judged-after-costs-by-episode.md).
+
 ---
 
 ## Sequencing

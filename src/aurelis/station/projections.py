@@ -1370,10 +1370,12 @@ class MechanismsView:
 
 
 def mechanisms_view(session: Session) -> MechanismsView:
+    from aurelis.mechanism.earnings import earnings_board, suspended
     from aurelis.mechanism.paper import pnl_of
     from aurelis.mechanism.tables import Mechanism
 
     statuses = Mechanisms().statuses(session)
+    earned = earnings_board(session)
     rows = [
         {
             "ref": st.mechanism.ref,
@@ -1398,6 +1400,10 @@ def mechanisms_view(session: Session) -> MechanismsView:
             "is_scheme": st.is_scheme,
             "retired": st.retired,
             "paper": pnl_of(session, st.mechanism.ref),
+            "after_costs": (
+                earned[st.mechanism.ref].verdict if st.mechanism.ref in earned else "not traded"
+            ),
+            "suspended": suspended(session, st.mechanism.ref),
         }
         for st in statuses
     ]

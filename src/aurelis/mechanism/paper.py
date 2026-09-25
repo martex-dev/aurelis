@@ -15,10 +15,10 @@ A position is opened at the reference close of the firing and closed at the
 resolution close when the prediction scores, so a mechanism's paper P&L is
 the sum of round trips it was actually right and wrong on, after fees.
 
-P&L is reported, not judged: over a short window it is mostly luck, and the
-mandate does not read it. The calibration record is the measure; the paper
-book is where a calibrated mechanism shows what that calibration is worth
-after costs.
+P&L is judged by independent episode after fees, never trade by trade
+(:mod:`aurelis.mechanism.earnings`, M54). The calibration record says the
+calls beat the drift; the paper book says whether that pays after costs, and
+a scheme losing after costs stops opening positions.
 """
 
 from __future__ import annotations

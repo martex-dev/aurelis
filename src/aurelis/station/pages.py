@@ -83,6 +83,9 @@ _STATE_TONE = {
     "leads price": "ok",
     "trails price": "bad",
     "no measured lead": "warn",
+    "earning after costs": "ok",
+    "losing after costs": "bad",
+    "not distinguishable from luck": "warn",
 }
 
 
@@ -1372,6 +1375,7 @@ def mechanisms_page(session: Session) -> str:
             "base rate",
             "paper trades",
             "paper P&L",
+            "after costs",
             "verdict",
         ],
         [
@@ -1392,8 +1396,13 @@ def mechanisms_page(session: Session) -> str:
                     if r["paper"].get("late")
                     else ""
                 ),
+                _pill(r["after_costs"])
+                if not str(r["after_costs"]).startswith(("gathering", "not traded"))
+                else escape_text(r["after_costs"]),
                 (
-                    "<span class='pill ok'>SCHEME</span>"
+                    "<span class='pill bad'>SUSPENDED: LOSING AFTER COSTS</span>"
+                    if r["suspended"]
+                    else "<span class='pill ok'>SCHEME</span>"
                     if r["is_scheme"]
                     else "<span class='pill bad'>RETIRED</span>"
                     if r["retired"]

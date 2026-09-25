@@ -598,6 +598,7 @@ class Service:
             notes.append(f"{len(retired)} mechanism(s) retired")
 
         # A candidate scheme trades its firings on paper, through Risk.
+        from aurelis.mechanism.earnings import earnings_board, suspend_if_losing, suspended
         from aurelis.mechanism.paper import (
             books_with_trades,
             close_settled,
@@ -607,13 +608,30 @@ class Service:
         )
 
         traded_open = traded_closed = 0
+        halted: list[str] = []
         with runtime.database.session() as session:
+            # A scheme that lost money after costs, by episode, beyond chance
+            # opens nothing more; what it holds closes at its horizon (M54).
+            board = earnings_board(session)
             for status in runtime.mechanisms.statuses(session):
+                scheme_ref = status.mechanism.ref
                 try:
                     # One mechanism's failure is that mechanism's: its work
                     # is rolled back to a savepoint and the others trade.
                     with session.begin_nested():
-                        if status.is_scheme:
+                        stopped = suspended(session, scheme_ref)
+                        if status.is_scheme and scheme_ref in board and not stopped:
+                            stopped = suspend_if_losing(
+                                session,
+                                board[scheme_ref],
+                                ledger=runtime.ledger,
+                                actor=runtime.roster.by_handle(session, "RISK").ref,
+                                at=moment,
+                            )
+                            if stopped:
+                                earned = board[scheme_ref]
+                                halted.append(f"{scheme_ref} ({earned.pnl} over {earned.episodes})")
+                        if status.is_scheme and not stopped:
                             result = trade_firings(runtime, session, status.mechanism, at=moment)
                         elif has_open_trades(session, status.mechanism.ref):
                             # No longer a scheme, still holding: close what has
@@ -658,6 +676,10 @@ class Service:
                 flattened += len(swept.closed)
                 if swept.note:
                     notes.append(f"book {book}: {swept.note}")
+        if halted:
+            notes.append(
+                f"suspended from paper for losing after costs: {', '.join(halted)}"
+            )
         if traded_open or traded_closed or flattened:
             notes.append(
                 f"schemes: opened {traded_open}, closed {traded_closed}, "

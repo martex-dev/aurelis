@@ -38,16 +38,15 @@ from __future__ import annotations
 
 import bisect
 import datetime as dt
-import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
-from fractions import Fraction
 from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
+from aurelis.core.stats import sign_test
 from aurelis.intel.snapshots import MarketSnapshot, SnapshotBar
 from aurelis.social.tables import SocialTarget
 from aurelis.social.targets import PLATFORMS, NotAHandle, Target, normalise_handle
@@ -102,15 +101,6 @@ _P = Decimal("0.0001")
 
 def _utc(moment: dt.datetime) -> dt.datetime:
     return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)
-
-
-def sign_test(hits: int, n: int) -> Decimal:
-    """P(at least ``hits`` of ``n`` fair coin tosses land heads). Exact."""
-    if n <= 0:
-        return Decimal(1)
-    tail = sum(math.comb(n, k) for k in range(max(hits, 0), n + 1))
-    share = Fraction(tail, 2**n)
-    return (Decimal(share.numerator) / Decimal(share.denominator)).quantize(_P)
 
 
 def voice_of(payload: dict[str, Any]) -> tuple[str, str] | None:

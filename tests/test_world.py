@@ -315,6 +315,25 @@ def test_the_judges_are_shown_the_recent_events_for_their_instrument(
 # ------------------------------------------------------------ the service
 
 
+class _Book:
+    name = "coinbase"
+    endpoint = "stand-in://book"
+
+    def book(self, symbol: str) -> dict[str, Any]:  # noqa: ARG002
+        return {"bids": [["99", "1", 1]], "asks": [["101", "1", 1]]}
+
+
+class _Trades:
+    def trades(self, symbol: str) -> list[dict[str, Any]]:  # noqa: ARG002
+        return []
+
+
+def _offline_tape(_grant: Any) -> tuple[_Book, _Trades]:
+    """The book and trades, stood in: without it the wake reached Coinbase for
+    real, and a sandbox that refuses the call saw a second incident."""
+    return _Book(), _Trades()
+
+
 def test_the_service_syncs_the_catalogue_and_derives_events_every_wake(
     company: Runtime, clock: FrozenClock
 ) -> None:
@@ -334,6 +353,7 @@ def test_the_service_syncs_the_catalogue_and_derives_events_every_wake(
         company,
         feeds=lambda _g: CoinbaseCandles(opener=_Bars(300), pause=0),
         catalogues=lambda _g: CoinbaseProducts(opener=_Catalogue([_product("BTC-USD")])),
+        microstructure=_offline_tape,
         cycles_per_wake=2,
     )
     wake = cycle_once(company, service=service)
@@ -347,6 +367,7 @@ def test_the_service_syncs_the_catalogue_and_derives_events_every_wake(
         company,
         feeds=lambda _g: CoinbaseCandles(opener=_Bars(300), pause=0),
         catalogues=lambda _g: CoinbaseProducts(opener=_Catalogue(OSError("refused"))),
+        microstructure=_offline_tape,
         cycles_per_wake=2,
     )
     second = cycle_once(company, service=down)

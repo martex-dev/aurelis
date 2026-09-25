@@ -5,7 +5,7 @@ specified by the person who has to act on it: the company does **not** get a
 live adapter switched on for it. It reaches the judgement itself, on evidence,
 and asks.
 
-So the question is what would entitle it to ask. Twelve conditions, and every one
+So the question is what would entitle it to ask. Fourteen conditions, and every one
 is checked against a row the company already writes — no self-assessment, no
 prose, no confidence.
 
@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -232,6 +233,31 @@ def _scheme(session: Session) -> tuple[bool, str]:
     return bool(schemes), reading
 
 
+def _earning(session: Session) -> tuple[bool, str]:
+    """Has a scheme's paper trading made money after costs, beyond luck?
+
+    Read from the paper round trips closed at their horizon, after fees, by
+    independent episode, at a bar divided by the schemes measured (M54).
+    Calibration says the calls are right more often than the drift; this
+    says whether being right paid for the trading.
+    """
+    from aurelis.mechanism.earnings import earnings_board
+
+    board = earnings_board(session)
+    if not board:
+        return False, "no scheme has traded on paper yet"
+    earning = [e for e in board.values() if e.earning]
+    losing = [e for e in board.values() if e.losing]
+    total = sum((e.pnl for e in board.values()), Decimal(0))
+    reading = (
+        f"{len(board)} scheme(s) have traded: {len(earning)} earning after costs, "
+        f"{len(losing)} losing, P&L {total} after fees across all"
+    )
+    best = max(board.values(), key=lambda e: (e.episodes, e.pnl))
+    reading += f"; most traded: {best.describe()}"
+    return bool(earning), reading
+
+
 def _authored(session: Session) -> tuple[bool, str]:
     count = session.execute(
         sa.text("SELECT count(*) FROM authoring_attempts")
@@ -392,6 +418,15 @@ STANDARD: tuple[Criterion, ...] = (
         _scheme,
     ),
     Criterion(
+        "earning",
+        "Has a scheme's paper trading made money after costs, beyond what luck gives?",
+        "Being right more often than the drift is not the same as being paid "
+        "for it: fees and the price an order actually gets can eat a small edge "
+        "whole. The only evidence the calls are worth trading is round trips, "
+        "after fees, that made money in more independent episodes than a coin would.",
+        _earning,
+    ),
+    Criterion(
         "sourced",
         "Do its analysts choose what the company reads, and is it read?",
         "A source nobody asked for is noise the judges have to wade through; a "
@@ -464,7 +499,7 @@ STANDARD: tuple[Criterion, ...] = (
         _chain_intact,
     ),
 )
-"""The twelve conditions, in the order a reader should meet them.
+"""The conditions, in the order a reader should meet them.
 
 ``live_data`` is first because it is the one the company cannot argue its way
 around: everything else could be satisfied on fixtures, and satisfying them on

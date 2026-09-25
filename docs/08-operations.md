@@ -644,7 +644,12 @@ lists them:
 - **A scheme trades on paper only once it has earned it.** Twenty scored
   out-of-sample predictions beating the instrument's own drift; then five
   percent of the paper book, through Risk. `aurelis mechanism trades` shows
-  the round trips and realised P&L, which is reported and never judged.
+  the round trips, realised P&L, and since M54 the verdict after costs by
+  independent episode: gathering, not distinguishable from luck, earning, or
+  losing. A scheme losing after costs is suspended by Risk and opens nothing
+  more. `aurelis mandate assess` reads `earning`: whether any scheme has made
+  money on paper after fees beyond the bar for the family. Until it does, the
+  honest answer to "is it making money?" is no.
 - **The book and the tape are read hourly, not streamed.** Depth and taker
   flow enter as events on every wake for every granted instrument; a
   microstructure edge on a faster clock is not something an hourly reading
