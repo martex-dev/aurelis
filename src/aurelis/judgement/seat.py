@@ -126,10 +126,12 @@ class JudgementRefused(RuntimeError):
     record.
     """
 
-    def __init__(self, stage: str, cause: str) -> None:
+    def __init__(self, stage: str, cause: str, *, instrument: str | None = None) -> None:
         super().__init__(f"judgement refused at {stage!r}: {cause}. Nothing was sealed.")
         self.stage = stage
         self.cause = cause
+        self.instrument = instrument
+        """The market the refusal was about, when one had been picked (M47)."""
 
 
 # ------------------------------------------------------------ what can be judged
@@ -537,7 +539,8 @@ class Seat:
         )
         try:
             view = parse_view(response.text)
-        except JudgementRefused:
+        except JudgementRefused as error:
+            error.instrument = picked.snapshot.symbol
             raise
 
         permitted = allowed_figures(
@@ -564,7 +567,7 @@ class Seat:
                 f"the thesis cites {len(invented)} figure(s) the agent was not "
                 f"shown: {', '.join(invented[:5])}"
             )
-            raise JudgementRefused("figures", cause)
+            raise JudgementRefused("figures", cause, instrument=picked.snapshot.symbol)
 
         resolves_at = picked.reference_at + dt.timedelta(hours=view.hours)
         if resolves_at <= moment:
@@ -574,7 +577,7 @@ class Seat:
                 f"which has already passed at {isoformat(moment)}. A view on an "
                 "outcome that already exists is not forward"
             )
-            raise JudgementRefused("forward", cause)
+            raise JudgementRefused("forward", cause, instrument=picked.snapshot.symbol)
 
         # -------------------------------------------------- the attack
         attack = None
@@ -882,7 +885,11 @@ def seat_agent(
         open_on = frozenset(
             session.execute(
                 sa.select(Thesis.instrument).where(
-                    Thesis.agent_ref == seated.ref, Thesis.scored_at.is_(None)
+                    Thesis.agent_ref == seated.ref,
+                    Thesis.scored_at.is_(None),
+                    # A mechanism's predictions carry its author's ref; they
+                    # are the mechanism's, not views the author holds (M47).
+                    Thesis.mechanism_ref.is_(None),
                 )
             ).scalars()
         )
@@ -926,7 +933,7 @@ def seat_agent(
                 else ModelTier.MID,
                 task_ref=task_ref,
                 at=moment,
-                exclude=open_on,
+                exclude=open_on | declined_on_standing(session, seated.ref),
                 identity=identity_of(seated),
             )
         except JudgementRefused as error:
@@ -952,11 +959,71 @@ def seat_agent(
                 kind=EventKind.THESIS_REFUSED,
                 actor=seated.ref,
                 subject=seated.ref,
-                payload={"stage": refusal.stage, "cause": refusal.cause[:300]},
+                payload={
+                    "stage": refusal.stage,
+                    "cause": refusal.cause[:300],
+                    "instrument": refusal.instrument,
+                },
                 at=moment,
             )
         raise refusal
     return sealed
+
+
+ALL_MARKETS = "*"
+"""What :func:`declined_on_standing` returns when the agent declined to pick
+any market at all: nothing on the standing recordings should be offered."""
+
+
+def declined_on_standing(session: Session, agent_ref: str) -> frozenset[str]:
+    """Instruments this agent declined or was refused on since each one's
+    newest recording, or ``{ALL_MARKETS}`` if it declined to pick a market.
+
+    Before M47 one decline on one instrument kept the agent out of the seat
+    for every instrument until the next hourly recording, so a company of
+    seven judges and sixty-seven instruments ran fifteen model calls a wake
+    and stopped. The same material still gets the same answer, so a market
+    an agent passed on is not offered to it again until that market has a
+    new recording; the other sixty-six are.
+    """
+    from aurelis.platform.db.tables import Event
+
+    rows = session.execute(
+        sa.select(Event.seq, Event.kind, Event.payload)
+        .where(
+            Event.actor == agent_ref,
+            Event.kind.in_([EventKind.THESIS_DECLINED.value, EventKind.THESIS_REFUSED.value]),
+        )
+        .order_by(Event.seq.desc())
+        .limit(400)
+    ).all()
+    if not rows:
+        return frozenset()
+    recorded: dict[str, int] = {}
+    newest_any = 0
+    for seq, payload in session.execute(
+        sa.select(Event.seq, Event.payload).where(
+            Event.kind == EventKind.MARKET_SNAPSHOT_INGESTED.value
+        )
+    ).all():
+        symbol = str((payload or {}).get("symbol", ""))
+        recorded[symbol] = max(recorded.get(symbol, 0), int(seq))
+        newest_any = max(newest_any, int(seq))
+    out: set[str] = set()
+    for seq, kind, payload in rows:
+        data = payload or {}
+        stage = str(data.get("stage", ""))
+        if kind == EventKind.THESIS_DECLINED.value:
+            instrument = None if stage == "market" else stage
+        else:
+            instrument = data.get("instrument")
+        if instrument is None:
+            if stage == "market" and int(seq) > newest_any:
+                return frozenset({ALL_MARKETS})
+            continue
+        if int(seq) > recorded.get(str(instrument), 0):
+            out.add(str(instrument))
+    return frozenset(out)
 
 
 CRITIC_CHARTERS: tuple[str, ...] = ("strategy.critic", "strategy.adversarial")

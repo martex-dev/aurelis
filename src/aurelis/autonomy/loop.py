@@ -152,6 +152,7 @@ def _act(runtime: Any, action: Action, *, source: Any, at: dt.datetime) -> str:
                 second_kind=pair.second,
                 window_hours=24,
                 at=at,
+                occurrences=pair.count,
             )
         except MechanismRefused as error:
             raise ActionRefused(

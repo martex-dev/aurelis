@@ -142,44 +142,6 @@ def _judges(session: Session) -> list[Any]:
     )
 
 
-def _answered_on_this_material(session: Session, agent_ref: str) -> bool:
-    """Whether the agent's last word on the seat was a refusal or a decline
-    made against the recordings that still stand.
-
-    The seat shows the same material until a new recording exists, and the
-    response cache hands the same reply back to the same prompt -- so seating
-    an agent again before anything has changed is asking the same question and
-    refusing the same answer. An agent whose last judgement event is newer than
-    the newest recording, and was not a seal, waits for the next fetch.
-    """
-    from aurelis.core.enums import EventKind
-    from aurelis.platform.db.tables import Event
-
-    last_word = session.execute(
-        sa.select(Event.kind, Event.seq)
-        .where(
-            Event.actor == agent_ref,
-            Event.kind.in_(
-                [
-                    EventKind.THESIS_SEALED.value,
-                    EventKind.THESIS_DECLINED.value,
-                    EventKind.THESIS_REFUSED.value,
-                ]
-            ),
-        )
-        .order_by(Event.seq.desc())
-        .limit(1)
-    ).first()
-    if last_word is None or last_word[0] == EventKind.THESIS_SEALED.value:
-        return False
-    newest_recording = session.execute(
-        sa.select(sa.func.max(Event.seq)).where(
-            Event.kind == EventKind.MARKET_SNAPSHOT_INGESTED.value
-        )
-    ).scalar()
-    return newest_recording is None or int(last_word[1]) > int(newest_recording)
-
-
 def _seatable(session: Session) -> tuple[list[Any], int, int]:
     """Agents with an instrument they hold no open view on, and the counts.
 
@@ -187,6 +149,7 @@ def _seatable(session: Session) -> tuple[list[Any], int, int]:
     declined is not offered the seat again until a newer recording exists.
     """
     from aurelis.intel.snapshots import MarketSnapshot
+    from aurelis.judgement.seat import ALL_MARKETS, declined_on_standing
     from aurelis.judgement.tables import Thesis
 
     instruments = set(session.execute(sa.select(MarketSnapshot.symbol).distinct()).scalars())
@@ -196,21 +159,36 @@ def _seatable(session: Session) -> tuple[list[Any], int, int]:
         held = set(
             session.execute(
                 sa.select(Thesis.instrument).where(
-                    Thesis.agent_ref == agent.ref, Thesis.scored_at.is_(None)
+                    Thesis.agent_ref == agent.ref,
+                    Thesis.scored_at.is_(None),
+                    Thesis.mechanism_ref.is_(None),
                 )
             ).scalars()
         )
-        if instruments - held and not _answered_on_this_material(session, agent.ref):
+        passed = declined_on_standing(session, agent.ref)
+        if ALL_MARKETS in passed:
+            continue
+        if instruments - held - passed:
             seatable.append(agent)
     return seatable, len(instruments), open_views
 
 
-def _last_word_on_pattern(session: Session, agent_ref: str, first: str, second: str) -> bool:
-    """Whether this agent already answered this pattern on the standing events.
+REASK_GROWTH = 1.5
+"""A pattern an agent answered on is put to it again once it has occurred at
+least this many times as often as when it answered (M47). Before, any new
+world event reopened every pattern, and a new event arrives every hour, so
+the same agents were asked the same pairs each wake and declined them again
+for the same reasons."""
 
-    The same material gets the same cached answer, so an agent that stated or
-    declined a mechanism for a pair is not asked again until a newer world
-    event exists.
+
+def _last_word_on_pattern(
+    session: Session, agent_ref: str, first: str, second: str, count: int | None = None
+) -> bool:
+    """Whether this agent already answered this pattern on the standing evidence.
+
+    An answer that recorded how often the pattern had occurred stands until
+    the pattern has occurred :data:`REASK_GROWTH` times as often. An older
+    answer without the count stands until a newer world event exists.
     """
     from aurelis.core.enums import EventKind
     from aurelis.platform.db.tables import Event
@@ -223,17 +201,21 @@ def _last_word_on_pattern(session: Session, agent_ref: str, first: str, second: 
         )
         .order_by(Event.seq.desc())
     ).all()
-    last = next(
+    answer = next(
         (
-            int(seq)
+            (int(seq), payload or {})
             for seq, payload in rows
             if (payload or {}).get("trigger") == first
             and ((payload or {}).get("then") == second or (payload or {}).get("then") is None)
         ),
         None,
     )
-    if last is None:
+    if answer is None:
         return False
+    last, said = answer
+    seen = said.get("occurrences")
+    if seen is not None and count is not None:
+        return count < REASK_GROWTH * int(seen)
     newest_event = session.execute(
         sa.select(sa.func.max(Event.seq)).where(Event.kind == EventKind.WORLD_EVENT_RECORDED.value)
     ).scalar()
@@ -245,9 +227,11 @@ def _discoverable(session: Session) -> list[tuple[Any, Any]]:
     import datetime as dt
 
     from aurelis.mechanism.library import Mechanisms
-    from aurelis.mechanism.mining import mine_pairs
+    from aurelis.mechanism.mining import mine_diverse
 
-    pairs = mine_pairs(session, within=dt.timedelta(hours=24), min_count=3, limit=8)
+    # Every trigger kind's strongest partners, rarest trigger first (M47): the
+    # memecoin boosts and social bursts no longer lose to hourly price noise.
+    pairs = mine_diverse(session, within=dt.timedelta(hours=24), min_count=3, limit=24)
     # One active mechanism per trigger. A pattern somebody already stated a
     # mechanism for is being tested by that mechanism's predictions; a second
     # story about the same trigger waits until the first is retired.
@@ -257,7 +241,9 @@ def _discoverable(session: Session) -> list[tuple[Any, Any]]:
         if pair.first in taken:
             continue
         for agent in _judges(session):
-            if not _last_word_on_pattern(session, agent.ref, pair.first, pair.second):
+            if not _last_word_on_pattern(
+                session, agent.ref, pair.first, pair.second, pair.count
+            ):
                 out.append((agent, pair))
     return out
 

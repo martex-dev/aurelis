@@ -278,6 +278,7 @@ def propose_mechanism(
     ledger: Any = None,
     artifacts: Any = None,
     at: dt.datetime | None = None,
+    occurrences: int | None = None,
 ) -> Mechanism | None:
     """Show an agent a co-occurrence and seal the mechanism it states, or ``None``.
 
@@ -349,6 +350,7 @@ def propose_mechanism(
                     "trigger": trigger_kind,
                     "then": second_kind,
                     "because": proposal.because[:400],
+                    "occurrences": occurrences if occurrences is not None else len(pairs),
                 },
                 at=moment,
             )
@@ -419,9 +421,14 @@ def seat_discovery(
     desk: str | None = None,
     window_hours: int = 24,
     at: dt.datetime | None = None,
+    occurrences: int | None = None,
 ) -> Mechanism | None:
     """Put a named agent in the discovery seat under a task, and generate the
-    new mechanism's predictions immediately so its record can begin."""
+    new mechanism's predictions immediately so its record can begin.
+
+    ``occurrences`` is how often the miner counted the pattern; a decline
+    records it, so the pattern is not put to the agent again until it has
+    materially more evidence (M47)."""
     from aurelis.judgement.seat import identity_of
     from aurelis.mechanism.predictions import generate_predictions
     from aurelis.platform.db.refs import allocate_ref
@@ -456,6 +463,7 @@ def seat_discovery(
             ledger=runtime.ledger,
             artifacts=runtime.artifacts,
             at=moment,
+            occurrences=occurrences,
         )
         if claimed is not None:
             digest = mechanism.seal if mechanism is not None else "0" * 64

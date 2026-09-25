@@ -18,7 +18,6 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from aurelis.world.store import World
 from aurelis.world.tables import WorldEvent
 
 __all__ = [
@@ -28,6 +27,7 @@ __all__ = [
     "effect_of",
     "effect_over",
     "is_reading",
+    "mine_diverse",
     "mine_pairs",
 ]
 
@@ -38,6 +38,7 @@ READINGS: frozenset[str] = frozenset(
         "flow.trades",
         "leverage.funding",
         "leverage.open_interest",
+        "social.post",
     }
 )
 """Kinds the service records as a *reading* on every wake for every followed
@@ -47,7 +48,10 @@ A reading co-occurs with everything, so a pair built on one fires on every
 bar, and its in-sample "effect" is only the period the reading has been
 recorded for. The first live mechanism stated on one (trades followed by an
 open-interest reading, 676 predictions in a day, six right of the first
-hundred and four) is why this set exists. Derived kinds -- ``book.bid_heavy``,
+hundred and four) is why this set exists. ``social.post`` joined it at M47: the
+service reads each followed instrument's stream every wake, three and a half
+thousand posts in two days, and a single post is the stream, not an event;
+``social.burst`` is the event. Derived kinds -- ``book.bid_heavy``,
 ``funding.extreme_*``, ``oi.surge`` -- are events and stay in."""
 
 
@@ -67,33 +71,129 @@ class MinedPair:
         return f"{self.first} then {self.second}: {self.count} on {self.instruments} instrument(s)"
 
 
+_Pairs = tuple[dict[tuple[str, str], int], dict[tuple[str, str], int], dict[str, int]]
+_PAIRS_CACHE: dict[tuple[Any, ...], _Pairs] = {}
+
+
+def _all_pairs(
+    session: Session, within: dt.timedelta
+) -> tuple[dict[tuple[str, str], int], dict[tuple[str, str], int], dict[str, int]]:
+    """Every ordered pair of kinds on the same entity inside the window, in
+    one pass: ``(counts, instruments per pair, events per kind)``.
+
+    The first version asked the database once per pair of kinds, twenty-five
+    squared queries, seven and a half seconds on the live record, and the
+    loop asked it every cycle. One sweep over the events, cached until the
+    event stream changes, does the same count (M47).
+    """
+    bind = session.get_bind()
+    fingerprint = session.execute(
+        sa.select(sa.func.count(), sa.func.max(WorldEvent.recorded_at)).select_from(WorldEvent)
+    ).one()
+    key = (str(bind.engine.url), within, tuple(fingerprint))
+    cached = _PAIRS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    rows = session.execute(
+        sa.select(
+            WorldEvent.entity_kind,
+            WorldEvent.entity_key,
+            WorldEvent.kind,
+            WorldEvent.at,
+            WorldEvent.digest,
+        ).order_by(WorldEvent.entity_kind, WorldEvent.entity_key, WorldEvent.at)
+    ).all()
+    counts: dict[tuple[str, str], int] = {}
+    entities: dict[tuple[str, str], set[str]] = {}
+    per_kind: dict[str, int] = {}
+    group: list[tuple[str, dt.datetime, str]] = []
+    current: tuple[str, str] | None = None
+
+    def sweep(entity: tuple[str, str], events: list[tuple[str, dt.datetime, str]]) -> None:
+        n = len(events)
+        start = 0
+        for i in range(n):
+            kind_i, at_i, digest_i = events[i]
+            while start < n and events[start][1] < at_i:
+                start += 1
+            j = start
+            limit = at_i + within
+            while j < n and events[j][1] <= limit:
+                if j != i and events[j][2] != digest_i:
+                    pair = (kind_i, events[j][0])
+                    counts[pair] = counts.get(pair, 0) + 1
+                    entities.setdefault(pair, set()).add(entity[1])
+                j += 1
+
+    for ekind, ekey, kind, at, digest in rows:
+        kind = str(kind)
+        if is_reading(kind):
+            continue
+        per_kind[kind] = per_kind.get(kind, 0) + 1
+        entity = (str(ekind), str(ekey))
+        if entity != current:
+            if current is not None:
+                sweep(current, group)
+            current, group = entity, []
+        moment = at if at.tzinfo else at.replace(tzinfo=dt.UTC)
+        group.append((kind, moment, str(digest)))
+    if current is not None:
+        sweep(current, group)
+    result = (counts, {p: len(e) for p, e in entities.items()}, per_kind)
+    if len(_PAIRS_CACHE) > 8:
+        _PAIRS_CACHE.clear()
+    _PAIRS_CACHE[key] = result
+    return result
+
+
 def mine_pairs(
     session: Session, *, within: dt.timedelta, min_count: int = 3, limit: int = 20
 ) -> list[MinedPair]:
     """Every ordered pair of kinds that co-occurs at least ``min_count`` times.
 
     Ranked by count. A pair of the same kind (a break followed by a break) is
-    a legitimate continuation pattern and is included.
+    a legitimate continuation pattern and is included. Readings are left out
+    on both sides.
     """
-    kinds = [
-        str(k)
-        for (k,) in session.execute(sa.select(WorldEvent.kind).distinct().order_by(WorldEvent.kind))
-        if not is_reading(str(k))
+    counts, instruments, _ = _all_pairs(session, within)
+    out = [
+        MinedPair(first, second, n, instruments[(first, second)])
+        for (first, second), n in counts.items()
+        if n >= min_count
     ]
-    out: list[MinedPair] = []
-    for first in kinds:
-        for second in kinds:
-            pairs = World.co_occurrences(
-                session, first_kind=first, second_kind=second, within=within, limit=10_000
-            )
-            # A pair of the same event on itself at the same instant is not a
-            # conjunction; require the second to follow.
-            pairs = [p for p in pairs if p.second.digest != p.first.digest]
-            if len(pairs) < min_count:
-                continue
-            out.append(MinedPair(first, second, len(pairs), len({p.entity_key for p in pairs})))
     out.sort(key=lambda p: (-p.count, p.first, p.second))
     return out[:limit]
+
+
+def mine_diverse(
+    session: Session,
+    *,
+    within: dt.timedelta,
+    min_count: int = 3,
+    per_trigger: int = 2,
+    limit: int = 24,
+) -> list[MinedPair]:
+    """Each trigger kind's strongest partners, the rarest triggers first.
+
+    Ranked by count alone, the pairs the agents were shown were always the
+    hourly price and flow events, which co-occur with everything because they
+    happen all the time. A paid boost on a memecoin, a burst of posts, a
+    headline burst never made the list. Here every trigger kind brings its
+    ``per_trigger`` most frequent partners, and rarer triggers come first:
+    an event that happens seldom is the one worth asking about (M47).
+    """
+    counts, instruments, per_kind = _all_pairs(session, within)
+    by_first: dict[str, list[MinedPair]] = {}
+    for (first, second), n in counts.items():
+        if n >= min_count:
+            by_first.setdefault(first, []).append(
+                MinedPair(first, second, n, instruments[(first, second)])
+            )
+    chosen: list[MinedPair] = []
+    for first in sorted(by_first, key=lambda k: (per_kind.get(k, 0), k)):
+        ranked = sorted(by_first[first], key=lambda p: (-p.count, p.second))
+        chosen.extend(ranked[:per_trigger])
+    return chosen[:limit]
 
 
 @dataclass(frozen=True, slots=True)

@@ -39,7 +39,7 @@ from aurelis.mandate.assessment import assess
 from aurelis.mandate.standard import STANDARD
 from aurelis.mechanism.discovery import propose_mechanism
 from aurelis.mechanism.library import MIN_SCORED_PREDICTIONS
-from aurelis.mechanism.mining import mine_pairs
+from aurelis.mechanism.mining import mine_diverse, mine_pairs
 from aurelis.mechanism.paper import pnl_of, trade_firings
 from aurelis.mechanism.predictions import generate_predictions
 from aurelis.mechanism.tables import Mechanism, MechanismTrade
@@ -308,7 +308,8 @@ def test_the_loop_brings_mined_conjunctions_to_agents_and_stops_when_all_are_ans
                 "IN ('market_intelligence','quantitative_research','strategy_laboratory')"
             )
         ).scalar_one()
-        pairs = len(mine_pairs(session, within=dt.timedelta(hours=24), min_count=3, limit=8))
+        # The loop asks about each trigger kind's strongest partners (M47).
+        pairs = len(mine_diverse(session, within=dt.timedelta(hours=24), min_count=3, limit=24))
     outcome = run_autonomy(built, cycles=judges * pairs + 40, calls=1000)
     discovered = [c for c in outcome.cycles if c.action == "discover"]
     assert len(discovered) == judges * pairs, [c.describe() for c in outcome.cycles[:5]]

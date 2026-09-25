@@ -117,10 +117,14 @@ class Service:
         dex: Callable[[DataGrant], Any] | None = None,
         research_source: Any | None = None,
         brain_root: Any = None,
+        calls_per_wake: int | None = None,
     ) -> None:
         self.runtime = runtime
         self.calls_per_day = calls_per_day
         self.cycles_per_wake = cycles_per_wake
+        self.calls_per_wake = calls_per_wake
+        """At most this many model calls in one wake, so a large daily budget
+        is spread over the day rather than spent by the first wake (M47)."""
         self._feeds = feeds or (lambda grant: feed_for(grant, clock=runtime.clock))
         self._catalogue = catalogues or catalogue_for
         self._microstructure = microstructure or microstructure_for
@@ -298,6 +302,8 @@ class Service:
 
         # 3. work, inside what is left of today
         left = self.calls_per_day - self._calls_since(moment - dt.timedelta(days=1))
+        if self.calls_per_wake is not None:
+            left = min(left, self.calls_per_wake)
         run_ref: str | None = None
         calls = 0
         if left <= 0:

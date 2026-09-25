@@ -299,6 +299,13 @@ def service_start(
     calls_per_day: Annotated[
         int, typer.Option(help="Model calls the service may spend in a rolling day.")
     ] = 200,
+    calls_per_wake: Annotated[
+        int | None,
+        typer.Option(help="At most this many model calls in one wake; spreads the day's budget."),
+    ] = None,
+    cycles: Annotated[
+        int, typer.Option(help="At most this many actions the agents take in one wake.")
+    ] = 40,
     snapshot: Annotated[
         str, typer.Option(help="Recording the loop's research actions measure on.")
     ] = "",
@@ -323,7 +330,13 @@ def service_start(
         runtime.initialise()
         runtime.staff()
         source = _research_source(runtime, snapshot)
-        service = Service(runtime, calls_per_day=calls_per_day, research_source=source)
+        service = Service(
+            runtime,
+            calls_per_day=calls_per_day,
+            calls_per_wake=calls_per_wake,
+            cycles_per_wake=cycles,
+            research_source=source,
+        )
         with runtime.database.session() as session:
             grants = runtime.grants.active(session)
         if not grants:

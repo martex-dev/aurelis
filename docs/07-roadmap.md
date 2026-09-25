@@ -2238,6 +2238,29 @@ See [ADR-0047](adr/0047-the-shared-brain.md).
 
 ---
 
+## M47 — The company works while there is work ✅
+
+The first wakes after M46 spent 20 and 15 of 400 calls and stopped. More
+budget would not have helped: the work queue itself was starved.
+
+- **Per-market decline memory.** One decline or refusal used to keep an agent
+  away from all 67 markets until the next recording. Now it keeps the agent
+  away from that one market until that market has a new recording.
+- **Mechanism predictions are not views.** They no longer counted against
+  their author's own open views.
+- **A one-pass miner.** It dropped from 7.5 seconds to 0.1, and offers each
+  trigger kind's strongest partners with the rarest first. Social bursts,
+  news bursts and trending pools reach the agents for the first time, and a
+  single social post is treated as a reading.
+- **Re-asked only on new evidence.** A declined pattern goes back to an agent
+  only once it has occurred 1.5 times as often.
+- **Per-wake budget.** A call cap spreads the day's budget across wakes. The
+  supervisor runs 1,200 calls a day and at most 100 per wake.
+
+See [ADR-0048](adr/0048-the-company-works-while-there-is-work.md).
+
+---
+
 ## Sequencing
 
 ```

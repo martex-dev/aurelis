@@ -25,11 +25,13 @@
 .EXAMPLE
     .\scripts\run-aurelis.ps1
 .EXAMPLE
-    .\scripts\run-aurelis.ps1 -Workspace live -CallsPerDay 400 -Port 8787
+    .\scripts\run-aurelis.ps1 -Workspace live -CallsPerDay 1200 -CallsPerWake 100 -Port 8787
 #>
 param(
     [string]$Workspace = "live",
-    [int]$CallsPerDay = 400,
+    [int]$CallsPerDay = 1200,
+    [int]$CallsPerWake = 100,
+    [int]$Cycles = 150,
     [int]$Port = 8787,
     [string]$Provider = "agent_sdk"
 )
@@ -68,8 +70,9 @@ while ($true) {
         Start-Sleep -Seconds 300
         continue
     }
-    Write-Host "$(Get-Date -Format s)  starting the service: $CallsPerDay model calls a day, a wake every hour."
-    & $aurelis service start -w $Workspace --every 1h --for 30d --calls-per-day $CallsPerDay
+    Write-Host "$(Get-Date -Format s)  starting the service: $CallsPerDay model calls a day, at most $CallsPerWake a wake, a wake every hour."
+    & $aurelis service start -w $Workspace --every 1h --for 30d --calls-per-day $CallsPerDay `
+        --calls-per-wake $CallsPerWake --cycles $Cycles
     Write-Host "$(Get-Date -Format s)  the service stopped (exit code $LASTEXITCODE). Restarting in 60 seconds; Ctrl-C to stop." -ForegroundColor Yellow
     Start-Sleep -Seconds 60
 }

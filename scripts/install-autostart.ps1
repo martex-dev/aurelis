@@ -18,7 +18,7 @@
 #>
 param(
     [string]$Workspace = "live",
-    [int]$CallsPerDay = 400
+    [int]$CallsPerDay = 1200
 )
 
 $script = Join-Path $PSScriptRoot "run-aurelis.ps1"
