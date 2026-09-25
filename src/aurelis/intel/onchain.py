@@ -352,7 +352,7 @@ class GeckoTerminalTrending:
         from aurelis.intel.pacing import pace
 
         # One vendor, one pace: the token follower reads the same API (M48).
-        pace("geckoterminal", 0 if self.opener is not None else 2.1)
+        pace("geckoterminal", 0 if self.opener is not None else 3.0)
         data = _get_json(
             self.opener,
             self.source.url.format(network=network) + "?page=1",

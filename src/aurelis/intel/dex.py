@@ -141,8 +141,9 @@ class GeckoTerminalCandles:
     name: str = "geckoterminal"
     endpoint: str = "https://api.geckoterminal.com/api/v2"
     timeout: int = 25
-    pause: float = 2.1
-    """Seconds between requests: the vendor allows thirty a minute."""
+    pause: float = 3.0
+    """Seconds between requests. The vendor documents thirty a minute; at 2.1s
+    the live wakes of 2026-09-25 were still refused on a few tokens, so twenty."""
 
     opener: Any = None
 
