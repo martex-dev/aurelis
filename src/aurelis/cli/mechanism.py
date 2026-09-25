@@ -257,7 +257,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
     console.print(table)
     console.print(
         "[dim]Only a candidate scheme trades, and only on paper, through Risk. P&L is "
-        "judged by independent episode after fees (M54): a scheme earns only when its "
+        "judged by independent episode after fees (M55): a scheme earns only when its "
         "winning episodes beat a coin at the bar for the family, and one losing after "
         "costs stops opening positions. Fills are at the newest close the wake "
         "could see, not the trigger's; the slippage column is the difference, in "

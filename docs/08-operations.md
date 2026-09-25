@@ -343,7 +343,7 @@ The agents must also ask for `x_browser` or `discord_browser` in the sources
 seat. Each wake reads up to twelve X accounts and eight rotating cashtag
 searches. Deleting `<workspace>\browser` signs Aurelis out of both sites.
 
-**Whom the company follows (M53).** Once a day a market-intelligence agent
+**Whom the company follows (M54).** Once a day a market-intelligence agent
 reviews every voice the company has read. For each X account, Telegram
 channel and Discord channel it sees the instruments' move over the 24 hours
 after its posts against their peers, and over the 24 hours before. It follows
@@ -644,7 +644,7 @@ lists them:
 - **A scheme trades on paper only once it has earned it.** Twenty scored
   out-of-sample predictions beating the instrument's own drift; then five
   percent of the paper book, through Risk. `aurelis mechanism trades` shows
-  the round trips, realised P&L, and since M54 the verdict after costs by
+  the round trips, realised P&L, and since M55 the verdict after costs by
   independent episode: gathering, not distinguishable from luck, earning, or
   losing. A scheme losing after costs is suspended by Risk and opens nothing
   more. `aurelis mandate assess` reads `earning`: whether any scheme has made

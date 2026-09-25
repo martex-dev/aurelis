@@ -409,3 +409,82 @@ def test_the_cli_and_the_station_show_the_brain_and_the_operator_can_add_a_note(
     assert listed.exit_code == 0 and "operator" in listed.output
     page = station_app(company).handle("/brain", {}).body.decode()
     assert "Shared brain" in page and "worth a look" in page and "OPERATOR" in page
+
+
+# ------------------------------------------------------------ vault upkeep
+
+
+def test_a_long_note_is_cut_at_a_sentence_or_a_word_never_mid_word() -> None:
+    from aurelis.brain.notes import NOTE_MAX, _fit
+
+    sentences = "The wall eroded within the hour. " * 20
+    cut = _fit(sentences.strip())
+    assert len(cut) <= NOTE_MAX and cut.endswith("hour.")
+    one_run_on = "paid attention " * 60
+    cut = _fit(one_run_on.strip())
+    assert len(cut) <= NOTE_MAX and cut.endswith("…")
+    assert cut[:-1].split()[-1] in ("paid", "attention"), "a whole word before the ellipsis"
+    assert _fit("short enough.") == "short enough."
+
+
+def test_the_journal_says_each_source_problem_once_and_skips_unchanged_steps() -> None:
+    from aurelis.brain.vault import _journal_day, _split_wake
+
+    wake = (
+        "catalogue coinbase: 838 product(s); "
+        'bluesky: 2 of 30 not read (BTC-USD: bluesky "bitcoin" refused the request (403); '
+        'ADA-USD: bluesky "cardano" refused the request (403)); '
+        "cryptopanic: not read, needs AURELIS_KEY_CRYPTOPANIC_TOKEN in the service's environment"
+    )
+    assert len(_split_wake(wake)) == 3, "a '; ' inside parentheses does not split a step"
+    at = dt.datetime(2026, 9, 25, 9, 30, tzinfo=dt.UTC)
+    lines = _journal_day(
+        [(at, "WAKE-0001", wake), (at + dt.timedelta(hours=1), "WAKE-0002", wake)], []
+    )
+    text = "\n".join(lines)
+    assert text.count('BTC-USD: bluesky "bitcoin" refused the request (403)') == 1
+    assert text.count("needs AURELIS_KEY_CRYPTOPANIC_TOKEN") == 1
+    assert "- ⚠ bluesky: 2 of 30 not read" in text
+    assert "3 step(s) unchanged since the previous wake" in text
+
+
+def test_the_vault_puts_figures_in_properties_seeds_the_operators_files_once_and_keeps_old_days(
+    company: Runtime, tmp_path: Path
+) -> None:
+    seat_agent(company, agent_handle="INTEL")
+    with company.database.session() as session:
+        mechanism = company.mechanisms.state(
+            session,
+            agent_ref=company.roster.by_handle(session, "QUANT").ref,
+            title="a new high draws buyers",
+            trigger_kind="price.range_break",
+            desk="crypto",
+            horizon_hours=6,
+            direction="up",
+            confidence=Decimal("0.6"),
+            why="a new high draws in the momentum buyers who were waiting for it.",
+            other_side="the shorts who sold the old high and now cover.",
+            decay="it fades as the crowd learns to buy the high, within months.",
+            origin="invented",
+            found_on_instrument="BTC-USD",
+            found_on_event="none",
+            model="test",
+        )
+        agents = {a.handle: a.ref for a in company.roster.all(session)}
+    root = tmp_path / "vault"
+    (root / "Journal").mkdir(parents=True)
+    (root / "Journal" / "2020-01-01.md").write_text("an old day", encoding="utf-8")
+    (root / "Operator").mkdir()
+    (root / "Operator" / "README.md").write_text("mine", encoding="utf-8")
+    at = company.clock.now()
+    with company.database.session() as session:
+        render_brain(session, root, at=at)
+    page = (root / "Mechanisms" / f"{mechanism.ref}.md").read_text(encoding="utf-8")
+    assert "horizon_hours: 6\n" in page and "confidence: 0.6\n" in page
+    assert "active: true\n" in page and "episodes: 0\n" in page
+    assert (root / "Journal" / "2020-01-01.md").exists(), "an old journal day is kept"
+    assert (root / "Operator" / "README.md").read_text(encoding="utf-8") == "mine"
+    assert "views:" in (root / "Dashboard.base").read_text(encoding="utf-8")
+    assert (root / "History" / f"{at.date().isoformat()}.md").exists()
+    assert (root / "Agents" / f"{agents['INTEL']}.md").exists()
+    assert not (root / "Agents" / f"{agents['CEO']}.md").exists(), "no page for an idle agent"

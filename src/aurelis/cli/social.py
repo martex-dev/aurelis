@@ -256,7 +256,7 @@ def social_voices(
     workspace: WorkspaceOption = None,
     limit: Annotated[int, typer.Option(help="Voices shown, followed first.")] = 40,
 ) -> None:
-    """Every voice's posts against the price move after and before them (M53)."""
+    """Every voice's posts against the price move after and before them (M54)."""
     from aurelis.social.curation import followed_targets
     from aurelis.social.voices import measure_voices
 

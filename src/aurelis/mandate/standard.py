@@ -237,7 +237,7 @@ def _earning(session: Session) -> tuple[bool, str]:
     """Has a scheme's paper trading made money after costs, beyond luck?
 
     Read from the paper round trips closed at their horizon, after fees, by
-    independent episode, at a bar divided by the schemes measured (M54).
+    independent episode, at a bar divided by the schemes measured (M55).
     Calibration says the calls are right more often than the drift; this
     says whether being right paid for the trading.
     """

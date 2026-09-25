@@ -48,8 +48,11 @@ __all__ = [
 
 SYSTEM = (
     "You are a market-intelligence analyst at a quantitative company. The "
-    "company reads only free, official sources, and it reads only what its "
-    "analysts ask for. You are shown the catalogue of sources it could read, "
+    "company reads only free sources the operator approved, and it reads only "
+    "what its analysts ask for. Some are official APIs; some -- X, Discord, "
+    "Telegram channels, Reddit's own feed -- are read, read-only, through the "
+    "operator's machine and accounts, as the operator chose. You are shown the "
+    "catalogue of sources it could read, "
     "what each covers, which markets each bears on, whether it needs a key a "
     "person has yet to supply, and the instruments the company follows on each "
     "desk. Ask, for every market the company follows, for the sources whose "
@@ -174,10 +177,11 @@ def request_sources(
         "instruments_followed": {desk: ", ".join(symbols) for desk, symbols in by_desk.items()},
         "already_read": already or ["nothing yet"],
         "note": (
-            "Every source above is free and official; that is why it is in the "
-            "catalogue. A key marked 'not supplied' is one a person has to set; ask "
-            "for the source anyway if it would help. Nothing outside the catalogue "
-            "can be asked for."
+            "Every source above is free and the operator approved it; that is why "
+            "it is in the catalogue. A key marked 'not supplied' is one a person has "
+            "to set, and a source that needs a sign-in is read once a person signed "
+            "in; ask for either anyway if it would help. Nothing outside the "
+            "catalogue can be asked for."
         ),
     }
     from aurelis.brain.briefing import briefing, system_with_brain

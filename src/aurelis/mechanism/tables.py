@@ -139,4 +139,4 @@ class MechanismTrade(Base):
     wake, which may be an hour after the trigger, and a fill at a price the
     company had not yet recorded is a fill in hindsight (M40)."""
     """Realised, after fees, once closed. Judged by independent episode, never
-    trade by trade: see :mod:`aurelis.mechanism.earnings` (M54)."""
+    trade by trade: see :mod:`aurelis.mechanism.earnings` (M55)."""

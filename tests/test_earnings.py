@@ -1,4 +1,4 @@
-"""M54 — a scheme's paper trading is judged after costs, by episode.
+"""M55 — a scheme's paper trading is judged after costs, by episode.
 
 The acceptance criteria, each with a test named after it:
 

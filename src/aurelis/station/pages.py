@@ -1222,7 +1222,7 @@ def service_page(session: Session) -> str:
         f"<h2>Grants</h2>{grants}"
         f"<h2>Wakes</h2>{wakes}"
         "<h2>Sources the agents asked for</h2>"
-        "<p class='mono'>The catalogue holds only free, official sources, for every "
+        "<p class='mono'>The catalogue holds only free sources the operator approved, for every "
         "market; which of them the company reads is a market-intelligence agent's "
         "decision, with its reason, under a news grant a person recorded once. A source "
         "that needs a key is read once a person supplies it in the service's "
@@ -1269,7 +1269,7 @@ def brain_page(session: Session) -> str:
 
 def voices_page(session: Session, *, now: dt.datetime) -> str:
     """Whom the company follows, whom it could, and each one's record against
-    price (M53). Measured on the request, from the posts and recordings."""
+    price (M54). Measured on the request, from the posts and recordings."""
     from aurelis.platform.db.tables import Event
     from aurelis.social.curation import followed_targets
     from aurelis.social.voices import HORIZON, MIN_EPISODES, measure_voices

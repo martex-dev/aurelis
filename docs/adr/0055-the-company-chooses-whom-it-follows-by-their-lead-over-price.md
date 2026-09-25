@@ -1,4 +1,4 @@
-# ADR-0054 — The company chooses whom it follows by their lead over price
+# ADR-0055 — The company chooses whom it follows by their lead over price
 
 Status: accepted · 2026-09-25
 

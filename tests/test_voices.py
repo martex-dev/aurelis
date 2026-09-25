@@ -1,4 +1,4 @@
-"""M53 — the company chooses whom it follows by each voice's lead over price.
+"""M54 — the company chooses whom it follows by each voice's lead over price.
 
 The acceptance criteria, each with a test named after it:
 

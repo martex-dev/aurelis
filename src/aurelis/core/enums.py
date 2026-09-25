@@ -172,7 +172,7 @@ class EventKind(StrEnum):
 
     MECHANISM_SUSPENDED = "mechanism.suspended"
     """A candidate scheme lost money on paper after costs, by episode, beyond
-    chance, and opens no new positions. Its predictions keep being scored (M54)."""
+    chance, and opens no new positions. Its predictions keep being scored (M55)."""
 
     BRAIN_NOTED = "brain.noted"
     METHOD_ADOPTED = "agent.method_adopted"
@@ -182,7 +182,7 @@ class EventKind(StrEnum):
     SOCIAL_CURATED = "social.curated"
     """A market-intelligence agent was shown every voice's record against price
     and chose whom to follow and drop, or kept everything; or nobody was asked
-    because nothing was eligible. Cites the record it was shown (M53)."""
+    because nothing was eligible. Cites the record it was shown (M54)."""
 
     SOURCE_REQUESTED = "source.requested"
     """An agent asked the company to read a source from the free catalogue, and

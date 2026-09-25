@@ -1,4 +1,4 @@
-"""Whether a scheme's paper trading made money after costs (M54).
+"""Whether a scheme's paper trading made money after costs (M55).
 
 A candidate scheme is chosen on calibration: its sealed predictions beat the
 instrument's own drift (ADR-0040). That says the direction calls are better

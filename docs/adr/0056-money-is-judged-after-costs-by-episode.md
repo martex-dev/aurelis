@@ -1,4 +1,4 @@
-# ADR-0055 — Money is judged after costs, by episode
+# ADR-0056 — Money is judged after costs, by episode
 
 Status: accepted · 2026-09-25
 

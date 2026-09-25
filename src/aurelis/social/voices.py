@@ -1,4 +1,4 @@
-"""Whether a voice's posts come before the price moves, or after (M53).
+"""Whether a voice's posts come before the price moves, or after (M54).
 
 A **voice** is one handle the company could follow: an X account, a Telegram
 channel, a Discord channel. Its record is read off the posts already in the

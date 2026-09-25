@@ -611,7 +611,7 @@ class Service:
         halted: list[str] = []
         with runtime.database.session() as session:
             # A scheme that lost money after costs, by episode, beyond chance
-            # opens nothing more; what it holds closes at its horizon (M54).
+            # opens nothing more; what it holds closes at its horizon (M55).
             board = earnings_board(session)
             for status in runtime.mechanisms.statuses(session):
                 scheme_ref = status.mechanism.ref
@@ -715,7 +715,7 @@ class Service:
         # 4c. curation, once a day under the news grant: every voice the company
         #     has read is measured against the price move after and before its
         #     posts, and a market-intelligence agent follows and drops from that
-        #     record (M53). No call when nothing is eligible either way.
+        #     record (M54). No call when nothing is eligible either way.
         from aurelis.social.curation import curate, curation_due
 
         if news_grants:

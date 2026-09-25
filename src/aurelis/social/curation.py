@@ -1,4 +1,4 @@
-"""The seat where an agent chooses whom the company follows (M53).
+"""The seat where an agent chooses whom the company follows (M54).
 
 Until now a handle was followed because a token linked it or a person typed
 it. The agents read what those handles posted but had no say in whom to read,
