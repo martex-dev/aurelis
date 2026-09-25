@@ -322,6 +322,27 @@ read: they open the channel's own page, never a link inside a message, and
 have no way to post, react or join. A Telegram group has no public preview
 and cannot be read this way; the wake names each channel it could not read.
 
+**X and Discord (M51)** are read through Aurelis's own Edge profile, in
+`<workspace>rowser`, after a person signs in once:
+
+```powershell
+aurelis social login -w live
+```
+
+An Edge window opens on the X and Discord sign-in pages. Sign in there
+yourself, and close the window when both show you signed in. The command
+prints which platforms are signed in. Discord channels are followed by their
+link (right-click the channel, then Copy Link), in servers that account has
+joined:
+
+```powershell
+aurelis social follow discord https://discord.com/channels/<server>/<channel> --reason "early memecoin calls" -w live
+```
+
+The agents must also ask for `x_browser` or `discord_browser` in the sources
+seat. Each wake reads up to twelve X accounts and eight rotating cashtag
+searches. Deleting `<workspace>rowser` signs Aurelis out of both sites.
+
 In the supervised setup these lines go in `<workspace>\keys.ps1`, which
 `scripts/run-aurelis.ps1` loads before it starts the service.
 

@@ -252,6 +252,14 @@ def news_for(name: str) -> Any:
         from aurelis.intel.telegram import TelegramPublic
 
         return TelegramPublic(source)
+    if source.kind == "x":
+        from aurelis.intel.xdiscord import XBrowser
+
+        return XBrowser(source)
+    if source.kind == "discord":
+        from aurelis.intel.xdiscord import DiscordBrowser
+
+        return DiscordBrowser(source)
     if source.kind == "dexscreener":
         from aurelis.intel.onchain import DexScreenerBoosts
 

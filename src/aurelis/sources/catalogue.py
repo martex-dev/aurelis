@@ -56,6 +56,8 @@ KINDS: tuple[str, ...] = (
     "geckoterminal",
     "reddit_web",
     "telegram",
+    "x",
+    "discord",
 )
 """How a source is read. Each kind has one reader in
 :mod:`aurelis.intel.news`, :mod:`aurelis.intel.social`,
@@ -80,6 +82,10 @@ class Source:
     keys: tuple[str, ...] = ()
     """Environment variables a person must set before it can be read.
     Empty for a keyless source."""
+
+    signin: str = ""
+    """The platform a person signs into once, in Aurelis's own browser
+    profile, before this source can be read (M51): ``x`` or ``discord``."""
 
     optional_keys: tuple[str, ...] = ()
     """Variables that let a readable source read more when a person sets them:
@@ -238,6 +244,25 @@ CATALOGUE: dict[str, Source] = {
             "views; groups have no public preview and are not read",
             kind="telegram",
             markets=("crypto", "memecoin"),
+        ),
+        Source(
+            "x_browser",
+            "https://x.com/",
+            "X: each followed memecoin's own account, accounts a person or an agent "
+            "chose, and live cashtag searches for the instruments followed, read "
+            "through Aurelis's own browser profile once a person has signed in",
+            kind="x",
+            markets=("crypto", "memecoin", "equities"),
+            signin="x",
+        ),
+        Source(
+            "discord_browser",
+            "https://discord.com/channels/",
+            "Discord: the channels a person follows by link, in servers the signed-in "
+            "profile is a member of, read through Aurelis's own browser profile",
+            kind="discord",
+            markets=("crypto", "memecoin"),
+            signin="discord",
         ),
         # -- on-chain attention, memecoins --------------------------------------
         Source(

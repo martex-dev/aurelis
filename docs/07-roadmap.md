@@ -2318,6 +2318,21 @@ read, and deterministic, read-only code reads it. No model drives a browser.
 
 See [ADR-0051](adr/0051-the-company-follows-social-media-through-the-device.md).
 
+## M51 — X and Discord through a signed-in profile ✅
+
+- **A dedicated Edge profile.** It is Aurelis's own, and the everyday
+  browser is never opened. The person signs into X and Discord once with
+  `aurelis social login`, and no password is kept.
+- **Read-only.** A reader opens a URL built from a validated handle and keeps
+  the JSON the site's page fetched: X's timelines and searches, and Discord's
+  channel messages. It never clicks or follows a link.
+- **A budget per wake.** Twelve X accounts and eight rotating cashtag
+  searches, followed memecoins first. Discord reads every followed channel.
+- **Signed out stops the platform** for the wake, and a platform nobody has
+  signed into is never opened.
+
+See [ADR-0052](adr/0052-x-and-discord-through-a-signed-in-profile.md).
+
 ---
 
 ## Sequencing

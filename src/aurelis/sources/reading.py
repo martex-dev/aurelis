@@ -55,7 +55,7 @@ class Fetched:
         """How many reads succeeded: one per instrument or network, else one."""
         if self.posts_on:
             return len(self.posts_on)
-        if self.source.kind == "telegram":
+        if self.source.kind in ("telegram", "x", "discord"):
             return len(self.by_target)
         if self.trending:
             return len(self.trending)
@@ -108,6 +108,66 @@ def _per_instrument(
     return Fetched(source, posts_on=posts_on, failures=failures)
 
 
+X_ACCOUNTS_PER_WAKE = 12
+"""X accounts read per wake: the followed memecoins' own and the chosen."""
+
+X_SEARCHES_PER_WAKE = 8
+"""Live cashtag searches per wake, rotating through the instruments hour by
+hour so each comes up in turn without a burst of searches in one hour."""
+
+
+def _rotate(items: list[Any], take: int, rotation: int) -> list[Any]:
+    if len(items) <= take:
+        return items
+    start = (rotation * take) % len(items)
+    return (items + items)[start : start + take]
+
+
+def _browser(
+    source: Source,
+    feed: Any,
+    instruments: tuple[str, ...],
+    targets: list[Any],
+    names: dict[str, str],
+    rotation: int,
+) -> Fetched:
+    """X or Discord through the profile: every followed handle on the
+    platform, and for X a rotating slice of cashtag searches."""
+    platform = source.kind
+    asks: list[tuple[str, str | None]] = []
+    followed = [t for t in targets if t.platform == platform]
+    if platform == "x":
+        accounts = _rotate(followed, X_ACCOUNTS_PER_WAKE, rotation)
+        asks += [(t.handle, t.on) for t in accounts]
+        tokens = [i for i in instruments if ":" in i and names.get(i)]
+        majors = [i for i in instruments if ":" not in i]
+        searchable = tokens + majors
+        for instrument in _rotate(searchable, X_SEARCHES_PER_WAKE, rotation):
+            ticker = names.get(instrument) if ":" in instrument else instrument.split("-")[0]
+            asks.append((f"${ticker}", instrument))
+    else:
+        asks += [(t.handle, t.on) for t in followed]
+    by_target: list[tuple[str | None, list[Any]]] = []
+    missed: dict[str, str] = {}
+    try:
+        for ask, on in asks:
+            try:
+                by_target.append((on, list(feed.posts(ask))))
+            except FeedUnavailable as error:
+                missed[ask] = str(error)[:120]
+                if "sign-in page" in str(error) or "could not start" in str(error):
+                    break
+    finally:
+        closing = getattr(feed, "close", None)
+        if callable(closing):
+            closing()
+    if asks and not by_target:
+        raise FeedUnavailable(
+            f"{source.name} read nothing; first: {next(iter(missed.values()), 'no reply')}"
+        )
+    return Fetched(source, by_target=by_target, failures=missed)
+
+
 def fetch_source(
     source: Source,
     feed: Any,
@@ -115,11 +175,13 @@ def fetch_source(
     *,
     names: dict[str, str] | None = None,
     targets: list[Any] | None = None,
+    rotation: int = 0,
 ) -> Fetched:
     """The network step. Raises :class:`FeedUnavailable` as the reader does,
     except per instrument, where it collects. ``names`` gives a token keyed
     by chain and contract the ticker a social reader searches by; ``targets``
-    the handles a per-handle reader follows (M50)."""
+    the handles a per-handle reader follows (M50); ``rotation`` which slice of
+    the instruments an X search budget covers this wake (M51)."""
     kind = source.kind
     if kind in ("rss", "cryptopanic"):
         return Fetched(source, entries=list(feed.entries()))
@@ -133,6 +195,8 @@ def fetch_source(
         return _per_instrument(source, feed, instruments, bluesky_queries, names)
     if kind in ("reddit", "reddit_web"):
         return Fetched(source, posts=list(feed.posts(source.url)))
+    if kind in ("x", "discord"):
+        return _browser(source, feed, instruments, targets or [], names or {}, rotation)
     if kind == "telegram":
         by_target: list[tuple[str | None, list[Any]]] = []
         missed: dict[str, str] = {}
@@ -217,7 +281,7 @@ def record_source(
             events += new
             bursts += burst
         return events, bursts
-    if kind == "telegram":
+    if kind in ("telegram", "x", "discord"):
         from aurelis.intel.social import record_posts
 
         events = bursts = 0

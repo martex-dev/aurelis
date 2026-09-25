@@ -44,7 +44,14 @@ engines = ["martex-quant>=1.0.1"]
 # offline at zero cost, which is what CI uses.
 subscription = ["claude-agent-sdk>=0.1"]
 api = ["anthropic>=0.40"]
+# X and Discord through a browser profile the operator signs into (M51). The
+# package only: it drives the Microsoft Edge already installed, so no browser
+# is downloaded.
+browser = ["playwright>=1.45"]
 dev = [
+    # Typed, and imported by the browser readers: the type check needs it even
+    # though no test opens a browser.
+    "playwright>=1.45",
     # The subscription provider is optional to RUN and required to TEST: the
     # seat-isolation guard is the difference between measuring an agent and
     # letting it read the answer key, so CI must be able to check it.

@@ -133,6 +133,10 @@ class Service:
         self._dex = dex or (lambda grant: feed_for(grant, clock=runtime.clock))
         self._research_source = research_source
         self.brain_root = brain_root or (runtime.settings.workspace / "brain")
+        # X and Discord are read through this workspace's own browser profile.
+        from aurelis.intel.browser import configure
+
+        configure(runtime.settings.workspace)
         """Where the shared brain's Obsidian vault is written each wake."""
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
@@ -513,9 +517,23 @@ class Service:
                         "service's environment"
                     )
                     continue
+                if source.signin:
+                    from aurelis.intel.browser import browser_ready
+
+                    if not browser_ready(source.signin, runtime.settings.workspace):
+                        notes.append(
+                            f"{name}: not read, needs a person to sign into "
+                            f"{source.signin} once: `aurelis social login`"
+                        )
+                        continue
                 try:
                     brought = fetch_source(
-                        source, self._news(name), symbols, names=names, targets=targets
+                        source,
+                        self._news(name),
+                        symbols,
+                        names=names,
+                        targets=targets,
+                        rotation=int(moment.timestamp() // 3600),
                     )
                     with runtime.database.session() as session:
                         new_events, new_bursts = record_source(
@@ -535,6 +553,10 @@ class Service:
                         followed = sum(1 for t in targets if t.platform == "telegram")
                         notes.append(
                             f"{name}: {brought.requests} of {followed} followed channel(s) read"
+                        )
+                    elif source.kind in ("x", "discord"):
+                        notes.append(
+                            f"{name}: {brought.requests} read, {len(brought.failures)} not"
                         )
                     if brought.failures:
                         asked = brought.requests + len(brought.failures)
