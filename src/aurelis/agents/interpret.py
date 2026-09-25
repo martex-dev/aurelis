@@ -53,6 +53,9 @@ _FREE_NUMERALS = frozenset({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "1
 _NUMERAL = re.compile(r"(?<![\w.:])(?<!\w-)-?\d+(?:[.,]\d+)*%?(?!:\d)")
 
 
+_PADDED = re.compile(r"0\d+")
+
+
 def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
     """Numerals in ``text`` that do not appear in the measurements.
 
@@ -66,6 +69,10 @@ def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
         token = match.group(0)
         bare = token.rstrip("%").replace(",", "")
         if bare in _FREE_NUMERALS or bare in allowed:
+            continue
+        # A zero-padded integer is a name, not a quantity: ``0007`` in
+        # "MEC-0004/0007" is a ref, and nobody writes a measurement as 0007.
+        if _PADDED.fullmatch(bare.lstrip("-")):
             continue
         # Tolerate a trailing zero difference: "0.50" cites "0.5".
         if bare.rstrip("0").rstrip(".") in {a.rstrip("0").rstrip(".") for a in allowed}:

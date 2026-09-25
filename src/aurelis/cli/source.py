@@ -74,12 +74,13 @@ def source_keys() -> None:
     from aurelis.sources.catalogue import KEY_PREFIX, key_status
 
     table = Table(title="keys a person supplies")
-    for column in ("source", "variable", "set"):
+    for column in ("source", "variable", "required", "set"):
         table.add_column(column, overflow="fold")
     for row in key_status():
         table.add_row(
             row["source"],
             row["variable"],
+            row["required"],
             "[green]yes[/green]" if row["set"] == "yes" else "[yellow]no[/yellow]",
         )
     console.print(table)

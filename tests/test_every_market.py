@@ -288,11 +288,21 @@ def test_the_catalogue_names_each_sources_markets_and_key_and_a_keyed_source_is_
     assert not reddit.keyless and not reddit.available
     assert _REDDIT_ID in reddit.key and "not supplied" in reddit.key
     assert reddit.describe()["markets"] == "memecoin"
-    assert {"source": "reddit_memecoins", "variable": _REDDIT_ID, "set": "no"} in key_status()
+    assert {
+        "source": "reddit_memecoins",
+        "variable": _REDDIT_ID,
+        "set": "no",
+        "required": "yes",
+    } in key_status()
     monkeypatch.setenv(_REDDIT_ID, "id-123")
     monkeypatch.setenv(_REDDIT_SECRET, "s3cret")
     assert reddit.available and reddit.key == "supplied by a person"
-    assert {"source": "reddit_memecoins", "variable": _REDDIT_ID, "set": "yes"} in key_status()
+    assert {
+        "source": "reddit_memecoins",
+        "variable": _REDDIT_ID,
+        "set": "yes",
+        "required": "yes",
+    } in key_status()
     assert "id-123" not in str(key_status()) and "s3cret" not in str(reddit.describe())
 
 

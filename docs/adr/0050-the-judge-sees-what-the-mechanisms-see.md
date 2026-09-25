@@ -45,6 +45,30 @@ using its research.
 - **A clock time is not a figure.** The guard no longer reads the `09` and
   `30` of `09:30` as numbers. One live refusal after M48 was exactly that.
 
+### After the first M49 wake
+
+The first wake on M49 used its full 100-call budget and sealed 19 views, up
+from 5. It also left 19 brain notes. It showed two more things:
+
+- **A zero-padded integer is a name.** Two refusals cited `0004` and `0007`,
+  from shorthand such as `MEC-0004/0007`. Nobody writes a measurement with
+  leading zeros, so the guard no longer treats one as a figure.
+- **GeckoTerminal's free limit is about five requests a minute.** It is not
+  the documented thirty. Twenty requests three seconds apart from the live
+  machine returned four 200s, then twelve 429s, then two 200s at the minute's
+  end. The wake had recorded 4 of 20 followed tokens. Every GeckoTerminal
+  reader now shares a 13-second pace (`GECKO_PACE`). With pools cached after
+  the first wake, twenty tokens take about four minutes of an hourly wake.
+
+- **Bluesky reads in full with an optional sign-in.** The same wake lost 26
+  of 50 Bluesky searches to a 403 ("Request forbidden by administrative
+  rules"). Anonymous search is partly refused by query: "bitcoin" answered
+  and "arbitrum" did not. A source may now name optional keys. With
+  `AURELIS_KEY_BLUESKY_HANDLE` and `AURELIS_KEY_BLUESKY_APP_PASSWORD` set,
+  the reader opens one session through the official `createSession` and
+  searches signed in, renewing an expired session once. Without them it
+  searches anonymously as before. Creating the account is a person's step.
+
 ## Consequences
 
 - The market stage grows by about 6,000 tokens on the live record: 69

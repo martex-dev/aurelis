@@ -129,6 +129,19 @@ _POOL_CACHE: dict[str, str] = {}
 and again whenever a read fails. The pool is on the snapshot's endpoint."""
 
 
+GECKO_PACE = 13.0
+"""Seconds between GeckoTerminal requests, shared by every reader of it.
+
+The vendor documents thirty a minute. Measured from the live machine on
+2026-09-25 it accepted about five: twenty requests at three seconds apart
+came back as four 200s, then twelve 429s, then two more 200s at the end of
+the minute. At 2.1s the live wakes recorded 4 of 20 followed tokens. Thirteen
+seconds is under five a minute; with the pool cached after the first wake a
+token costs one request, so twenty tokens take about four minutes of an
+hourly wake.
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class GeckoTerminalCandles:
     """A token's pool OHLCV on GeckoTerminal's public API. No credential.
@@ -141,9 +154,8 @@ class GeckoTerminalCandles:
     name: str = "geckoterminal"
     endpoint: str = "https://api.geckoterminal.com/api/v2"
     timeout: int = 25
-    pause: float = 3.0
-    """Seconds between requests. The vendor documents thirty a minute; at 2.1s
-    the live wakes of 2026-09-25 were still refused on a few tokens, so twenty."""
+    pause: float = GECKO_PACE
+    """Seconds between requests: see :data:`GECKO_PACE`."""
 
     opener: Any = None
 

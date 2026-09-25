@@ -16,6 +16,8 @@
 
         $env:AURELIS_KEY_REDDIT_CLIENT_ID = "..."
         $env:AURELIS_KEY_REDDIT_CLIENT_SECRET = "..."
+        $env:AURELIS_KEY_BLUESKY_HANDLE = "yourname.bsky.social"
+        $env:AURELIS_KEY_BLUESKY_APP_PASSWORD = "..."   # optional; reads all searches
 
     The workspace folder is ignored by git, so the file never leaves the
     machine. Nothing in Aurelis writes a key's value to the record.

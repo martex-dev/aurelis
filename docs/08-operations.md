@@ -295,6 +295,15 @@ $env:AURELIS_KEY_REDDIT_CLIENT_ID = "..."
 $env:AURELIS_KEY_REDDIT_CLIENT_SECRET = "..."
 ```
 
+Bluesky is read without a key, but its anonymous search is partly refused:
+on 2026-09-25 about half the live searches got a 403. With a free account's
+app password (Bluesky: Settings, Privacy and security, App passwords), set
+`AURELIS_KEY_BLUESKY_HANDLE` and `AURELIS_KEY_BLUESKY_APP_PASSWORD`, and the
+reader searches signed in. `aurelis source keys` lists these two as optional.
+
+In the supervised setup these lines go in `<workspace>\keys.ps1`, which
+`scripts/run-aurelis.ps1` loads before it starts the service.
+
 The value is read at fetch time and put in the request only; nothing writes
 it to the record, and `aurelis source keys` prints names and yes/no. Until a
 key is set, the wake's note says which variable is missing and the mandate's

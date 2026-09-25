@@ -76,6 +76,11 @@ class Source:
     """Environment variables a person must set before it can be read.
     Empty for a keyless source."""
 
+    optional_keys: tuple[str, ...] = ()
+    """Variables that let a readable source read more when a person sets them:
+    Bluesky answers only part of its anonymous searches, and all of them for
+    a signed-in account (M49). Never required."""
+
     @property
     def keyless(self) -> bool:
         return not self.keys
@@ -93,6 +98,13 @@ class Source:
     def key(self) -> str:
         """The key status in words, for the seat, the CLI and the station."""
         if not self.keys:
+            if self.optional_keys and all(os.environ.get(k) for k in self.optional_keys):
+                return "none needed; an optional sign-in is supplied"
+            if self.optional_keys:
+                return (
+                    "none needed; reads more with "
+                    f"{', '.join(self.optional_keys)} from a person"
+                )
             return "none"
         if self.available:
             return "supplied by a person"
@@ -161,9 +173,11 @@ CATALOGUE: dict[str, Source] = {
             "bluesky",
             "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts",
             "Bluesky: the newest public posts naming each followed instrument by its "
-            "cashtag or name, with like and repost counts",
+            "cashtag or name, with like and repost counts; anonymous search is "
+            "partly refused, a free account's app password reads all of it",
             kind="bluesky",
             markets=("crypto", "memecoin", "equities"),
+            optional_keys=(f"{KEY_PREFIX}BLUESKY_HANDLE", f"{KEY_PREFIX}BLUESKY_APP_PASSWORD"),
         ),
         Source(
             "reddit_crypto",
@@ -302,6 +316,16 @@ def key_status(catalogue: dict[str, Source] | None = None) -> list[dict[str, str
                     "source": source.name,
                     "variable": variable,
                     "set": "yes" if os.environ.get(variable) else "no",
+                    "required": "yes",
+                }
+            )
+        for variable in source.optional_keys:
+            rows.append(
+                {
+                    "source": source.name,
+                    "variable": variable,
+                    "set": "yes" if os.environ.get(variable) else "no",
+                    "required": "no",
                 }
             )
     return rows

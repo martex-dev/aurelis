@@ -201,3 +201,8 @@ def test_the_market_stage_shows_the_board_and_the_view_stage_shows_it_in_full(
 def test_a_clock_time_is_not_a_figure() -> None:
     assert unsourced_numerals("it resolves by 09:30Z, after the 14:00 close", set()) == []
     assert unsourced_numerals("it fell 0.262 by 09:30Z", set()) == ["0.262"]
+
+
+def test_a_zero_padded_integer_is_a_name_and_not_a_quantity() -> None:
+    said = "MEC-0004/0007 both fired, as did (0006); the pool fell 150 and 0.5%"
+    assert unsourced_numerals(said, set()) == ["150", "0.5%"]

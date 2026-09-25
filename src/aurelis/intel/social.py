@@ -169,9 +169,24 @@ def bluesky_queries(instrument: str) -> tuple[str, ...]:
     return (f"${base}", *names)
 
 
+_BLUESKY_SESSION_URL = "https://bsky.social/xrpc/com.atproto.server.createSession"
+_BLUESKY_SIGNED_IN_URL = "https://bsky.social/xrpc/app.bsky.feed.searchPosts"
+_BLUESKY_SESSION: dict[str, str] = {}
+"""Session tokens by handle, for the life of the process. In memory only."""
+
+
 @dataclass(frozen=True, slots=True)
 class BlueskySearch:
-    """``app.bsky.feed.searchPosts`` on the public app view. No credential."""
+    """``app.bsky.feed.searchPosts``: anonymous on the public app view, or
+    signed in with an app password a person supplies (M49).
+
+    Anonymous search is partly refused by Bluesky's own rules: on 2026-09-25
+    "bitcoin" answered and "arbitrum" got a 403, and the live wakes lost 26
+    of 50 searches. A signed-in account is free and is answered in full. The
+    handle and app password are read from the environment at fetch time,
+    exchanged for a session token through the official
+    ``com.atproto.server.createSession``, and never written anywhere.
+    """
 
     source: Source
     timeout: int = 25
@@ -182,15 +197,69 @@ class BlueskySearch:
     def name(self) -> str:
         return self.source.name
 
+    def _session(self, *, fresh: bool = False) -> str | None:
+        """A session token for the supplied account, or ``None`` if none is."""
+        handle = os.environ.get(f"{KEY_PREFIX}BLUESKY_HANDLE", "")
+        password = os.environ.get(f"{KEY_PREFIX}BLUESKY_APP_PASSWORD", "")
+        if not handle or not password:
+            return None
+        if not fresh and _BLUESKY_SESSION.get(handle):
+            return _BLUESKY_SESSION[handle]
+        request = urllib.request.Request(
+            _BLUESKY_SESSION_URL,
+            data=json.dumps({"identifier": handle, "password": password}).encode(),
+            headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
+            method="POST",
+        )
+        fetch = self.opener or urllib.request.urlopen
+        try:
+            with fetch(request, timeout=self.timeout) as response:
+                data = json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            raise FeedUnavailable(
+                f"bluesky refused the supplied account's app password ({error.code})"
+            ) from error
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+            raise FeedUnavailable(f"bluesky could not be reached for a session: {error}") from error
+        token = str(data.get("accessJwt", ""))
+        if not token:
+            raise FeedUnavailable("bluesky issued no session for the supplied account")
+        _BLUESKY_SESSION[handle] = token
+        return token
+
     def posts(self, query: str) -> list[Post]:
         params = urllib.parse.urlencode({"q": query, "limit": self.limit, "sort": "latest"})
-        data = _get_json(
-            self.opener,
-            f"{self.source.url}?{params}",
-            headers={"Accept": "application/json"},
-            timeout=self.timeout,
-            name=f"bluesky {query}",
-        )
+        token = self._session()
+        if token is None:
+            data = _get_json(
+                self.opener,
+                f"{self.source.url}?{params}",
+                headers={"Accept": "application/json"},
+                timeout=self.timeout,
+                name=f"bluesky {query}",
+            )
+        else:
+            url = f"{_BLUESKY_SIGNED_IN_URL}?{params}"
+            try:
+                data = _get_json(
+                    self.opener,
+                    url,
+                    headers={"Accept": "application/json", "Authorization": f"Bearer {token}"},
+                    timeout=self.timeout,
+                    name=f"bluesky {query}",
+                )
+            except FeedUnavailable as error:
+                if "(400)" not in str(error) and "(401)" not in str(error):
+                    raise
+                # The session expired: one new one, one more try.
+                token = self._session(fresh=True)
+                data = _get_json(
+                    self.opener,
+                    url,
+                    headers={"Accept": "application/json", "Authorization": f"Bearer {token}"},
+                    timeout=self.timeout,
+                    name=f"bluesky {query}",
+                )
         out: list[Post] = []
         for post in data.get("posts", []) or []:
             record = post.get("record") or {}
