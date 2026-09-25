@@ -37,9 +37,10 @@ NOTE_MAX = 400
 OPERATOR = "operator"
 
 NOTE_LINE = (
-    "NOTE: <optional. One or two sentences every other agent in the company "
-    "should know from what you just saw -- a trap, a pattern, a doubt. It goes "
-    "into the shared brain they all read. Leave the line out if there is nothing>"
+    "NOTE: <optional. One or two sentences, under 400 characters, every other "
+    "agent in the company should know from what you just saw -- a trap, a "
+    "pattern, a doubt. It goes into the shared brain they all read. Leave the "
+    "line out if there is nothing>"
 )
 """The line a seat's reply form offers. Optional: most answers leave no note."""
 
@@ -47,11 +48,32 @@ _EMPTY = {"none", "nothing", "n/a", "na", "-", "--", "no", "no note"}
 _TOPIC = re.compile(r"^[A-Za-z0-9_.:\-]{2,96}$")
 
 
+_SENTENCE_END = re.compile(r"[.!?;](?=\s)")
+
+
+def _fit(text: str, limit: int = NOTE_MAX) -> str:
+    """Cut a note to the budget without leaving half a word behind.
+
+    Every agent reads every note, so a note cut mid-word ("paid-attent") is a
+    broken sentence the whole company carries. Keep whole sentences when at
+    least half the budget survives; otherwise cut at the last word and say so
+    with an ellipsis.
+    """
+    if len(text) <= limit:
+        return text
+    head = text[: limit + 1]
+    ends = [m.end() for m in _SENTENCE_END.finditer(head)]
+    if ends and ends[-1] >= limit // 2:
+        return head[: ends[-1]].rstrip()
+    words = text[: limit - 1].rsplit(" ", 1)[0] if " " in text[: limit - 1] else text[: limit - 1]
+    return words.rstrip(",;:-") + "…"
+
+
 def _clean(text: str) -> str | None:
     cleaned = " ".join(str(text or "").split()).strip().strip("<>").strip()
     if len(cleaned) < NOTE_MIN or cleaned.lower().rstrip(".") in _EMPTY:
         return None
-    return cleaned[:NOTE_MAX]
+    return _fit(cleaned)
 
 
 def write_note(
@@ -137,14 +159,12 @@ def leave_note(
     )
 
 
-def recent_notes(session: Session, *, limit: int = 20) -> list[BrainNote]:
-    return list(
-        session.execute(
-            sa.select(BrainNote)
-            .order_by(BrainNote.written_at.desc(), BrainNote.ref.desc())
-            .limit(limit)
-        ).scalars()
-    )
+def recent_notes(session: Session, *, limit: int | None = 20) -> list[BrainNote]:
+    """The newest notes first; ``limit=None`` for every note ever written."""
+    query = sa.select(BrainNote).order_by(BrainNote.written_at.desc(), BrainNote.ref.desc())
+    if limit is not None:
+        query = query.limit(limit)
+    return list(session.execute(query).scalars())
 
 
 def notes_about(

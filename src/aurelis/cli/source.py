@@ -16,7 +16,7 @@ from aurelis.runtime import Runtime
 console = Console()
 
 source_app = typer.Typer(
-    help="Sources: the free, official, keyless catalogue and the agents' choices.",
+    help="Sources: the free, operator-approved catalogue and the agents' choices.",
     no_args_is_help=True,
 )
 
@@ -39,7 +39,7 @@ def _runtime(workspace: Path | None, *, seated: bool = False) -> Runtime:
 
 @source_app.command("catalogue")
 def source_catalogue() -> None:
-    """Every source the company could read, for every market. All free and official."""
+    """Every source the company could read, for every market. All free, all approved."""
     from aurelis.sources.catalogue import CATALOGUE
 
     table = Table(title="free source catalogue")

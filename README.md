@@ -999,6 +999,7 @@ automatically by the company, five milestones in.
 | **M50** ✅ | **Social media through the device** | Reddit without an app; Telegram public channels without an account; append-only follow list, fed automatically by each memecoin's own X and Telegram links; cashtags finally match; read-only readers, no model drives a browser |
 | **M51** ✅ | **X and Discord, signed in once** | a dedicated Edge profile the person signs into with `aurelis social login`; read-only readers keep the JSON X and Discord's own pages fetch; twelve accounts and eight rotating cashtag searches a wake; signed out stops the platform |
 | **M52** ✅ | **The station shows the company at work** | rooms lit by who acted in the last ten minutes, by the ledger; the current wake and its decisions; today's counts; who is doing what; a live feed of every decision, streamed; refreshed in place |
+| **M53** ✅ | **A changed catalogue is a new question** | standing agenda duties run whenever they have work; the agents are asked about new sources at the next wake; the seat describes the operator-approved catalogue truthfully |
 
 Full acceptance criteria in [`docs/07-roadmap.md`](docs/07-roadmap.md).
 

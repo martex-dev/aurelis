@@ -334,10 +334,11 @@ def test_a_provider_outage_is_an_incident_and_the_wake_continues(
 def test_the_daily_call_budget_binds_before_the_limit(company: Runtime, clock: FrozenClock) -> None:
     _grant(company, "BTC-USD", "ETH-USD")
     feed = _GrowingFeed(clock)
-    tight = _service(company, clock, feed, calls_per_day=4)
+    # Five: the standing source question (M53) and one judgement of four.
+    tight = _service(company, clock, feed, calls_per_day=5)
     wake = cycle_once(company, service=tight)
-    assert wake.calls <= 4
-    assert wake.calls_left_today == 4 - wake.calls
+    assert wake.calls <= 5
+    assert wake.calls_left_today == 5 - wake.calls
     spent = cycle_once(company, service=tight, at=clock.now())
     assert spent.run_ref is None
     assert "budget" in spent.note

@@ -92,6 +92,13 @@ class Action:
     """Roughly what it costs in model calls. Used to stop before a budget is
     exceeded rather than after."""
 
+    standing: bool = False
+    """A standing duty runs whenever it has work, even after its condition is
+    met (M53). Choosing sources met ``sourced`` long ago, so when M50 and M51
+    added Telegram, Reddit, X and Discord to the catalogue nobody was asked:
+    the question only came up while ``sourced`` was unmet. A changed catalogue
+    is a new question whatever the mandate says."""
+
 
 def _count(session: Session, entity: Any, *where: Any) -> int:
     """Count rows of a mapped class.
@@ -454,11 +461,12 @@ AGENDA: tuple[Action, ...] = (
         key="source",
         condition="sourced",
         intent=(
-            "show a market-intelligence agent the catalogue of free, official, "
-            "keyless sources and record which it wants the company to read, and why"
+            "show a market-intelligence agent the catalogue of free, operator-approved "
+            "sources and record which it wants the company to read, and why"
         ),
         exhausted=_nothing_to_source,
         estimated_calls=1,
+        standing=True,
     ),
     Action(
         key="author",
@@ -555,8 +563,10 @@ def choose(
     recorded six times. An action that failed is exhausted for this run.
     """
     blocked: list[str] = []
-    for action in AGENDA:
-        if action.condition not in unmet:
+    # Standing duties first: each is one cheap question that has work only
+    # when something changed, and behind the judges it would wait all day.
+    for action in sorted(AGENDA, key=lambda a: not a.standing):
+        if action.condition not in unmet and not action.standing:
             continue
         if action.key in failed:
             blocked.append(
@@ -575,6 +585,8 @@ def choose(
                 f"call(s) and {budget_left} remain in the budget. Stopping "
                 "before the limit rather than through it",
             )
+        if action.condition not in unmet:
+            return Choice(action, f"{action.key} is a standing duty and has work: {action.intent}")
         return Choice(action, f"{action.condition} is unmet and {action.key} could move it")
 
     if blocked:

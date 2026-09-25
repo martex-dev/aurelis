@@ -2351,6 +2351,20 @@ the plates read `agents.state` and the seats never set it.
 
 See [ADR-0053](adr/0053-the-station-reads-the-ledger-for-what-is-happening.md).
 
+## M53 — A changed catalogue is a new question ✅
+
+Three wakes after M51 read none of the new sources, because nobody was asked.
+The source question only came up while `sourced` was unmet.
+
+- **Standing duties.** They run whenever they have work, before the rest.
+  Choosing sources is one, so a changed catalogue reaches the agents at the
+  next wake.
+- **The seat tells the truth about the catalogue.** The sources are free and
+  approved by the operator. Some are read through the operator's machine and
+  accounts.
+
+See [ADR-0054](adr/0054-a-changed-catalogue-is-a-new-question.md).
+
 ---
 
 ## Sequencing

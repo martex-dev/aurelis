@@ -1216,7 +1216,7 @@ def service_page(session: Session) -> str:
         f"<h2>Grants</h2>{grants}"
         f"<h2>Wakes</h2>{wakes}"
         "<h2>Sources the agents asked for</h2>"
-        "<p class='mono'>The catalogue holds only free, official sources, for every "
+        "<p class='mono'>The catalogue holds only free sources the operator approved, for every "
         "market; which of them the company reads is a market-intelligence agent's "
         "decision, with its reason, under a news grant a person recorded once. A source "
         "that needs a key is read once a person supplies it in the service's "
