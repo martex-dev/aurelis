@@ -289,7 +289,7 @@ def seat_sources(
                 tier=seated.authority.tier
                 if seated.authority.tier is not ModelTier.NONE
                 else ModelTier.MID,
-                identity=identity_of(seated),
+                identity=identity_of(seated, session),
                 task_ref=task_ref,
                 ledger=runtime.ledger,
                 at=moment,

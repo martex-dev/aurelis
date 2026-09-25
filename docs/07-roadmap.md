@@ -2259,6 +2259,30 @@ budget would not have helped: the work queue itself was starved.
 
 See [ADR-0048](adr/0048-the-company-works-while-there-is-work.md).
 
+## M48 — The company evolves how its agents think ✅
+
+The agents' own forward views scored 0.263 against 0.25 for a coin toss.
+Nothing in the system could change how an agent reasons.
+
+- **A written method per agent.** It is versioned, append-only, and part of
+  the agent's identity at every seat.
+- **Fitness is the forward record since adoption.** It is the mean Brier
+  with a standard error. The verdicts are unproven under 20 views, then
+  failing, chance or thriving.
+- **Daily evolution.** A failing agent gets a new method, written by the
+  best-calibrated colleague. If no colleague beats the coin toss, the agent
+  revises its own from its worst calls. An unreadable reply adopts nothing.
+- **In the wake.** Evolution runs at most once a day, within the budget. A
+  failure is an incident.
+- **Visible.** The brain line, the vault's Agents page, and
+  `aurelis evolution status|run`.
+- **The figure guard reads names as names.** `MEC-0001` is no longer the
+  figure `-0001`. A figure from the system prompt, meaning the brain, notes
+  or method, counts as shown. Six of seven live judges had been refused at
+  the market stage for citing the brain.
+
+See [ADR-0049](adr/0049-the-company-evolves-how-its-agents-think.md).
+
 ---
 
 ## Sequencing

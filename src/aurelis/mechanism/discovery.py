@@ -327,7 +327,9 @@ def propose_mechanism(
         ),
     )
     proposal = _parse(response.text)
-    permitted = allowed_figures(material, {"form": DISCOVERY_FORM, "brain": brain.record})
+    permitted = allowed_figures(
+        material, {"form": DISCOVERY_FORM, "system": system, "prompt": rendered}
+    )
     topics = (trigger_kind, second_kind, found_on)
     if proposal.declined:
         leave_note(
@@ -458,7 +460,7 @@ def seat_discovery(
             tier=seated.authority.tier
             if seated.authority.tier is not ModelTier.NONE
             else ModelTier.HIGH,
-            identity=identity_of(seated),
+            identity=identity_of(seated, session),
             task_ref=task_ref,
             ledger=runtime.ledger,
             artifacts=runtime.artifacts,

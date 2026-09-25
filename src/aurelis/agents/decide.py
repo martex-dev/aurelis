@@ -256,7 +256,9 @@ def decide_as(
     # without this an agent could not justify its pick by referring to the pick.
     # A guard that refuses an answer for citing the question is not checking
     # sourcing, it is punishing specificity.
-    permitted = allowed_figures(material, {"options": question.render()})
+    # Everything in the system prompt was shown too: the shared brain, the
+    # agent's notes and its method (M46, M48). A figure from there is sourced.
+    permitted = allowed_figures(material, {"options": question.render(), "system": system})
     invented = unsourced_numerals(reasoning, permitted)
     if invented:
         from aurelis.agents.interpret import UnsourcedFigures

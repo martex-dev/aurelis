@@ -248,6 +248,9 @@ jobs:
           aurelis brain show -w "$workspace"
           aurelis brain notes -w "$workspace"
           aurelis brain export -w "$workspace"
+          # M48: each agent's method and its forward fitness, and a run of evolution.
+          aurelis evolution status -w "$workspace"
+          aurelis evolution run -w "$workspace"
           aurelis mandate standard
           aurelis mandate assess -w "$workspace"
           aurelis mandate history -w "$workspace"

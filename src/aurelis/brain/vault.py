@@ -234,6 +234,28 @@ def _pages(session: Session, at: dt.datetime) -> dict[str, str]:
             f"Views scored: {n}; mean Brier {brier if brier is not None else 'none yet'} "
             "(0.25 is a coin toss).\n",
         ]
+        from aurelis.evolution.methods import fitness_of
+        from aurelis.evolution.tables import AgentMethod
+
+        history = list(
+            session.execute(
+                sa.select(AgentMethod)
+                .where(AgentMethod.agent_ref == ref)
+                .order_by(AgentMethod.version.desc())
+            ).scalars()
+        )
+        if history:
+            body += [
+                "## Method\n",
+                f"Version {history[0].version}, adopted {history[0].adopted_at:%Y-%m-%d}, "
+                f"written by [[{history[0].authored_by}]]. "
+                f"{fitness_of(session, ref).describe()}\n",
+                history[0].text,
+                "",
+            ]
+            for old in history[1:]:
+                body.append(f"- v{old.version} ({old.adopted_at:%Y-%m-%d}): {old.text[:160]}")
+            body.append("")
         if stated:
             body += ["## Mechanisms stated\n"] + [f"- [[{m.ref}]] {m.title}" for m in stated]
         if written:

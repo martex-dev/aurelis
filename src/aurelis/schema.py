@@ -21,6 +21,7 @@ from aurelis.autonomy import tables as _autonomy
 from aurelis.brain import tables as _brain
 from aurelis.comms import tables as _comms
 from aurelis.desks import tables as _desks
+from aurelis.evolution import tables as _evolution
 from aurelis.intel import snapshots as _snapshots
 from aurelis.intel import tables as _intel
 from aurelis.judgement import tables as _judgement
@@ -72,6 +73,7 @@ TABLE_MODULES = (
     _service,
     _sources,
     _brain,
+    _evolution,
     _world,
 )
 """Every module that defines tables, in dependency order.

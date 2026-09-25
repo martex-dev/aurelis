@@ -207,19 +207,25 @@ class GeckoTerminalCandles:
         twenty tokens (a pool lookup and a candle read each) under the
         vendor's thirty a minute, and a 429 is waited out once. The first
         dry run paced only the candle reads and was refused on six of eight
-        tokens."""
+        tokens.
+
+        The pace is the process's, shared with the trending-pools source
+        (M48), and a 429 is waited out for as long as the vendor asks, twice."""
+        from aurelis.intel.pacing import pace, retry_after
+
         request = urllib.request.Request(
             url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}
         )
         opener = self.opener or urllib.request.urlopen
-        for attempt in range(2):
-            if self.pause:
-                time.sleep(self.pause if attempt == 0 else self.pause * 10)
+        for attempt in range(3):
+            pace(self.name, self.pause)
             try:
                 with opener(request, timeout=self.timeout) as response:
                     return json.load(response)
             except urllib.error.HTTPError as error:
-                if error.code == 429 and attempt == 0:
+                if error.code == 429 and attempt < 2:
+                    if self.pause:
+                        time.sleep(retry_after(error, self.pause * 15))
                     continue
                 raise FeedUnavailable(f"{self.name} refused the request ({error.code})") from error
             except (urllib.error.URLError, TimeoutError, OSError) as error:
@@ -228,7 +234,7 @@ class GeckoTerminalCandles:
                 raise FeedUnavailable(
                     f"{self.name} answered with something that is not JSON"
                 ) from error
-        raise FeedUnavailable(f"{self.name} refused the request (429) twice")
+        raise FeedUnavailable(f"{self.name} refused the request (429) three times")
 
 
 def _bar_from(row: list[Any]) -> Bar:

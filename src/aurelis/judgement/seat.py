@@ -545,7 +545,12 @@ class Seat:
 
         permitted = allowed_figures(
             material,
-            {"question": view_question(picked.snapshot.symbol), "brain": brain.record},
+            {
+                "question": view_question(picked.snapshot.symbol),
+                "brain": brain.record,
+                "system": system,
+                "prompt": rendered,
+            },
         )
         if view.declined:
             self._declined(session, agent_ref, picked.snapshot.symbol, "", moment)
@@ -910,7 +915,7 @@ def seat_agent(
             else Adversary(
                 runtime.provider,
                 critic_ref=critic.ref,
-                identity=identity_of(critic),
+                identity=identity_of(critic, session),
                 tier=critic.authority.tier
                 if critic.authority.tier is not ModelTier.NONE
                 else ModelTier.MID,
@@ -934,7 +939,7 @@ def seat_agent(
                 task_ref=task_ref,
                 at=moment,
                 exclude=open_on | declined_on_standing(session, seated.ref),
-                identity=identity_of(seated),
+                identity=identity_of(seated, session),
             )
         except JudgementRefused as error:
             if claimed is not None:
@@ -1048,17 +1053,23 @@ def critic_for(runtime: Any, session: Session, *, author_ref: str) -> Any | None
     return None
 
 
-def identity_of(seated: Any) -> str:
-    """Who is sitting, for the system prompt: handle, department, charters."""
+def identity_of(seated: Any, session: Session | None = None) -> str:
+    """Who is sitting, for the system prompt: handle, department, charters, and
+    -- given a session -- the method the company last adopted for it (M48)."""
     from aurelis.org.registry import charter
 
     titles = sorted({charter(held).name for held in seated.coverage})
     desk = f" on the {seated.desk.value} desk" if seated.desk is not None else ""
-    return (
+    who = (
         f"You are {seated.handle} ({seated.ref}), {seated.department.value.replace('_', ' ')}"
         f"{desk}. Your charters: {', '.join(titles) or 'none'}. Read the material "
         "through that specialism; it is why you and not somebody else are being asked."
     )
+    if session is None:
+        return who
+    from aurelis.evolution.methods import method_line
+
+    return who + method_line(session, seated.ref)
 
 
 def theses_of(

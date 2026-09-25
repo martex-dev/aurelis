@@ -27,6 +27,7 @@ from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
 from aurelis.core.enums import Actor, BudgetPeriod, BudgetScope, EventKind
 from aurelis.desks.opening import Desks
+from aurelis.evolution.invariants import install_evolution_invariants
 from aurelis.intel.snapshots import Snapshots
 from aurelis.judgement.invariants import install_judgement_invariants
 from aurelis.mechanism.invariants import install_mechanism_invariants
@@ -279,6 +280,7 @@ class Runtime:
                     *install_world_invariants(connection),
                     *install_mechanism_invariants(connection),
                     *install_brain_invariants(connection),
+                    *install_evolution_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:

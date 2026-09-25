@@ -68,6 +68,10 @@ def standins() -> Callable[[LlmRequest], str]:
         prompt = request.messages[-1].content
         if "State a mechanism for this pattern" in prompt:
             return scripted_discovery(request)
+        if "Write the method" in prompt:
+            from aurelis.evolution.standin import scripted_method
+
+            return scripted_method(request)
         if "Which of these sources" in prompt:
             return scripted_sources(request)
         if any(

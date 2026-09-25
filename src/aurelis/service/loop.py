@@ -628,6 +628,32 @@ class Service:
                 f"flattened {flattened} paper position(s)"
             )
 
+        # 4b. evolution, once a day: every judging agent's method is measured
+        #     on its forward views, and a method significantly worse than a
+        #     coin toss is replaced (M48). Its calls count against the day.
+        from aurelis.evolution.methods import evolution_due, evolve
+
+        try:
+            with runtime.database.session() as session:
+                due = evolution_due(session, moment)
+            if due and left_after > 0:
+                evolved = evolve(runtime, at=moment)
+                calls += evolved.calls
+                left_after = max(0, left_after - evolved.calls)
+                notes.append(evolved.describe())
+        except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+            incidents.append(
+                self._incident(
+                    severity=Severity.WARNING,
+                    source="service.evolution",
+                    subject=service_ref,
+                    desk=None,
+                    message=f"evolution did not run: {type(error).__name__}: {error}",
+                    action="Methods are unchanged; the next wake retries.",
+                    at=moment,
+                )
+            )
+
         # 5. the shared brain: the operator's inbox is read into it, and it is
         #    rendered as a vault the operator can open in Obsidian (M46). The
         #    record is the database; a vault that fails to render is a warning.

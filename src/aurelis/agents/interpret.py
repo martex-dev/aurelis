@@ -44,7 +44,12 @@ __all__ = [
 #: ("two things stand out"), and everything else must be sourced.
 _FREE_NUMERALS = frozenset({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"})
 
-_NUMERAL = re.compile(r"-?\d+(?:[.,]\d+)*%?")
+#: A figure is a digit run that stands on its own. One glued to a word -- the
+#: ``0001`` of ``MEC-0001``, the ``1`` of ``H1`` -- is part of a name, and a
+#: name is not a claim about the data. Before M48 the company's own refs read
+#: as figures (``MEC-0001`` as ``-0001``), and an agent that cited the shared
+#: brain by ref was refused for inventing a number.
+_NUMERAL = re.compile(r"(?<![\w.])(?<!\w-)-?\d+(?:[.,]\d+)*%?")
 
 
 def unsourced_numerals(text: str, allowed: set[str]) -> list[str]:
@@ -197,7 +202,7 @@ def interpret_as(
         ),
     )
 
-    permitted = allowed_figures(material)
+    permitted = allowed_figures(material, {"system": system})
     invented = unsourced_numerals(response.text, permitted)
     if invented:
         raise UnsourcedFigures(invented, len(permitted))

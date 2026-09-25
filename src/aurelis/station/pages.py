@@ -210,6 +210,82 @@ def agents_page(session: Session) -> str:
     return f"<h1>Staff</h1><p class='mono'>{len(rows)} hired.</p>{table}"
 
 
+def _method_section(session: Session, agent_ref: str) -> str:
+    """How the agent forms a view, how that has scored, and how it changed (M48)."""
+    from aurelis.evolution.methods import fitness_of
+    from aurelis.evolution.tables import AgentMethod
+    from aurelis.station.figures import Figure, Source
+
+    fit = fitness_of(session, agent_ref)
+    scored = Source.table(
+        "theses", "Brier of this agent's live views scored since its method was adopted"
+    )
+
+    def cited(value: Any) -> Figure:
+        if value is None:
+            return Figure.absent(f"fewer than 2 views scored since adoption ({fit.views})")
+        return Figure(value, scored)
+    versions = (
+        session.execute(
+            sa.select(AgentMethod)
+            .where(AgentMethod.agent_ref == agent_ref)
+            .order_by(AgentMethod.version.desc())
+        )
+        .scalars()
+        .all()
+    )
+    current = versions[0] if versions else None
+    head = (
+        f"<p class='mono'>version {current.version}, written by "
+        f"<a href='/agent/{escape_text(current.authored_by)}'>"
+        f"{escape_text(current.authored_by)}</a> {_when(current.adopted_at)}</p>"
+        f"<div class='panel'><p>{escape_text(current.text)}</p></div>"
+        if current is not None
+        else "<p class='mono'>No written method: the agent works from its charter.</p>"
+    )
+    history = (
+        _rows(
+            ["version", "adopted", "written by", "replaced a record of", "why"],
+            [
+                [
+                    escape_text(str(m.version)),
+                    _when(m.adopted_at),
+                    escape_text(m.authored_by),
+                    escape_text(
+                        f"Brier {m.baseline_brier} over {m.baseline_views} views"
+                        if m.baseline_brier
+                        else "none"
+                    ),
+                    escape_text(m.reason[:200]),
+                ]
+                for m in versions
+            ],
+        )
+        if versions
+        else ""
+    )
+    return (
+        "<h2>Method</h2>"
+        + head
+        + "<div class='panel'>"
+        + _kv(
+            [
+                ("verdict", _pill(fit.verdict)),
+                ("views under it", figure_span(Figure(fit.views, scored))),
+                ("brier", figure_span(cited(fit.brier))),
+                ("std err", figure_span(cited(fit.error))),
+            ]
+        )
+        + "</div>"
+        + history
+        + "<p class='mono'>Once a day the company scores each method by the views "
+        "sealed under it. More than one standard error worse than a coin toss, over "
+        "at least 20 views, and the best-calibrated colleague writes a replacement, "
+        "or the agent revises its own if nobody is beating chance. Every version "
+        "is kept.</p>"
+    )
+
+
 def agent_page(session: Session, ref: str) -> str | None:
     view = proj.agent_view(session, ref)
     if view is None:
@@ -276,7 +352,8 @@ def agent_page(session: Session, ref: str) -> str | None:
         "when the horizon expired. Brier: (p - outcome)^2, lower is better, 0.25 "
         "is always saying 50%. Market recordings only; views on fixtures are "
         "counted beside, never in. See <a href='/theses'>theses</a>.</p>"
-        "<h2>As the adversary</h2>"
+        + _method_section(session, view.ref)
+        + "<h2>As the adversary</h2>"
         "<div class='panel'>"
         + _kv(
             [

@@ -239,7 +239,10 @@ class Adversary:
                 self.critic_ref, "unreadable", str(error), response.usage.total, response.usd, True
             )
         invented = unsourced_numerals(
-            text, allowed_figures(shown, {"form": ATTACK_FORM, "brain": brain.record})
+            text,
+            allowed_figures(
+                shown, {"form": ATTACK_FORM, "brain": brain.record, "prompt": rendered}
+            ),
         )
         if invented:
             return Attack(

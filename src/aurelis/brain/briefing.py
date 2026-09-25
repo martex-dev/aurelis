@@ -227,6 +227,20 @@ def _company_brief(session: Session) -> str:
             line += f"; best calibrated {best[0]} at {_dec(best[2])} over {best[1]}"
         lines.append(line + ".")
 
+    from aurelis.autonomy.agenda import _judges
+    from aurelis.evolution.methods import current_method, fitness_of
+
+    methods: list[str] = []
+    for agent in _judges(session):
+        fit = fitness_of(session, agent.ref)
+        if fit.verdict == "unproven":
+            continue
+        method = current_method(session, agent.ref)
+        version = f"method v{method.version}" if method is not None else "charter only"
+        methods.append(f"{agent.ref} {fit.verdict} ({version}, Brier {fit.brier} over {fit.views})")
+    if methods:
+        lines.append("Analysts under their current methods: " + "; ".join(methods) + ".")
+
     from aurelis.mechanism.paper import pnl_of
 
     books = [pnl_of(session, s.mechanism.ref) for s in statuses]
