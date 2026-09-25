@@ -41,6 +41,7 @@ from aurelis.cli.orgdev import orgdev_app
 from aurelis.cli.research import research_app
 from aurelis.cli.run import run_app
 from aurelis.cli.service import service_app
+from aurelis.cli.social import social_app
 from aurelis.cli.source import source_app
 from aurelis.cli.station import station_app
 from aurelis.cli.strategy import strategy_app
@@ -84,6 +85,7 @@ app.add_typer(mechanism_app, name="mechanism")
 app.add_typer(source_app, name="source")
 app.add_typer(brain_app, name="brain")
 app.add_typer(evolution_app, name="evolution")
+app.add_typer(social_app, name="social")
 
 def _force_utf8() -> None:
     """Make the console safe for arbitrary text.

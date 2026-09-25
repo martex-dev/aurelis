@@ -2299,6 +2299,25 @@ stage showed only price.
 
 See [ADR-0050](adr/0050-the-judge-sees-what-the-mechanisms-see.md).
 
+## M50 — The company follows social media through the device ✅
+
+The operator asked that the agents read X, Discord, Telegram and Reddit
+through their device, and accepted the ban risk. The agents decide what to
+read, and deterministic, read-only code reads it. No model drives a browser.
+
+- **Reddit without an app**, from Reddit's own Atom feed: memecoin and crypto
+  subreddits.
+- **Telegram public channels** through `t.me/s/<channel>`: text, time and
+  views, with no account.
+- **Social targets.** Follows and drops are append-only, with who decided and
+  why. Each followed memecoin's own X account and Telegram channel are
+  followed automatically, from its DEX Screener listing.
+  `aurelis social follow|drop|list`.
+- **Cashtags count.** `$BTC` and `$MOON` were never matched, which was a
+  leftover from headline matching. A memecoin is matched by its cashtag.
+
+See [ADR-0051](adr/0051-the-company-follows-social-media-through-the-device.md).
+
 ---
 
 ## Sequencing

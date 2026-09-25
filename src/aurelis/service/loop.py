@@ -498,6 +498,12 @@ class Service:
 
                 with runtime.database.session() as session:
                     names = names_of(session, tuple(followed_keys))
+            # Whom the per-handle readers follow: explicit follows, and each
+            # followed token's own published channels (M50).
+            from aurelis.social.targets import active_targets
+
+            with runtime.database.session() as session:
+                targets = active_targets(session, tokens=tuple(followed_keys))
             read = events = bursts = 0
             for name in wanted:
                 source = CATALOGUE[name]
@@ -508,7 +514,9 @@ class Service:
                     )
                     continue
                 try:
-                    brought = fetch_source(source, self._news(name), symbols, names=names)
+                    brought = fetch_source(
+                        source, self._news(name), symbols, names=names, targets=targets
+                    )
                     with runtime.database.session() as session:
                         new_events, new_bursts = record_source(
                             session,
@@ -518,10 +526,16 @@ class Service:
                             instruments=symbols,
                             clock=runtime.clock,
                             at=moment,
+                            names=names,
                         )
                     read += 1
                     events += new_events
                     bursts += new_bursts
+                    if source.kind == "telegram":
+                        followed = sum(1 for t in targets if t.platform == "telegram")
+                        notes.append(
+                            f"{name}: {brought.requests} of {followed} followed channel(s) read"
+                        )
                     if brought.failures:
                         asked = brought.requests + len(brought.failures)
                         notes.append(

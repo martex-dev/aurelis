@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import html
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -343,21 +345,92 @@ class RedditListing:
             timeout=self.timeout,
             name=self.name,
         )
+        return reddit_listing(data)
+
+
+def reddit_listing(data: Any) -> list[Post]:
+    """A Reddit listing's posts, whichever way the listing was fetched."""
+    out: list[Post] = []
+    for child in ((data or {}).get("data") or {}).get("children") or []:
+        item = child.get("data") or {}
+        title = str(item.get("title", ""))
+        body = str(item.get("selftext", ""))[:400]
+        out.append(
+            Post(
+                id=f"reddit:{item.get('name')}",
+                at=_when(item.get("created_utc")),
+                author=str(item.get("author", "")),
+                text=f"{title} {body}".strip(),
+                url=f"https://www.reddit.com{item.get('permalink', '')}",
+                likes=int(item.get("score") or 0),
+                reposts=int(item.get("num_comments") or 0),
+                venue=str(item.get("subreddit", "")),
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True, slots=True)
+class RedditWeb:
+    """A subreddit's newest posts from Reddit's own Atom feed, without an app (M50).
+
+    Reddit's OAuth API needs an app Reddit has approved, and its logged-out
+    JSON now redirects to a login page. The Atom feed Reddit publishes for
+    every subreddit, ``www.reddit.com/r/<subs>/new/.rss``, still answers: the
+    newest 25 posts across the named subreddits. One request per listing per
+    wake, read-only. The feed carries no score, so ``likes`` stays 0.
+    """
+
+    source: Source
+    timeout: int = 25
+    opener: Any = None
+
+    @property
+    def name(self) -> str:
+        return self.source.name
+
+    def posts(self, listing_url: str | None = None) -> list[Post]:
+        import xml.etree.ElementTree as ET
+
+        request = urllib.request.Request(
+            listing_url or self.source.url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/atom+xml"},
+        )
+        fetch = self.opener or urllib.request.urlopen
+        try:
+            with fetch(request, timeout=self.timeout) as response:
+                payload = response.read()
+                final = response.geturl() if hasattr(response, "geturl") else ""
+        except urllib.error.HTTPError as error:
+            raise FeedUnavailable(f"{self.name} refused the request ({error.code})") from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise FeedUnavailable(f"{self.name} could not be reached: {error}") from error
+        if "/login" in str(final):
+            raise FeedUnavailable(f"{self.name}: Reddit sent a logged-out reader to its login page")
+        try:
+            root = ET.fromstring(payload)
+        except ET.ParseError as error:
+            raise FeedUnavailable(
+                f"{self.name} answered with something that is not a feed"
+            ) from error
+        atom = "{http://www.w3.org/2005/Atom}"
         out: list[Post] = []
-        for child in (data.get("data") or {}).get("children") or []:
-            item = child.get("data") or {}
-            title = str(item.get("title", ""))
-            body = str(item.get("selftext", ""))[:400]
+        for entry in root.iter(f"{atom}entry"):
+            link = entry.find(f"{atom}link")
+            category = entry.find(f"{atom}category")
+            author = entry.find(f"{atom}author/{atom}name")
+            content = entry.findtext(f"{atom}content") or ""
+            body = " ".join(re.sub(r"<[^>]+>", " ", html.unescape(content)).split())[:400]
             out.append(
                 Post(
-                    id=f"reddit:{item.get('name')}",
-                    at=_when(item.get("created_utc")),
-                    author=str(item.get("author", "")),
-                    text=f"{title} {body}".strip(),
-                    url=f"https://www.reddit.com{item.get('permalink', '')}",
-                    likes=int(item.get("score") or 0),
-                    reposts=int(item.get("num_comments") or 0),
-                    venue=str(item.get("subreddit", "")),
+                    id=f"reddit:{entry.findtext(f'{atom}id') or ''}",
+                    at=_when(
+                        entry.findtext(f"{atom}published") or entry.findtext(f"{atom}updated")
+                    ),
+                    author=(author.text or "").removeprefix("/u/") if author is not None else "",
+                    text=f"{entry.findtext(f'{atom}title') or ''} {body}".strip(),
+                    url=link.get("href", "") if link is not None else "",
+                    venue=category.get("term", "") if category is not None else "",
                 )
             )
         return out
@@ -377,6 +450,7 @@ def record_posts(
     clock: Clock,
     at: dt.datetime | None = None,
     on: str | None = None,
+    names: dict[str, str] | None = None,
 ) -> tuple[int, int]:
     """Record posts as ``social.post`` on instruments, then the bursts.
 
@@ -409,7 +483,7 @@ def record_posts(
     for post in posts:
         if post.at is None or post.at > moment:
             continue
-        targets = [on] if on else mentions_of(post.text, instruments)
+        targets = [on] if on else mentions_of(post.text, instruments, names)
         for symbol in targets:
             _, created = world.record(
                 session,

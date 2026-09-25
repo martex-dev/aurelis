@@ -133,6 +133,9 @@ class RefKind(StrEnum):
     because a thesis is cited by its own score, and the wrong ones are cited
     more often than the right ones."""
 
+    SOCIAL_TARGET = "SOC"
+    """One decision to follow or drop a handle on a social platform (M50)."""
+
     METHOD = "MTH"
     """One version of one agent's method: how it forms a view. Its own prefix
     because views are scored against the method they were sealed under."""

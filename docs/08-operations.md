@@ -301,6 +301,27 @@ app password (Bluesky: Settings, Privacy and security, App passwords), set
 `AURELIS_KEY_BLUESKY_HANDLE` and `AURELIS_KEY_BLUESKY_APP_PASSWORD`, and the
 reader searches signed in. `aurelis source keys` lists these two as optional.
 
+**Social media through this machine (M50).** Reddit is also read from its
+own Atom feed (`reddit_web_crypto`, `reddit_web_memecoins`), with no app and
+no key. Telegram public channels are read through their web preview
+(`telegram_channels`), with no account. Which channels are read is the
+follow list:
+
+```powershell
+aurelis social list -w live
+aurelis social follow telegram https://t.me/whale_alert_io --reason "large transfers, often early" -w live
+aurelis social follow telegram some_eth_channel --on ETH-USD --reason "every post is about ETH" -w live
+aurelis social drop telegram some_channel --reason "only reposts the boosts" -w live
+```
+
+Each memecoin the dex grant follows brings its own X account and Telegram
+channel from its DEX Screener listing, and the list shows those as `token
+link`. A drop is permanent until someone follows the handle again. Every
+follow and drop is recorded with who decided it and why. The readers only
+read: they open the channel's own page, never a link inside a message, and
+have no way to post, react or join. A Telegram group has no public preview
+and cannot be read this way; the wake names each channel it could not read.
+
 In the supervised setup these lines go in `<workspace>\keys.ps1`, which
 `scripts/run-aurelis.ps1` loads before it starts the service.
 

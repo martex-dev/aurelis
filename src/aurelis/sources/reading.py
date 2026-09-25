@@ -41,6 +41,10 @@ class Fetched:
     posts: list[Any] = field(default_factory=list)
     """Posts fetched for no instrument in particular: a subreddit."""
 
+    by_target: list[tuple[str | None, list[Any]]] = field(default_factory=list)
+    """Posts fetched per followed handle, with the instrument the handle is
+    about, or ``None`` to match each post by its text (M50)."""
+
     boosts: Any = None
     trending: dict[str, list[Any]] = field(default_factory=dict)
     failures: dict[str, str] = field(default_factory=dict)
@@ -51,6 +55,8 @@ class Fetched:
         """How many reads succeeded: one per instrument or network, else one."""
         if self.posts_on:
             return len(self.posts_on)
+        if self.source.kind == "telegram":
+            return len(self.by_target)
         if self.trending:
             return len(self.trending)
         return 1
@@ -108,10 +114,12 @@ def fetch_source(
     instruments: tuple[str, ...],
     *,
     names: dict[str, str] | None = None,
+    targets: list[Any] | None = None,
 ) -> Fetched:
     """The network step. Raises :class:`FeedUnavailable` as the reader does,
     except per instrument, where it collects. ``names`` gives a token keyed
-    by chain and contract the ticker a social reader searches by."""
+    by chain and contract the ticker a social reader searches by; ``targets``
+    the handles a per-handle reader follows (M50)."""
     kind = source.kind
     if kind in ("rss", "cryptopanic"):
         return Fetched(source, entries=list(feed.entries()))
@@ -123,8 +131,22 @@ def fetch_source(
         from aurelis.intel.social import bluesky_queries
 
         return _per_instrument(source, feed, instruments, bluesky_queries, names)
-    if kind == "reddit":
+    if kind in ("reddit", "reddit_web"):
         return Fetched(source, posts=list(feed.posts(source.url)))
+    if kind == "telegram":
+        by_target: list[tuple[str | None, list[Any]]] = []
+        missed: dict[str, str] = {}
+        wanted = [t for t in (targets or []) if t.platform == "telegram"]
+        for target in wanted:
+            try:
+                by_target.append((target.on, list(feed.posts(target.handle))))
+            except FeedUnavailable as error:
+                missed[target.handle] = str(error)[:120]
+        if wanted and not by_target:
+            raise FeedUnavailable(
+                f"{source.name} failed on every channel; first: {next(iter(missed.values()))}"
+            )
+        return Fetched(source, by_target=by_target, failures=missed)
     if kind == "dexscreener":
         from aurelis.intel.onchain import fetch_boosts
 
@@ -156,8 +178,10 @@ def record_source(
     instruments: tuple[str, ...],
     clock: Clock,
     at: dt.datetime | None = None,
+    names: dict[str, str] | None = None,
 ) -> tuple[int, int]:
-    """The record step: ``(events recorded, bursts recorded)``."""
+    """The record step: ``(events recorded, bursts recorded)``. ``names`` gives
+    a token keyed by chain and contract the ticker its cashtag uses (M50)."""
     source = fetched.source
     kind = source.kind
     if kind in ("rss", "cryptopanic"):
@@ -187,12 +211,33 @@ def record_source(
                 instruments=instruments,
                 clock=clock,
                 at=at,
+                names=names,
                 on=instrument,
             )
             events += new
             bursts += burst
         return events, bursts
-    if kind == "reddit":
+    if kind == "telegram":
+        from aurelis.intel.social import record_posts
+
+        events = bursts = 0
+        for on, posts in fetched.by_target:
+            new, burst = record_posts(
+                session,
+                world,
+                artifacts,
+                source=source,
+                posts=posts,
+                instruments=instruments,
+                clock=clock,
+                at=at,
+                names=names,
+                on=on if on in instruments else None,
+            )
+            events += new
+            bursts += burst
+        return events, bursts
+    if kind in ("reddit", "reddit_web"):
         from aurelis.intel.social import record_posts
 
         return record_posts(
@@ -204,6 +249,7 @@ def record_source(
             instruments=instruments,
             clock=clock,
             at=at,
+            names=names,
         )
     if kind == "dexscreener":
         from aurelis.intel.onchain import record_boosts

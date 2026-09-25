@@ -58,6 +58,7 @@ from aurelis.research.triggers import install_research_invariants
 from aurelis.risk.authority import Risk
 from aurelis.service.grants import Grants
 from aurelis.service.invariants import install_service_invariants
+from aurelis.social.invariants import install_social_invariants
 from aurelis.strategy.gates import Gates
 from aurelis.strategy.lifecycle import Strategies
 from aurelis.strategy.synthesis import Synthesis
@@ -281,6 +282,7 @@ class Runtime:
                     *install_mechanism_invariants(connection),
                     *install_brain_invariants(connection),
                     *install_evolution_invariants(connection),
+                    *install_social_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:

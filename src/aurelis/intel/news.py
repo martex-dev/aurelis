@@ -183,17 +183,41 @@ class RssFeed:
         return parse_rss(payload)
 
 
-def mentions_of(text: str, instruments: tuple[str, ...] | list[str]) -> list[str]:
-    """Which of these spot instruments a headline names, by ticker or alias."""
+def mentions_of(
+    text: str,
+    instruments: tuple[str, ...] | list[str],
+    names: dict[str, str] | None = None,
+) -> list[str]:
+    """Which of these instruments a text names, by ticker, cashtag or alias.
+
+    A cashtag (``$BTC``, ``$moon``) names its ticker even when the ticker is
+    also an English word: the ``$`` says which is meant. Before M50 a ticker
+    after a ``$`` never matched, so the social posts that name a coin the way
+    crypto posts do were never counted. A token keyed by chain and contract
+    is named by its ticker, from ``names`` (M50).
+    """
     lowered = text.lower()
     found: list[str] = []
     for symbol in instruments:
-        base = str(symbol).split("-", 1)[0].upper()
-        hit = False
-        if base not in _TICKER_IS_A_WORD and re.search(
-            rf"(?<![A-Za-z0-9$]){re.escape(base)}(?![A-Za-z0-9])", text
-        ):
-            hit = True
+        is_token = ":" in str(symbol)
+        base = (
+            (names or {}).get(str(symbol), "").upper()
+            if is_token
+            else str(symbol).split("-", 1)[0].upper()
+        )
+        if not base:
+            continue
+        cashtag = re.search(rf"(?<![A-Za-z0-9])\${re.escape(base)}(?![A-Za-z0-9])", text, re.I)
+        if is_token:
+            # A token's bare ticker is too often a word ("MOON", "CAT"): a
+            # token is named only by its cashtag.
+            if cashtag:
+                found.append(str(symbol))
+            continue
+        hit = bool(cashtag) or (
+            base not in _TICKER_IS_A_WORD
+            and re.search(rf"(?<![A-Za-z0-9$]){re.escape(base)}(?![A-Za-z0-9])", text) is not None
+        )
         if not hit:
             for alias in ALIASES.get(base, ()):
                 if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", lowered):

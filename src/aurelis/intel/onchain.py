@@ -56,6 +56,22 @@ def token_key(chain: str, address: str) -> str:
     return f"{chain}:{address}"
 
 
+def _links_of(item: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    """``[{"type": "twitter", "url": ...}]`` to ``(("x", url),)``: X and
+    Telegram by type, first of each; a site or a label kept as ``website``."""
+    found: dict[str, str] = {}
+    for link in item.get("links") or []:
+        if not isinstance(link, dict):
+            continue
+        url = str(link.get("url", "")).strip()
+        kind = str(link.get("type") or "").lower()
+        if not url.startswith("https://"):
+            continue
+        name = {"twitter": "x", "x": "x", "telegram": "telegram"}.get(kind, "website")
+        found.setdefault(name, url[:200])
+    return tuple(sorted(found.items()))
+
+
 @dataclass(frozen=True, slots=True)
 class Boost:
     chain: str
@@ -65,6 +81,9 @@ class Boost:
     url: str
     description: str
     top: bool
+    links: tuple[tuple[str, str], ...] = ()
+    """The token's own published links, ``(type, url)``: its X account, its
+    Telegram channel, its site. What the social targets follow (M50)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +197,7 @@ class DexScreenerBoosts:
                     url=str(item.get("url", "")),
                     description=str(item.get("description", ""))[:200],
                     top=top,
+                    links=_links_of(item),
                 )
             )
         return out
@@ -294,6 +314,7 @@ def record_boosts(
                 "token_name": pair.name if pair else "",
                 "dex": pair.dex if pair else "",
                 "pair": pair.pair_address if pair else "",
+                "links": dict(boost.links),
             },
             source=source.url,
             at=moment,

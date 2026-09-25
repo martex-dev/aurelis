@@ -54,10 +54,15 @@ KINDS: tuple[str, ...] = (
     "cryptopanic",
     "dexscreener",
     "geckoterminal",
+    "reddit_web",
+    "telegram",
 )
 """How a source is read. Each kind has one reader in
-:mod:`aurelis.intel.news`, :mod:`aurelis.intel.social` or
-:mod:`aurelis.intel.onchain`, built by :func:`aurelis.service.grants.news_for`."""
+:mod:`aurelis.intel.news`, :mod:`aurelis.intel.social`,
+:mod:`aurelis.intel.onchain` or :mod:`aurelis.intel.telegram`, built by
+:func:`aurelis.service.grants.news_for`. ``reddit_web`` and ``telegram``
+(M50) read what the platforms serve to any visitor, at the operator's
+direction, rather than an API a vendor issues."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +211,33 @@ CATALOGUE: dict[str, Source] = {
             kind="reddit",
             markets=("equities", "options"),
             keys=(f"{KEY_PREFIX}REDDIT_CLIENT_ID", f"{KEY_PREFIX}REDDIT_CLIENT_SECRET"),
+        ),
+        # -- read without an app or an account (M50) ----------------------------
+        Source(
+            "reddit_web_crypto",
+            "https://www.reddit.com/r/CryptoCurrency+CryptoMarkets+Bitcoin+ethtrader+altcoin/new/.rss",
+            "Reddit r/CryptoCurrency, r/CryptoMarkets, r/Bitcoin, r/ethtrader and "
+            "r/altcoin: the newest 25 posts from Reddit's own feed; no app, no key",
+            kind="reddit_web",
+            markets=("crypto",),
+        ),
+        Source(
+            "reddit_web_memecoins",
+            "https://www.reddit.com/r/memecoins+CryptoMoonShots+SatoshiStreetBets+solana+pumpfun/new/.rss",
+            "Reddit r/memecoins, r/CryptoMoonShots, r/SatoshiStreetBets, r/solana and "
+            "r/pumpfun: the newest 25 posts from Reddit's own feed, where memecoin "
+            "attention forms; no app, no key",
+            kind="reddit_web",
+            markets=("memecoin",),
+        ),
+        Source(
+            "telegram_channels",
+            "https://t.me/s/",
+            "Telegram public channels the company follows: each followed memecoin's own "
+            "channel, and any channel a person or an agent chose, with each message's "
+            "views; groups have no public preview and are not read",
+            kind="telegram",
+            markets=("crypto", "memecoin"),
         ),
         # -- on-chain attention, memecoins --------------------------------------
         Source(

@@ -248,6 +248,10 @@ jobs:
           aurelis brain show -w "$workspace"
           aurelis brain notes -w "$workspace"
           aurelis brain export -w "$workspace"
+          # M50: the follow list, by the operator; nothing is fetched here.
+          aurelis social follow telegram whale_alert_io --reason "CI rehearsal: large transfers" -w "$workspace"
+          aurelis social list -w "$workspace"
+          aurelis social drop telegram whale_alert_io --reason "CI rehearsal: dropped again" -w "$workspace"
           # M48: each agent's method and its forward fitness, and a run of evolution.
           aurelis evolution status -w "$workspace"
           aurelis evolution run -w "$workspace"

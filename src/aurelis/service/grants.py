@@ -244,6 +244,14 @@ def news_for(name: str) -> Any:
         from aurelis.intel.social import RedditListing
 
         return RedditListing(source)
+    if source.kind == "reddit_web":
+        from aurelis.intel.social import RedditWeb
+
+        return RedditWeb(source)
+    if source.kind == "telegram":
+        from aurelis.intel.telegram import TelegramPublic
+
+        return TelegramPublic(source)
     if source.kind == "dexscreener":
         from aurelis.intel.onchain import DexScreenerBoosts
 

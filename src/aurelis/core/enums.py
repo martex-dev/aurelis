@@ -173,6 +173,8 @@ class EventKind(StrEnum):
     BRAIN_NOTED = "brain.noted"
     METHOD_ADOPTED = "agent.method_adopted"
     EVOLUTION_RAN = "org.evolution_ran"
+    SOCIAL_FOLLOWED = "social.followed"
+    SOCIAL_DROPPED = "social.dropped"
     SOURCE_REQUESTED = "source.requested"
     """An agent asked the company to read a source from the free catalogue, and
     said why. The service reads it under the source-class grant."""
