@@ -222,22 +222,13 @@ def social_login(
 @social_app.command("list")
 def social_list(workspace: WorkspaceOption = None) -> None:
     """Every handle the next wake reads, with where it came from."""
-    from aurelis.intel.dex import DexRule, followed_tokens
-    from aurelis.service.grants import Grants
-    from aurelis.social.targets import active_targets
+    from aurelis.social.curation import followed_targets
 
     runtime = _runtime(workspace)
     try:
         runtime.initialise()
         with runtime.database.session() as session:
-            tokens: list[str] = []
-            for grant in Grants.active(session):
-                if grant.is_dex:
-                    rule = DexRule.parse(grant.rule, tuple(str(n) for n in grant.instruments))
-                    tokens += [
-                        k for k, _ in followed_tokens(session, rule=rule, at=runtime.clock.now())
-                    ]
-            rows = active_targets(session, tokens=tuple(tokens))
+            rows = followed_targets(session, at=runtime.clock.now())
     finally:
         runtime.close()
     table = Table(title="social targets the next wake reads")
@@ -258,3 +249,63 @@ def social_list(workspace: WorkspaceOption = None) -> None:
         "X and Discord are read once a person has signed in (`aurelis social login`, "
         "M51).[/dim]"
     )
+
+
+@social_app.command("voices")
+def social_voices(
+    workspace: WorkspaceOption = None,
+    limit: Annotated[int, typer.Option(help="Voices shown, followed first.")] = 40,
+) -> None:
+    """Every voice's posts against the price move after and before them (M53)."""
+    from aurelis.social.curation import followed_targets
+    from aurelis.social.voices import measure_voices
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        with runtime.database.session() as session:
+            now = runtime.clock.now()
+            board = measure_voices(session, at=now, targets=followed_targets(session, at=now))
+    finally:
+        runtime.close()
+    table = Table(title="voices against price: the 24h after each episode, against its peers")
+    for column in ("voice", "followed", "episodes", "ahead", "after %", "p", "before", "verdict"):
+        table.add_column(column, overflow="fold")
+    for voice in board.voices[:limit]:
+        table.add_row(
+            escape(voice.key),
+            escape(voice.origin or ""),
+            str(voice.episodes),
+            str(voice.ahead),
+            "" if voice.after is None else f"{voice.after:+}",
+            "" if voice.p_lead is None else str(voice.p_lead),
+            f"{voice.before_ahead}/{voice.before_episodes}",
+            escape(voice.verdict),
+        )
+    console.print(table)
+    console.print(f"[dim]{escape(board.describe_bar())}. {len(board.voices)} voice(s) read.[/dim]")
+
+
+@social_app.command("curate")
+def social_curate(
+    workspace: WorkspaceOption = None,
+    agent: Annotated[
+        str | None,
+        typer.Option(
+            help="The agent to seat. Defaults to the market-intelligence agent "
+            "who has gone longest without curating."
+        ),
+    ] = None,
+) -> None:
+    """Seat an agent to follow and drop voices from their record. One model call."""
+    from aurelis.social.curation import curate
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        outcome = curate(runtime, agent_handle=agent)
+    finally:
+        runtime.close()
+    console.print(escape(outcome.describe()))
+    if outcome.because:
+        console.print(f"[dim]because: {escape(outcome.because)}[/dim]")

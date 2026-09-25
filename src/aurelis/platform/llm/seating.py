@@ -74,6 +74,10 @@ def standins() -> Callable[[LlmRequest], str]:
             return scripted_method(request)
         if "Which of these sources" in prompt:
             return scripted_sources(request)
+        if "Which voices should the company follow" in prompt:
+            from aurelis.social.standin import scripted_curation
+
+            return scripted_curation(request)
         if any(
             marker in prompt
             for marker in (

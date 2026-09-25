@@ -2351,6 +2351,30 @@ the plates read `agents.state` and the seats never set it.
 
 See [ADR-0053](adr/0053-the-station-reads-the-ledger-for-what-is-happening.md).
 
+## M53 — The company chooses whom it follows ✅
+
+A handle was followed because a token linked it or the operator typed it, and
+nobody measured whether it was worth reading.
+
+- **A voice's record.** Every X author, Telegram channel and Discord channel
+  the company has read is measured in software. For each post it takes the
+  instrument's move over the next 24 hours against the median of its desk's
+  other instruments, and the same over the 24 hours before. Posts are counted
+  by episode. A move inside the bar a post was made in counts as before, never
+  as a lead.
+- **A bar for the family.** A voice leads price, or trails it, by a sign test
+  at 0.05 divided by the number of voices measured.
+- **A curation seat, once a day.** A market-intelligence agent follows voices
+  whose record is ahead of their peers, and drops followed ones that do not
+  lead, from a closed set and with a reason. There is no call when nothing is
+  eligible.
+- **Since followed.** Episodes after a follow are counted apart, because
+  they are the only ones nobody chose the voice on.
+
+`aurelis social voices`, `aurelis social curate`, and the station's `/voices`.
+
+See [ADR-0054](adr/0054-the-company-chooses-whom-it-follows-by-their-lead-over-price.md).
+
 ---
 
 ## Sequencing

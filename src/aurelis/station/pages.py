@@ -80,6 +80,9 @@ _STATE_TONE = {
     "closed": "dim",
     "succeeded": "ok",
     "failed": "bad",
+    "leads price": "ok",
+    "trails price": "bad",
+    "no measured lead": "warn",
 }
 
 
@@ -1258,6 +1261,97 @@ def brain_page(session: Session) -> str:
         "a Markdown file in its <code>Inbox</code> to add a note as the operator.</p>"
         f"<h2>Record</h2><pre class='mono'>{escape_text(brain.record) or 'Nothing yet.'}</pre>"
         f"<h2>Notes</h2>{notes}"
+    )
+
+
+def voices_page(session: Session, *, now: dt.datetime) -> str:
+    """Whom the company follows, whom it could, and each one's record against
+    price (M53). Measured on the request, from the posts and recordings."""
+    from aurelis.platform.db.tables import Event
+    from aurelis.social.curation import followed_targets
+    from aurelis.social.voices import HORIZON, MIN_EPISODES, measure_voices
+
+    board = measure_voices(session, at=now, targets=followed_targets(session, at=now))
+
+    def verdict(value: str) -> str:
+        return _pill(value) if not value.startswith("gathering") else escape_text(value)
+
+    rows = _rows(
+        [
+            "voice",
+            "followed by",
+            "posts",
+            "episodes",
+            "ahead after",
+            "median after %",
+            "p",
+            "ahead before",
+            "since followed",
+            "verdict",
+        ],
+        [
+            [
+                escape_text(v.key),
+                escape_text(v.origin or "—"),
+                str(v.posts),
+                str(v.episodes),
+                f"{v.ahead}/{v.episodes}" if v.episodes else "—",
+                "—" if v.after is None else f"{v.after:+}",
+                "—" if v.p_lead is None else str(v.p_lead),
+                f"{v.before_ahead}/{v.before_episodes}" if v.before_episodes else "—",
+                f"{v.since_follow_ahead}/{v.since_follow}"
+                if v.followed and v.followed_since is not None
+                else "—",
+                verdict(v.verdict),
+            ]
+            for v in board.voices[:80]
+        ],
+    )
+    def said(p: dict[str, Any]) -> str:
+        if p.get("refused"):
+            return f"refused: {p['refused']}"
+        if not p.get("asked"):
+            if p.get("offered_follow") or p.get("offered_drop"):
+                return "not asked: no market-intelligence agent is active"
+            return "not asked: nothing eligible to follow or drop"
+        return str(p.get("because") or "")
+
+    sittings = session.execute(
+        sa.select(Event.created_at, Event.actor, Event.payload)
+        .where(Event.kind == "social.curated")
+        .order_by(Event.seq.desc())
+        .limit(20)
+    ).all()
+    history = _rows(
+        ["at", "agent", "offered", "followed", "dropped", "because"],
+        [
+            [
+                _when(at),
+                escape_text(actor),
+                escape_text(
+                    f"{len(p.get('offered_follow') or [])} to follow, "
+                    f"{len(p.get('offered_drop') or [])} to drop"
+                ),
+                escape_text(", ".join(p.get("followed") or []) or "—"),
+                escape_text(", ".join(p.get("dropped") or []) or "—"),
+                escape_text(said(p)),
+            ]
+            for at, actor, payload in sittings
+            for p in [payload or {}]
+        ],
+    )
+    return (
+        "<h1>Voices</h1>"
+        "<p class='mono'>Every X account, Telegram channel and Discord channel the company "
+        "has read, measured against price. For each post: the instrument's move over the "
+        f"{HORIZON.total_seconds() / 3600:.0f}h after, less the median move of the other "
+        "instruments on its desk, from the last bar closed before the post. The same over "
+        "the hours before says whether it posts after the move. Posts within a day are one "
+        f"episode, and a record is read from {MIN_EPISODES} episodes. Once a day a "
+        "market-intelligence agent follows and drops from this record.</p>"
+        f"<p class='mono'>{escape_text(board.describe_bar())}.</p>"
+        f"<h2>Record</h2>{rows}"
+        f"<h2>Curation</h2>{history}"
     )
 
 

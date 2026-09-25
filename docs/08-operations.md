@@ -323,7 +323,7 @@ have no way to post, react or join. A Telegram group has no public preview
 and cannot be read this way; the wake names each channel it could not read.
 
 **X and Discord (M51)** are read through Aurelis's own Edge profile, in
-`<workspace>rowser`, after a person signs in once:
+`<workspace>\browser`, after a person signs in once:
 
 ```powershell
 aurelis social login -w live
@@ -341,7 +341,26 @@ aurelis social follow discord https://discord.com/channels/<server>/<channel> --
 
 The agents must also ask for `x_browser` or `discord_browser` in the sources
 seat. Each wake reads up to twelve X accounts and eight rotating cashtag
-searches. Deleting `<workspace>rowser` signs Aurelis out of both sites.
+searches. Deleting `<workspace>\browser` signs Aurelis out of both sites.
+
+**Whom the company follows (M53).** Once a day a market-intelligence agent
+reviews every voice the company has read. For each X account, Telegram
+channel and Discord channel it sees the instruments' move over the 24 hours
+after its posts against their peers, and over the 24 hours before. It follows
+voices whose posts came first and drops followed ones whose posts did not.
+Its follows and drops appear in `aurelis social list` under its ref, with
+the record in the reason:
+
+```powershell
+aurelis social voices -w live
+aurelis social curate -w live
+```
+
+`voices` prints the record and the bar a lead must clear. `curate` seats the
+agent now, for one model call, instead of waiting for the wake. The station
+shows the same at `/voices`. An operator follow or drop always stands until
+someone decides again, and an agent can drop an operator's follow only when
+the record says the voice does not lead.
 
 In the supervised setup these lines go in `<workspace>\keys.ps1`, which
 `scripts/run-aurelis.ps1` loads before it starts the service.

@@ -690,6 +690,35 @@ class Service:
                 )
             )
 
+        # 4c. curation, once a day under the news grant: every voice the company
+        #     has read is measured against the price move after and before its
+        #     posts, and a market-intelligence agent follows and drops from that
+        #     record (M53). No call when nothing is eligible either way.
+        from aurelis.social.curation import curate, curation_due
+
+        if news_grants:
+            try:
+                with runtime.database.session() as session:
+                    due = curation_due(session, moment)
+                if due and left_after > 0:
+                    curated = curate(runtime, at=moment)
+                    spent = 1 if curated.asked else 0
+                    calls += spent
+                    left_after = max(0, left_after - spent)
+                    notes.append(curated.describe())
+            except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                incidents.append(
+                    self._incident(
+                        severity=Severity.WARNING,
+                        source="service.curation",
+                        subject=service_ref,
+                        desk=None,
+                        message=f"curation did not run: {type(error).__name__}: {error}",
+                        action="Whom the company follows is unchanged; the next wake retries.",
+                        at=moment,
+                    )
+                )
+
         # 5. the shared brain: the operator's inbox is read into it, and it is
         #    rendered as a vault the operator can open in Obsidian (M46). The
         #    record is the database; a vault that fails to render is a warning.
