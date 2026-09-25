@@ -554,6 +554,31 @@ class Service:
                         notes.append(
                             f"{name}: {brought.requests} of {followed} followed channel(s) read"
                         )
+                        # A group or a private channel never has a public
+                        # preview: dropped once, with the reason, rather than
+                        # failed every hour. Anyone may follow it again (M53).
+                        closed = [
+                            h for h, why in brought.failures.items() if "no public preview" in why
+                        ]
+                        if closed:
+                            from aurelis.social.targets import drop_target
+
+                            with runtime.database.session() as session:
+                                for handle in closed:
+                                    drop_target(
+                                        session,
+                                        platform="telegram",
+                                        handle=handle,
+                                        reason="no public preview: a group, a private "
+                                        "channel, or gone; this reader cannot see it",
+                                        decided_by=SERVICE_ACTOR,
+                                        at=moment,
+                                        ledger=runtime.ledger,
+                                    )
+                            notes.append(
+                                f"{name}: dropped {len(closed)} channel(s) with no public "
+                                f"preview: {', '.join(closed)}"
+                            )
                     elif source.kind in ("x", "discord"):
                         notes.append(
                             f"{name}: {brought.requests} read, {len(brought.failures)} not"

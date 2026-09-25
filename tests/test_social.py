@@ -472,6 +472,10 @@ def test_the_wake_reads_every_followed_channel_and_lands_posts_where_they_belong
     ]
     assert "telegram_channels: 2 of 3 followed channel(s) read" in wake.note, wake.note
     assert "gone_private" in wake.note, "the channel that could not be read is named"
+    assert "dropped 1 channel(s) with no public preview: gone_private" in wake.note
+    with company.database.session() as session:
+        still = {t.handle for t in active_targets(session)}
+    assert still == {"whale_alert_io", "eth_only_news"}, "dropped once, not failed every hour"
 
 
 # ------------------------------------------------------------ the operator
