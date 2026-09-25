@@ -22,34 +22,125 @@ The acceptance criteria, each with a test named after it:
 from __future__ import annotations
 
 import datetime as dt
+import io
+import json
 from decimal import Decimal
 from typing import Any
 
 import pytest
 import sqlalchemy as sa
-from tests.test_schemes_trade import (
-    _START,
-    CoinbaseCandles,
-    _edge,
-    _Payload,
-    _score_all,
-    _state,
-    derive_price_events,
-)
-from tests.test_schemes_trade import clock as clock  # noqa: F401 - a fixture
-from tests.test_schemes_trade import company as company  # noqa: F401 - a fixture
 
+from aurelis.core.clock import FrozenClock
+from aurelis.core.config import Settings
 from aurelis.core.enums import EventKind
+from aurelis.intel.live import CoinbaseCandles
+from aurelis.judgement.resolution import resolve_due
 from aurelis.mandate.standard import STANDARD
 from aurelis.mechanism import earnings
+from aurelis.mechanism.discovery import propose_mechanism
 from aurelis.mechanism.earnings import family_bar, judge
 from aurelis.mechanism.library import episodes_of
 from aurelis.mechanism.predictions import generate_predictions
-from aurelis.mechanism.tables import MechanismTrade
+from aurelis.mechanism.tables import Mechanism, MechanismTrade
+from aurelis.platform.llm.providers import MockProvider
+from aurelis.platform.llm.seating import standins
 from aurelis.runtime import Runtime
 from aurelis.service.loop import Service, cycle_once
+from aurelis.world.derive import derive_price_events
 
 _HOUR = 3600
+_START = 1_780_000_000
+
+
+def _edge(count: int, *, every: int = 30, lift: float = 9.0) -> bytes:
+    """A market with a mechanical edge after each volume spike and a drift
+    near one half, as in the M31 tests: a spike-then-up mechanism is right on
+    every firing and becomes a candidate scheme."""
+    rows = []
+    level = 1000.0
+    for i in range(count):
+        r = i % every
+        spike = r == 0 and i >= 24
+        if i >= 24 and 1 <= r <= 6:
+            level += lift / 6
+        elif i >= 24 and 7 <= r <= 12:
+            level -= lift / 6
+        else:
+            level += 0.2 if ((i * 2654435761) >> 7) & 1 else -0.2
+        level += 0.005
+        volume = 60.0 if spike else 5.0
+        rows.append([_START + i * _HOUR, level - 0.5, level + 0.5, level, level, volume])
+    return json.dumps(list(reversed(rows))).encode()
+
+
+class _Payload:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def __call__(self, request: object, timeout: int = 0) -> object:  # noqa: ARG002
+        return io.BytesIO(self._data)
+
+
+def _up_mechanism(request: Any) -> str:
+    if "State a mechanism for this pattern" in request.messages[-1].content:
+        return (
+            "MECHANISM: spike then lift\nDIRECTION: up\nHORIZON: 6\nCONFIDENCE: 0.8\n"
+            "WHY: a volume spike marks forced buying by participants who must fill inside "
+            "a window, and price is pushed up until that flow is done.\n"
+            "OTHER_SIDE: passive quoters who lean against the flow and are run over.\n"
+            "DECAY: it dies once quoters widen around the spike, within a few months.\n"
+        )
+    return standins()(request)
+
+
+@pytest.fixture
+def clock() -> FrozenClock:
+    return FrozenClock(dt.datetime.fromtimestamp(_START + 200 * _HOUR + 600, tz=dt.UTC))
+
+
+@pytest.fixture
+def company(settings: Settings, clock: FrozenClock) -> Any:
+    built = Runtime.build(settings, clock=clock, provider=MockProvider(responder=_up_mechanism))
+    built.initialise()
+    built.staff()
+    with built.database.session() as session:
+        snapshot = built.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Payload(_edge(900)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=900,
+        )
+        derive_price_events(session, built.world, snapshot, tail=900)
+    try:
+        yield built
+    finally:
+        built.close()
+
+
+def _state(company: Runtime) -> Mechanism:
+    with company.database.session() as session:
+        mechanism = propose_mechanism(
+            company.provider,
+            session,
+            company.mechanisms,
+            agent_ref=company.roster.by_handle(session, "QUANT").ref,
+            trigger_kind="price.volume_spike",
+            second_kind="price.range_break",
+            desk="crypto",
+            window_hours=24,
+            ledger=company.ledger,
+        )
+        assert mechanism is not None
+        return mechanism
+
+
+def _score_all(company: Runtime, mechanism: Mechanism, *, upto_bar: int) -> None:
+    with company.database.session() as session:
+        generate_predictions(session, mechanism, clock=company.clock)
+    company.clock.set(dt.datetime.fromtimestamp(_START + upto_bar * _HOUR, tz=dt.UTC))
+    with company.database.session() as session:
+        resolve_due(session, ledger=company.ledger, clock=company.clock)
 
 
 def _d(*values: str) -> list[Decimal]:
@@ -118,7 +209,7 @@ def _losing(ref: str) -> Any:
 
 
 def test_the_wake_stops_a_losing_scheme_opening_positions_once_and_says_so(
-    company: Runtime,  # noqa: F811
+    company: Runtime,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     company.clock.set(dt.datetime.fromtimestamp(_START + 30 * _HOUR, tz=dt.UTC))
@@ -154,7 +245,7 @@ def test_the_wake_stops_a_losing_scheme_opening_positions_once_and_says_so(
 
 
 def test_without_a_losing_record_the_same_wake_trades(
-    company: Runtime,  # noqa: F811
+    company: Runtime,
 ) -> None:
     company.clock.set(dt.datetime.fromtimestamp(_START + 30 * _HOUR, tz=dt.UTC))
     mechanism = _state(company)
@@ -180,7 +271,7 @@ def test_without_a_losing_record_the_same_wake_trades(
 
 
 def test_the_mandate_has_an_earning_condition_read_from_the_record(
-    company: Runtime,  # noqa: F811
+    company: Runtime,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from aurelis.mandate.assessment import assess
@@ -202,7 +293,7 @@ def test_the_mandate_has_an_earning_condition_read_from_the_record(
 
 
 def test_the_station_and_the_brain_show_each_schemes_record_after_costs(
-    company: Runtime,  # noqa: F811
+    company: Runtime,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from aurelis.brain.briefing import briefing
