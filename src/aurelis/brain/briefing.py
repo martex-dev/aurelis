@@ -261,6 +261,19 @@ def _company_brief(session: Session) -> str:
             )
         lines.append(line)
 
+        from aurelis.mechanism.earnings import earnings_board
+
+        judged = [e for e in earnings_board(session).values() if e.round_trips]
+        if judged:
+            lines.append(
+                "After costs, by episode: "
+                + "; ".join(
+                    f"{e.mechanism_ref} {e.pnl} over {e.episodes} episode(s), {e.verdict}"
+                    for e in judged
+                )
+                + "."
+            )
+
     if retired:
         lines.append("Retired, and why (do not restate without a new reason):")
         for status in retired[-6:]:

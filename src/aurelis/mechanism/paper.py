@@ -15,10 +15,10 @@ A position is opened at the reference close of the firing and closed at the
 resolution close when the prediction scores, so a mechanism's paper P&L is
 the sum of round trips it was actually right and wrong on, after fees.
 
-P&L is reported, not judged: over a short window it is mostly luck, and the
-mandate does not read it. The calibration record is the measure; the paper
-book is where a calibrated mechanism shows what that calibration is worth
-after costs.
+P&L is judged by independent episode after fees, never trade by trade
+(:mod:`aurelis.mechanism.earnings`, M55). The calibration record says the
+calls beat the drift; the paper book says whether that pays after costs, and
+a scheme losing after costs stops opening positions.
 """
 
 from __future__ import annotations
@@ -224,13 +224,15 @@ def trade_firings(
     mechanism: Mechanism,
     *,
     equity: Decimal = Decimal("100000"),
-    weight: Decimal = DEFAULT_WEIGHT,
+    weight: Decimal | None = None,
     at: dt.datetime | None = None,
 ) -> PaperResult:
     """Open a paper position on every unopened firing and close every scored one.
 
     Called only for a candidate scheme; the caller checks. Everything below
-    goes through the ordinary chain and Risk may refuse any of it.
+    goes through the ordinary chain and Risk may refuse any of it. Each
+    position is sized by the scheme's live allocation, which the record after
+    costs sets (M57); ``weight`` overrides the first allocation only.
     """
     from aurelis.trading.deployment import open_paper_book
 
@@ -245,21 +247,27 @@ def trade_firings(
         opened_by=actors["portfolio"],
         at=moment,
     )
-    if not any(a.version_ref == version_ref for a in runtime.book.allocations(session, book)):
-        runtime.book.allocate(
+    from aurelis.mechanism.earnings import earnings_of
+    from aurelis.mechanism.sizing import live_allocation, room_for, target_weight
+
+    allocation = live_allocation(runtime, session, book, version_ref)
+    if allocation is None:
+        target, why = target_weight(earnings_of(session, mechanism.ref))
+        if weight is not None:
+            target, why = weight, "the share the caller set"
+        allocation = runtime.book.allocate(
             session,
             portfolio_ref=book,
             version_ref=version_ref,
-            weight=weight,
+            weight=min(target, room_for(runtime, session, book, version_ref)),
             rationale=(
                 f"{mechanism.ref} is a candidate scheme: its out-of-sample predictions "
-                "beat a coin toss and the base rate. A small share, because the record "
-                "is measured in tens of predictions"
+                f"beat a coin toss and the base rate. Sized from its record: {why}"
             ),
             decided_by=actors["portfolio"],
             at=moment,
         )
-    exposure = equity * weight
+    exposure = equity * Decimal(str(allocation.weight))
     broker = runtime.brokers[BrokerKind.PAPER]
 
     opened: list[str] = []
@@ -281,6 +289,10 @@ def trade_firings(
     for thesis in firings:
         if thesis.scored_at is not None:
             continue  # its horizon already passed unopened; a round trip now would be hindsight
+        if exposure <= 0:
+            refused.append(thesis.ref)
+            notes.append(f"{thesis.ref}: the scheme holds no share of the book; not opened")
+            continue
         # The fill is at the newest close the wake can see, never the
         # trigger's: the order is placed now, and now may be an hour later.
         known = _executable_price(session, thesis.instrument, moment)

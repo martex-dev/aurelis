@@ -206,7 +206,8 @@ def mechanism_mine(
 
 @mechanism_app.command("trades")
 def mechanism_trades(workspace: WorkspaceOption = None) -> None:
-    """What each candidate scheme did on paper: round trips and realised P&L."""
+    """What each candidate scheme did on paper: round trips, P&L, and whether it paid."""
+    from aurelis.mechanism.earnings import earnings_board
     from aurelis.mechanism.paper import pnl_of
 
     runtime = _runtime(workspace)
@@ -217,6 +218,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
                 (s.mechanism, pnl_of(session, s.mechanism.ref))
                 for s in runtime.mechanisms.statuses(session)
             ]
+            judged = earnings_board(session)
     finally:
         runtime.close()
     table = Table(title="scheme paper trading")
@@ -230,6 +232,7 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
         "realised P&L",
         "held past horizon",
         "entry slippage bps",
+        "after costs, by episode",
     ):
         table.add_column(column, overflow="fold")
     for mechanism, summary in rows:
@@ -244,12 +247,19 @@ def mechanism_trades(workspace: WorkspaceOption = None) -> None:
             f"[{tone}]{summary['pnl']}[/{tone}]",
             f"{summary['late']} ({summary['late_pnl']})" if summary["late"] else "—",
             str(summary["slippage_bps"]) if summary["slippage_bps"] is not None else "—",
+            escape(
+                f"{judged[mechanism.ref].verdict} ({judged[mechanism.ref].won} won, "
+                f"{judged[mechanism.ref].lost} lost, drawdown {judged[mechanism.ref].drawdown})"
+            )
+            if mechanism.ref in judged
+            else "not traded",
         )
     console.print(table)
     console.print(
         "[dim]Only a candidate scheme trades, and only on paper, through Risk. P&L is "
-        "reported and never judged: over a short window it is mostly luck. The "
-        "calibration record is the measure. Fills are at the newest close the wake "
+        "judged by independent episode after fees (M55): a scheme earns only when its "
+        "winning episodes beat a coin at the bar for the family, and one losing after "
+        "costs stops opening positions. Fills are at the newest close the wake "
         "could see, not the trigger's; the slippage column is the difference, in "
         "basis points, signed so that positive is worse. A round trip held past its "
         "horizon by an outage is counted apart, in 'held past horizon', and not as the "

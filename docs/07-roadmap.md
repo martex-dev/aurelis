@@ -2365,6 +2365,111 @@ The source question only came up while `sourced` was unmet.
 
 See [ADR-0054](adr/0054-a-changed-catalogue-is-a-new-question.md).
 
+## M54 — The company chooses whom it follows ✅
+
+A handle was followed because a token linked it or the operator typed it, and
+nobody measured whether it was worth reading.
+
+- **A voice's record.** Every X author, Telegram channel and Discord channel
+  the company has read is measured in software. For each post it takes the
+  instrument's move over the next 24 hours against the median of its desk's
+  other instruments, and the same over the 24 hours before. Posts are counted
+  by episode. A move inside the bar a post was made in counts as before, never
+  as a lead.
+- **A bar for the family.** A voice leads price, or trails it, by a sign test
+  at 0.05 divided by the number of voices measured.
+- **A curation seat, once a day.** A market-intelligence agent follows voices
+  whose record is ahead of their peers, and drops followed ones that do not
+  lead, from a closed set and with a reason. There is no call when nothing is
+  eligible.
+- **Since followed.** Episodes after a follow are counted apart, because
+  they are the only ones nobody chose the voice on.
+
+`aurelis social voices`, `aurelis social curate`, and the station's `/voices`.
+
+See [ADR-0055](adr/0055-the-company-chooses-whom-it-follows-by-their-lead-over-price.md).
+
+## M55 — Money is judged after costs, by episode ✅
+
+A candidate scheme was chosen on calibration and traded on paper, and its P&L
+was "reported, never judged". A scheme can beat the drift and still lose to
+its fees and slippage.
+
+- **Its record after costs.** Round trips closed at their horizon, after
+  fees, are grouped by independent episode and counted by a sign test, with
+  the drawdown alongside.
+- **Earning needs the family bar; losing does not.** A scheme is earning at
+  0.05 divided by the number of schemes measured. It is losing at 0.05
+  undivided, because a stop protects the book.
+- **A losing scheme stops.** Risk records the suspension once, with the
+  numbers. The scheme opens nothing more, and its predictions are still
+  scored.
+- **The mandate reads it.** A fourteenth condition, `earning`, sits right
+  after `scheme`.
+
+See [ADR-0056](adr/0056-money-is-judged-after-costs-by-episode.md).
+
+## M56 — Every department works, every day ✅
+
+Seven of the seventeen launch agents never acted in the service. Judging and
+discovery also stopped for good at their first success.
+
+- **Standing research.** `judge` and `discover` run whenever they have work,
+  not only while `calibrated` and `scheme` are unmet. Their no-repeat rules
+  still hold.
+- **A daily duty per department.** The auditor verifies the ledger, round
+  trips held late and agents mostly refused. Governance re-hashes seals and
+  recordings. Infrastructure counts wakes, gaps and calls. Knowledge writes a
+  lesson from what the day closed. The research director writes the memo
+  every seat reads.
+- **Real state, not roleplay.** Findings are alerts, lessons are lesson rows
+  and brain notes, and the memo is a brain note. A figure the agent was not
+  shown withholds the text. There are two model calls a day at most.
+
+`aurelis duty list`, `aurelis duty run`.
+
+See [ADR-0057](adr/0057-every-department-works-every-day.md).
+
+## M57 — Capital follows the record ✅
+
+Every scheme was sized at 5% of the paper book from a constant. Its
+allocation row was never read again, and nothing ever withdrew one.
+
+- **A declared ladder.** A scheme gets 5% while gathering or indistinguishable
+  from luck, 10% when earning after costs, and nothing when losing. Schemes
+  together hold at most half the book.
+- **Positions are sized from the live allocation**, not a constant.
+- **The Portfolio Manager re-sizes daily.** It withdraws and re-allocates
+  where the record moved, with the reason on both rows. Risk still assesses
+  every order.
+
+See [ADR-0058](adr/0058-capital-follows-the-record.md).
+
+## M58 — A method is judged by the mechanisms too ✅
+
+A method is carried to every seat, but evolution judged it only by the
+agent's views. An agent whose every tested mechanism was retired kept its
+method.
+
+- **Discovery fitness.** This counts the mechanisms stated since the method
+  was adopted that became schemes or were retired. The record is failing at
+  five or more decided with none a scheme.
+- **Either record rewrites the method.** A colleague whose mechanisms thrive
+  writes the replacement, from the retired mechanisms and why they failed.
+
+See [ADR-0059](adr/0059-a-method-is-judged-by-the-mechanisms-too.md).
+
+## M59 — The station shows the path to real money ✅
+
+The company's conditions for asking to trade real money were assessed every
+cycle, and shown nowhere but the terminal.
+
+- **`/mandate` ("money" in the navigation).** It shows the latest
+  assessment, condition by condition, with what the record says; every
+  scheme's paper record after costs; and the verdict history.
+
+See [ADR-0060](adr/0060-the-station-shows-the-path-to-real-money.md).
+
 ---
 
 ## Sequencing

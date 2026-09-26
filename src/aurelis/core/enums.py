@@ -170,11 +170,25 @@ class EventKind(StrEnum):
     MECHANISM_RETIRED = "mechanism.retired"
     """Its out-of-sample predictions did not beat the base rate. Killed, kept."""
 
+    MECHANISM_SUSPENDED = "mechanism.suspended"
+    """A candidate scheme lost money on paper after costs, by episode, beyond
+    chance, and opens no new positions. Its predictions keep being scored (M55)."""
+
     BRAIN_NOTED = "brain.noted"
     METHOD_ADOPTED = "agent.method_adopted"
     EVOLUTION_RAN = "org.evolution_ran"
+    DUTY_DONE = "org.duty_done"
+    """A department's daily duty ran: the audit, the integrity check, the health
+    check, the lesson or the memo, with what it found. The actor is the agent
+    whose charter it is (M56)."""
+
     SOCIAL_FOLLOWED = "social.followed"
     SOCIAL_DROPPED = "social.dropped"
+    SOCIAL_CURATED = "social.curated"
+    """A market-intelligence agent was shown every voice's record against price
+    and chose whom to follow and drop, or kept everything; or nobody was asked
+    because nothing was eligible. Cites the record it was shown (M54)."""
+
     SOURCE_REQUESTED = "source.requested"
     """An agent asked the company to read a source from the free catalogue, and
     said why. The service reads it under the source-class grant."""
@@ -253,6 +267,7 @@ class EventKind(StrEnum):
 
     PORTFOLIO_OPENED = "portfolio.opened"
     ALLOCATION_DECIDED = "portfolio.allocation_decided"
+    ALLOCATION_WITHDRAWN = "portfolio.allocation_withdrawn"
     EXPOSURE_SNAPSHOT = "portfolio.exposure_snapshot"
 
     RISK_ASSESSED = "risk.assessed"

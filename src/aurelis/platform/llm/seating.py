@@ -74,6 +74,20 @@ def standins() -> Callable[[LlmRequest], str]:
             return scripted_method(request)
         if "Which of these sources" in prompt:
             return scripted_sources(request)
+        if "Write the memo for the next day" in prompt:
+            return (
+                "MEMO: Keep sealing views on the markets that moved and keep putting the "
+                "rare attention events to the analysts; say nothing on a quiet market.\n"
+            )
+        if "What should the company remember from the last day" in prompt:
+            return (
+                "LESSON: A view stated with high confidence on a market that had not moved "
+                "scored worst; confidence should follow the evidence, not the story.\n"
+            )
+        if "Which voices should the company follow" in prompt:
+            from aurelis.social.standin import scripted_curation
+
+            return scripted_curation(request)
         if any(
             marker in prompt
             for marker in (

@@ -20,7 +20,9 @@ from aurelis.platform.db.refs import allocate_ref
 
 __all__ = [
     "COIN_TOSS",
+    "DiscoveryFitness",
     "EVOLVE_EVERY",
+    "MIN_DECIDED",
     "METHOD_FORM",
     "MIN_VIEWS",
     "EvolutionRun",
@@ -28,6 +30,7 @@ __all__ = [
     "adopt_method",
     "current_method",
     "evolve",
+    "discovery_fitness_of",
     "evolution_due",
     "fitness_of",
     "method_line",
@@ -85,6 +88,72 @@ class Fitness:
             f"{self.agent_ref}: {self.views} scored views, Brier {self.brier} "
             f"(standard error {self.error}) against {COIN_TOSS} for a coin toss: {self.verdict}"
         )
+
+
+MIN_DECIDED = 5
+"""Mechanisms an agent stated, since its method was adopted, that the company
+has decided on -- candidate schemes or retired -- before its discovery is
+judged. Gathering mechanisms are not decided."""
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryFitness:
+    """How the mechanisms an agent stated under its method have fared (M58).
+
+    A method is carried to every seat, the discovery seat included, but until
+    M58 it was judged only by the agent's views. An agent whose every tested
+    mechanism was retired kept its method as long as its views were not worse
+    than a coin toss.
+    """
+
+    agent_ref: str
+    stated: int
+    schemes: int
+    retired: int
+    retired_why: tuple[str, ...] = ()
+
+    @property
+    def decided(self) -> int:
+        return self.schemes + self.retired
+
+    @property
+    def verdict(self) -> str:
+        if self.decided < MIN_DECIDED:
+            return "unproven"
+        if self.schemes == 0:
+            return "failing"
+        if 2 * self.schemes >= self.decided:
+            return "thriving"
+        return "chance"
+
+    def describe(self) -> str:
+        return (
+            f"{self.agent_ref}: {self.stated} mechanism(s) stated under this method, "
+            f"{self.schemes} candidate scheme(s), {self.retired} retired: {self.verdict}"
+        )
+
+
+def discovery_fitness_of(session: Session, agent_ref: str) -> DiscoveryFitness:
+    from aurelis.mechanism.library import Mechanisms
+    from aurelis.mechanism.tables import Mechanism
+
+    method = current_method(session, agent_ref)
+    query = sa.select(Mechanism.ref).where(Mechanism.agent_ref == agent_ref)
+    if method is not None:
+        query = query.where(Mechanism.stated_at >= method.adopted_at)
+    library = Mechanisms()
+    statuses = [library.status(session, ref) for ref in session.execute(query).scalars()]
+    retired = [s for s in statuses if s.retired]
+    return DiscoveryFitness(
+        agent_ref,
+        len(statuses),
+        sum(1 for s in statuses if s.is_scheme),
+        len(retired),
+        tuple(
+            f"{s.mechanism.ref} {s.mechanism.title!r}: {s.mechanism.retired_reason[:160]}"
+            for s in retired[:6]
+        ),
+    )
 
 
 def current_method(session: Session, agent_ref: str) -> AgentMethod | None:
@@ -240,10 +309,14 @@ class EvolutionRun:
     adopted: tuple[str, ...]
     refused: tuple[str, ...]
     calls: int
+    discovery: tuple[DiscoveryFitness, ...] = ()
 
     def describe(self) -> str:
         failing = [f.agent_ref for f in self.fitness if f.verdict == "failing"]
         thriving = [f.agent_ref for f in self.fitness if f.verdict == "thriving"]
+        stuck = [d.agent_ref for d in self.discovery if d.verdict == "failing"]
+        if stuck:
+            failing = [*failing, *(f"{a} (mechanisms)" for a in stuck if a not in failing)]
         return (
             f"evolution: {len(self.fitness)} methods measured; failing "
             f"{', '.join(failing) or 'none'}; thriving {', '.join(thriving) or 'none'}; "
@@ -290,14 +363,24 @@ def evolve(runtime: Any, *, at: dt.datetime | None = None) -> EvolutionRun:
     with runtime.database.session() as session:
         judges = _judges(session)
         fitness = tuple(fitness_of(session, a.ref) for a in judges)
+        discovery = tuple(discovery_fitness_of(session, a.ref) for a in judges)
+    found = {d.agent_ref: d for d in discovery}
     thriving = sorted(
         (f for f in fitness if f.verdict == "thriving"),
         key=lambda f: (f.brier or COIN_TOSS, f.agent_ref),
     )
+    finders = sorted(
+        (d for d in discovery if d.verdict == "thriving"),
+        key=lambda d: (-d.schemes, d.agent_ref),
+    )
     for fit in fitness:
-        if fit.verdict != "failing":
+        mechanisms = found[fit.agent_ref]
+        views_fail = fit.verdict == "failing"
+        if not views_fail and mechanisms.verdict != "failing":
             continue
-        teacher = next((t for t in thriving if t.agent_ref != fit.agent_ref), None)
+        teacher: Any = next((t for t in thriving if t.agent_ref != fit.agent_ref), None)
+        if not views_fail:
+            teacher = next((t for t in finders if t.agent_ref != fit.agent_ref), None)
         author = teacher.agent_ref if teacher is not None else fit.agent_ref
         with runtime.database.session() as session:
             own = current_method(session, fit.agent_ref)
@@ -312,21 +395,29 @@ def evolve(runtime: Any, *, at: dt.datetime | None = None) -> EvolutionRun:
                     for v in _worst_views(session, fit.agent_ref, since)
                 ],
             }
+            material["its_mechanisms"] = mechanisms.describe()
+            if mechanisms.retired_why:
+                material["why_its_mechanisms_were_retired"] = list(mechanisms.retired_why)
+            failed_at = (
+                "your views score worse than a coin toss"
+                if views_fail
+                else "every mechanism of yours the company decided on was retired"
+            )
             if teacher is not None:
                 taught = current_method(session, teacher.agent_ref)
-                material["a_colleague_who_beats_the_coin_toss"] = teacher.describe()
+                material["a_colleague_who_does_better"] = teacher.describe()
                 material["the_colleagues_method"] = (
                     taught.text if taught is not None else "none written: its charter only"
                 )
                 ask = (
                     f"Write the method {fit.agent_ref} should use from now on. You are "
-                    f"{teacher.agent_ref}, and your views beat a coin toss; its do not."
+                    f"{teacher.agent_ref}; for {fit.agent_ref}, {failed_at}."
                 )
             else:
                 ask = (
-                    f"You are {fit.agent_ref}. Your views score worse than a coin toss and "
-                    "no colleague does better than chance. Write the method you will use "
-                    "from now on, from your own worst calls."
+                    f"You are {fit.agent_ref}: {failed_at}, and no colleague does better. "
+                    "Write the method you will use from now on, from your own worst calls "
+                    "and retired mechanisms."
                 )
             rendered = f"{render_material(material)}\n\n{ask}\n\n{METHOD_FORM}"
             tier = ModelTier.HIGH
@@ -361,7 +452,7 @@ def evolve(runtime: Any, *, at: dt.datetime | None = None) -> EvolutionRun:
                 at=moment,
             )
             adopted.append(row.ref)
-    run = EvolutionRun(fitness, tuple(adopted), tuple(refused), calls)
+    run = EvolutionRun(fitness, tuple(adopted), tuple(refused), calls, discovery)
     with runtime.database.session() as session:
         runtime.ledger.append(
             session,
@@ -378,6 +469,16 @@ def evolve(runtime: Any, *, at: dt.datetime | None = None) -> EvolutionRun:
                         "verdict": f.verdict,
                     }
                     for f in fitness
+                ],
+                "discovery": [
+                    {
+                        "agent": d.agent_ref,
+                        "stated": d.stated,
+                        "schemes": d.schemes,
+                        "retired": d.retired,
+                        "verdict": d.verdict,
+                    }
+                    for d in discovery
                 ],
                 "adopted": list(adopted),
                 "refused": list(refused),

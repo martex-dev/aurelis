@@ -97,7 +97,13 @@ class Action:
     met (M53). Choosing sources met ``sourced`` long ago, so when M50 and M51
     added Telegram, Reddit, X and Discord to the catalogue nobody was asked:
     the question only came up while ``sourced`` was unmet. A changed catalogue
-    is a new question whatever the mandate says."""
+    is a new question whatever the mandate says.
+
+    Judging and discovery are standing too (M56). Gated on ``calibrated`` and
+    ``scheme``, the forward record stopped growing the day the agents first
+    beat a coin toss, and the hunt for mechanisms stopped the day one became a
+    candidate scheme. Their exhaustion rules still refuse a repeat on the same
+    evidence; what they no longer do is stop at the first success."""
 
 
 def _count(session: Session, entity: Any, *where: Any) -> int:
@@ -437,6 +443,17 @@ def _nothing_deployed(session: Session) -> str:
 
 AGENDA: tuple[Action, ...] = (
     Action(
+        key="source",
+        condition="sourced",
+        intent=(
+            "show a market-intelligence agent the catalogue of free, operator-approved "
+            "sources and record which it wants the company to read, and why"
+        ),
+        exhausted=_nothing_to_source,
+        estimated_calls=1,
+        standing=True,
+    ),
+    Action(
         key="judge",
         condition="calibrated",
         intent=(
@@ -446,6 +463,7 @@ AGENDA: tuple[Action, ...] = (
         ),
         exhausted=_nothing_to_judge,
         estimated_calls=4,
+        standing=True,
     ),
     Action(
         key="discover",
@@ -455,16 +473,6 @@ AGENDA: tuple[Action, ...] = (
             "mechanism for it, or decline; a stated mechanism starts predicting"
         ),
         exhausted=_nothing_to_discover,
-        estimated_calls=1,
-    ),
-    Action(
-        key="source",
-        condition="sourced",
-        intent=(
-            "show a market-intelligence agent the catalogue of free, operator-approved "
-            "sources and record which it wants the company to read, and why"
-        ),
-        exhausted=_nothing_to_source,
         estimated_calls=1,
         standing=True,
     ),

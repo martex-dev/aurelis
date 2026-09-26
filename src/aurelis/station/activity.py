@@ -166,6 +166,30 @@ def describe(kind: str, subject: str | None, payload: dict[str, Any]) -> str:
     if kind in ("social.followed", "social.dropped"):
         verb = "followed" if kind == "social.followed" else "dropped"
         return f"{verb} {p.get('platform')}:{p.get('handle')}: {str(p.get('because', ''))[:100]}"
+    if kind == "org.duty_done":
+        found = p.get("findings") or []
+        tail = f"; {len(found)} finding(s)" if found else ""
+        return f"{p.get('duty')}: {str(p.get('done', ''))[:140]}{tail}"
+    if kind == "mechanism.suspended":
+        return (
+            f"suspended {s} from paper: lost {p.get('pnl')} after fees over "
+            f"{p.get('episodes')} episode(s), {p.get('lost')} lost and {p.get('won')} won"
+        )
+    if kind == "social.curated":
+        measured = f"{p.get('measured')} of {p.get('voices')} voice(s) measured"
+        if p.get("refused"):
+            return f"curation refused ({measured}): {str(p.get('refused'))[:100]}"
+        if not p.get("asked"):
+            if p.get("offered_follow") or p.get("offered_drop"):
+                return f"curation: {measured}, no market-intelligence agent to ask"
+            return f"curation: {measured}, none eligible to follow or drop"
+        moved = [f"followed {v}" for v in p.get("followed") or []] + [
+            f"dropped {v}" for v in p.get("dropped") or []
+        ]
+        return (
+            f"curated whom to follow ({measured}): {', '.join(moved) or 'kept every voice'}: "
+            f"{str(p.get('because', ''))[:100]}"
+        )
     if kind == "agent.method_adopted":
         return (
             f"{p.get('agent')} adopted method v{p.get('version')} by {p.get('authored_by')}: "

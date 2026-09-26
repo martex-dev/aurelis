@@ -623,6 +623,7 @@ class Service:
             notes.append(f"{len(retired)} mechanism(s) retired")
 
         # A candidate scheme trades its firings on paper, through Risk.
+        from aurelis.mechanism.earnings import earnings_board, suspend_if_losing, suspended
         from aurelis.mechanism.paper import (
             books_with_trades,
             close_settled,
@@ -632,13 +633,30 @@ class Service:
         )
 
         traded_open = traded_closed = 0
+        halted: list[str] = []
         with runtime.database.session() as session:
+            # A scheme that lost money after costs, by episode, beyond chance
+            # opens nothing more; what it holds closes at its horizon (M55).
+            board = earnings_board(session)
             for status in runtime.mechanisms.statuses(session):
+                scheme_ref = status.mechanism.ref
                 try:
                     # One mechanism's failure is that mechanism's: its work
                     # is rolled back to a savepoint and the others trade.
                     with session.begin_nested():
-                        if status.is_scheme:
+                        stopped = suspended(session, scheme_ref)
+                        if status.is_scheme and scheme_ref in board and not stopped:
+                            stopped = suspend_if_losing(
+                                session,
+                                board[scheme_ref],
+                                ledger=runtime.ledger,
+                                actor=runtime.roster.by_handle(session, "RISK").ref,
+                                at=moment,
+                            )
+                            if stopped:
+                                earned = board[scheme_ref]
+                                halted.append(f"{scheme_ref} ({earned.pnl} over {earned.episodes})")
+                        if status.is_scheme and not stopped:
                             result = trade_firings(runtime, session, status.mechanism, at=moment)
                         elif has_open_trades(session, status.mechanism.ref):
                             # No longer a scheme, still holding: close what has
@@ -683,6 +701,10 @@ class Service:
                 flattened += len(swept.closed)
                 if swept.note:
                     notes.append(f"book {book}: {swept.note}")
+        if halted:
+            notes.append(
+                f"suspended from paper for losing after costs: {', '.join(halted)}"
+            )
         if traded_open or traded_closed or flattened:
             notes.append(
                 f"schemes: opened {traded_open}, closed {traded_closed}, "
@@ -711,6 +733,61 @@ class Service:
                     desk=None,
                     message=f"evolution did not run: {type(error).__name__}: {error}",
                     action="Methods are unchanged; the next wake retries.",
+                    at=moment,
+                )
+            )
+
+        # 4c. curation, once a day under the news grant: every voice the company
+        #     has read is measured against the price move after and before its
+        #     posts, and a market-intelligence agent follows and drops from that
+        #     record (M54). No call when nothing is eligible either way.
+        from aurelis.social.curation import curate, curation_due
+
+        if news_grants:
+            try:
+                with runtime.database.session() as session:
+                    due = curation_due(session, moment)
+                if due and left_after > 0:
+                    curated = curate(runtime, at=moment)
+                    spent = 1 if curated.asked else 0
+                    calls += spent
+                    left_after = max(0, left_after - spent)
+                    notes.append(curated.describe())
+            except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+                incidents.append(
+                    self._incident(
+                        severity=Severity.WARNING,
+                        source="service.curation",
+                        subject=service_ref,
+                        desk=None,
+                        message=f"curation did not run: {type(error).__name__}: {error}",
+                        action="Whom the company follows is unchanged; the next wake retries.",
+                        at=moment,
+                    )
+                )
+
+        # 4d. every department's daily duty (M56): the audit, the integrity
+        #     check and the health check are software; the lesson and the memo
+        #     are a model call each, and neither is made on a day with nothing
+        #     in it. Before the brain, so the vault carries what they wrote.
+        from aurelis.autonomy.duties import run_duties
+
+        try:
+            duties = run_duties(runtime, at=moment, calls_left=left_after)
+            spent = sum(d.calls for d in duties)
+            calls += spent
+            left_after = max(0, left_after - spent)
+            if duties:
+                notes.append("duties: " + "; ".join(d.describe() for d in duties))
+        except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+            incidents.append(
+                self._incident(
+                    severity=Severity.WARNING,
+                    source="service.duties",
+                    subject=service_ref,
+                    desk=None,
+                    message=f"the daily duties did not run: {type(error).__name__}: {error}",
+                    action="Nothing was audited or written today; the next wake retries.",
                     at=moment,
                 )
             )

@@ -497,6 +497,7 @@ def page(
         "<a href='/'>facility</a><a href='/timeline'>timeline</a>"
         "<a href='/theses'>theses</a><a href='/world'>world</a>"
         "<a href='/mechanisms'>mechanisms</a><a href='/brain'>brain</a>"
+        "<a href='/voices'>voices</a><a href='/mandate'>money</a>"
         "<a href='/service'>service</a>"
         "<a href='/graveyard'>graveyard</a>"
         "<a href='/knowledge'>knowledge</a>"
