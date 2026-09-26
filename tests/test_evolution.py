@@ -373,3 +373,74 @@ def test_a_method_is_append_only(settings: Settings, clock: FrozenClock) -> None
             c.execute(sa.delete(AgentMethod))
     finally:
         company.close()
+
+
+# ------------------------------------------------------------ discovery fitness (M58)
+
+
+def test_discovery_is_judged_by_the_mechanisms_decided_under_the_method() -> None:
+    from aurelis.evolution.methods import MIN_DECIDED, DiscoveryFitness
+
+    assert DiscoveryFitness("AG-X", 9, 0, MIN_DECIDED - 1).verdict == "unproven"
+    assert DiscoveryFitness("AG-X", 9, 0, MIN_DECIDED).verdict == "failing"
+    assert DiscoveryFitness("AG-X", 9, 3, 3).verdict == "thriving"
+    assert DiscoveryFitness("AG-X", 9, 1, 5).verdict == "chance"
+    assert (
+        "0 candidate scheme(s), 5 retired: failing" in DiscoveryFitness("AG-X", 7, 0, 5).describe()
+    )
+
+
+def _discovery(values: dict[str, tuple[int, int]]) -> Any:
+    from aurelis.evolution.methods import DiscoveryFitness
+
+    def fake(session: Any, agent_ref: str) -> DiscoveryFitness:  # noqa: ARG001
+        schemes, retired = values.get(agent_ref, (0, 0))
+        why = tuple(f"MEC-{n:04d} 'a story': beat by the drift" for n in range(retired))
+        return DiscoveryFitness(agent_ref, schemes + retired, schemes, retired, why)
+
+    return fake
+
+
+def test_a_method_whose_every_mechanism_was_retired_is_rewritten_by_a_colleague_who_finds_schemes(
+    settings: Settings, clock: FrozenClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = _Writer()
+    company = _company(settings, clock, writer)
+    try:
+        stuck, finder = _refs(company, "INTEL", "QUANT")
+        monkeypatch.setattr(methods, "_scored_briers", _briers({}))
+        monkeypatch.setattr(
+            methods, "discovery_fitness_of", _discovery({stuck: (0, 6), finder: (3, 2)})
+        )
+        run = evolve(company, at=clock.now())
+        with company.database.session() as session:
+            adopted = current_method(session, stuck)
+            payload = session.execute(
+                sa.text("SELECT payload FROM events WHERE kind = :k"),
+                {"k": EventKind.EVOLUTION_RAN.value},
+            ).scalar_one()
+    finally:
+        company.close()
+    assert run.adopted and adopted is not None and adopted.authored_by == finder
+    shown = writer.asked[0].messages[-1].content
+    assert "every mechanism of yours the company decided on was retired" in shown
+    assert "beat by the drift" in shown and "3 candidate scheme(s)" in shown
+    assert f"{stuck} (mechanisms)" in run.describe()
+    data = payload if isinstance(payload, dict) else json.loads(payload)
+    verdicts = {d["agent"]: d["verdict"] for d in data["discovery"]}
+    assert verdicts[stuck] == "failing" and verdicts[finder] == "thriving"
+
+
+def test_an_agent_with_too_few_decided_mechanisms_keeps_its_method(
+    settings: Settings, clock: FrozenClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = _Writer()
+    company = _company(settings, clock, writer)
+    try:
+        (agent,) = _refs(company, "INTEL")
+        monkeypatch.setattr(methods, "_scored_briers", _briers({}))
+        monkeypatch.setattr(methods, "discovery_fitness_of", _discovery({agent: (0, 4)}))
+        run = evolve(company, at=clock.now())
+    finally:
+        company.close()
+    assert run.adopted == () and writer.asked == []

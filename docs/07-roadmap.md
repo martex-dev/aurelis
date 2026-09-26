@@ -2445,6 +2445,20 @@ allocation row was never read again, and nothing ever withdrew one.
 
 See [ADR-0058](adr/0058-capital-follows-the-record.md).
 
+## M58 — A method is judged by the mechanisms too ✅
+
+A method is carried to every seat, but evolution judged it only by the
+agent's views. An agent whose every tested mechanism was retired kept its
+method.
+
+- **Discovery fitness.** This counts the mechanisms stated since the method
+  was adopted that became schemes or were retired. The record is failing at
+  five or more decided with none a scheme.
+- **Either record rewrites the method.** A colleague whose mechanisms thrive
+  writes the replacement, from the retired mechanisms and why they failed.
+
+See [ADR-0059](adr/0059-a-method-is-judged-by-the-mechanisms-too.md).
+
 ---
 
 ## Sequencing
