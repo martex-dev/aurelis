@@ -233,6 +233,11 @@ class StationApp:
             body = pages.brain_page(session)
         return self._render("Shared brain", body, "")
 
+    def _mandate(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
+        with self.runtime.database.session() as session:
+            body = pages.mandate_page(session)
+        return self._render("Path to real money", body, "")
+
     def _voices(self, _rest: list[str], _q: dict[str, list[str]]) -> Response:
         with self.runtime.database.session() as session:
             body = pages.voices_page(session, now=self.runtime.clock.now())
@@ -302,6 +307,7 @@ _ROUTES: dict[str, Route] = {
     "mechanisms": StationApp._mechanisms,
     "brain": StationApp._brain,
     "voices": StationApp._voices,
+    "mandate": StationApp._mandate,
     "mechanism": StationApp._mechanism,
     "thesis": StationApp._thesis,
     "workshop": StationApp._workshop,

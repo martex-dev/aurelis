@@ -2459,6 +2459,17 @@ method.
 
 See [ADR-0059](adr/0059-a-method-is-judged-by-the-mechanisms-too.md).
 
+## M59 — The station shows the path to real money ✅
+
+The company's conditions for asking to trade real money were assessed every
+cycle, and shown nowhere but the terminal.
+
+- **`/mandate` ("money" in the navigation).** It shows the latest
+  assessment, condition by condition, with what the record says; every
+  scheme's paper record after costs; and the verdict history.
+
+See [ADR-0060](adr/0060-the-station-shows-the-path-to-real-money.md).
+
 ---
 
 ## Sequencing

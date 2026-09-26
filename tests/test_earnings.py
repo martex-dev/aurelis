@@ -451,3 +451,27 @@ def test_schemes_together_never_hold_more_than_half_the_book(
         )
         room = sizing.room_for(company, session, book, "SV-B")
     assert room == Decimal("0.05")
+
+
+# ------------------------------------------------------------ the path to real money (M59)
+
+
+def test_the_station_shows_the_path_to_real_money(
+    company: Runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aurelis.mandate.assessment import assess
+    from aurelis.station.app import station_app
+
+    app = station_app(company)
+    before = app.handle("/mandate", {}).body.decode()
+    assert "Path to real money" in before and "has not assessed itself yet" in before
+
+    monkeypatch.setattr(earnings, "earnings_board", lambda session: _earning("MEC-0001"))
+    assess(company)
+    page = app.handle("/mandate", {}).body.decode()
+    facility = app.handle("/", {}).body.decode()
+    assert "NOT YET" in page and f"of {len(STANDARD)} conditions met" in page
+    assert "earning" in page and "UNMET" in page and "MET" in page
+    assert "MEC-0001" in page and "EARNING AFTER COSTS" in page and "11 / 1" in page
+    assert "no live adapter exists" in page
+    assert "href='/mandate'" in facility

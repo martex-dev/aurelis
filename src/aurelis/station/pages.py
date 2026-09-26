@@ -1267,6 +1267,104 @@ def brain_page(session: Session) -> str:
     )
 
 
+def mandate_page(session: Session) -> str:
+    """The path to real money: the company's own conditions for asking, as last
+    assessed, and every scheme's paper record after costs (M59)."""
+    from aurelis.mandate.tables import MandateAssessment
+    from aurelis.mechanism.earnings import earnings_board
+    from aurelis.mechanism.sizing import scheme_versions
+    from aurelis.mechanism.tables import Mechanism
+
+    history = list(
+        session.execute(
+            sa.select(MandateAssessment).order_by(MandateAssessment.assessed_at.desc()).limit(20)
+        ).scalars()
+    )
+    latest = history[0] if history else None
+    if latest is None:
+        conditions = "<p class='nodata'>The company has not assessed itself yet.</p>"
+        headline = "Never assessed."
+    else:
+        verdict = "READY TO ASK" if latest.verdict == "ready" else "NOT YET"
+        headline = (
+            f"{verdict}: {latest.met} of {latest.criteria} conditions met, assessed "
+            f"{_when(latest.assessed_at)} ({latest.ref})."
+        )
+        conditions = _rows(
+            ["condition", "met", "asks", "the record says"],
+            [
+                [
+                    escape_text(str(f.get("key"))),
+                    "<span class='pill ok'>MET</span>"
+                    if f.get("met")
+                    else "<span class='pill bad'>UNMET</span>",
+                    escape_text(str(f.get("asks", ""))),
+                    escape_text(str(f.get("reading", ""))),
+                ]
+                for f in (latest.findings or {}).get("criteria", [])
+            ],
+        )
+    board = earnings_board(session)
+    mechanisms = {
+        m.ref: m
+        for m in session.execute(
+            sa.select(Mechanism).where(Mechanism.ref.in_(list(board)))
+        ).scalars()
+    }
+    schemes = scheme_versions(session)
+    money = _rows(
+        [
+            "scheme",
+            "round trips",
+            "episodes",
+            "won / lost",
+            "P&L after fees",
+            "drawdown",
+            "verdict",
+        ],
+        [
+            [
+                f"<a href='/mechanism/{escape_text(ref)}'>{escape_text(ref)}</a> "
+                + escape_text(mechanisms[ref].title[:40] if ref in mechanisms else ""),
+                str(e.round_trips),
+                str(e.episodes),
+                f"{e.won} / {e.lost}",
+                escape_text(str(e.pnl)),
+                escape_text(str(e.drawdown)),
+                _pill(e.verdict)
+                if not e.verdict.startswith("gathering")
+                else escape_text(e.verdict),
+            ]
+            for ref, e in sorted(board.items())
+        ],
+    )
+    past = _rows(
+        ["at", "verdict", "met"],
+        [
+            [
+                _when(a.assessed_at),
+                escape_text("ready" if a.verdict == "ready" else "not yet"),
+                f"{a.met} / {a.criteria}",
+            ]
+            for a in history
+        ],
+    )
+    return (
+        "<h1>Path to real money</h1>"
+        "<p class='mono'>The company trades on paper only; no live adapter exists (ADR-0006). "
+        "It asks a person to trade real money only when every condition below is met, each "
+        "read from the record rather than from anything an agent says. The conditions are "
+        "code, and a change to them is recorded. Until then the honest answer to \"is it "
+        "making money?\" is the scheme table below: paper round trips after fees, counted "
+        "by independent episode.</p>"
+        f"<p class='mono'>{escape_text(headline)} {len(schemes)} mechanism(s) composed into "
+        "strategies.</p>"
+        f"<h2>Conditions</h2>{conditions}"
+        f"<h2>Schemes after costs</h2>{money}"
+        f"<h2>Assessments</h2>{past}"
+    )
+
+
 def voices_page(session: Session, *, now: dt.datetime) -> str:
     """Whom the company follows, whom it could, and each one's record against
     price (M54). Measured on the request, from the posts and recordings."""
