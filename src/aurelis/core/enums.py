@@ -267,6 +267,7 @@ class EventKind(StrEnum):
 
     PORTFOLIO_OPENED = "portfolio.opened"
     ALLOCATION_DECIDED = "portfolio.allocation_decided"
+    ALLOCATION_WITHDRAWN = "portfolio.allocation_withdrawn"
     EXPOSURE_SNAPSHOT = "portfolio.exposure_snapshot"
 
     RISK_ASSESSED = "risk.assessed"

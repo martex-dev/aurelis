@@ -167,7 +167,7 @@ def test_every_department_holds_a_duty_run_by_its_own_agent_once_a_day(
     with company.database.session() as session:
         actors = dict(
             session.execute(
-                sa.text("SELECT subject, actor FROM events WHERE kind = :k ORDER BY seq LIMIT 5"),
+                sa.text("SELECT subject, actor FROM events WHERE kind = :k ORDER BY seq LIMIT 10"),
                 {"k": EventKind.DUTY_DONE.value},
             ).all()
         )
@@ -177,6 +177,7 @@ def test_every_department_holds_a_duty_run_by_its_own_agent_once_a_day(
         "INFRA": "health",
         "KNOW": "lessons",
         "CIO": "memo",
+        "PM": "allocation",
     }
     assert [d.duty for d in first] == [d.key for d in DUTIES]
     for handle, key in expected.items():

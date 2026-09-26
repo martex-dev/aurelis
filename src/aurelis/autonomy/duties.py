@@ -17,6 +17,9 @@ it is, and each duty changes something real:
   view sealed in the last day still hash to what was sealed, and every
   recording fetched in the last day still verifies. A failure is a critical
   alert.
+* **Allocation** (the portfolio manager, M57): every scheme's share of the
+  paper book re-read against its record after costs and re-sized where the
+  ladder in :mod:`aurelis.mechanism.sizing` says otherwise.
 * **Health** (the infrastructure agent): how many wakes ran in the last day,
   the longest gap between them, the model calls spent and the alerts left
   open. A gap of more than three hours is an alert.
@@ -383,6 +386,66 @@ def _health(
     return DutyResult("health", by, done, tuple(findings))
 
 
+# ------------------------------------------------------------------ allocation
+
+
+def _allocation(
+    runtime: Any, session: Session, by: str, at: dt.datetime, _done: list[DutyResult]
+) -> DutyResult:
+    from decimal import Decimal
+
+    from aurelis.mechanism.earnings import earnings_board
+    from aurelis.mechanism.sizing import room_for, target_weight
+    from aurelis.mechanism.tables import Mechanism
+    from aurelis.portfolio.tables import Allocation
+
+    board = earnings_board(session)
+    changed: list[str] = []
+    read = 0
+    for mechanism in session.execute(
+        sa.select(Mechanism).where(Mechanism.version_ref.is_not(None)).order_by(Mechanism.ref)
+    ).scalars():
+        version = str(mechanism.version_ref)
+        live = list(
+            session.execute(
+                sa.select(Allocation).where(
+                    Allocation.version_ref == version, Allocation.withdrawn_at.is_(None)
+                )
+            ).scalars()
+        )
+        for allocation in live:
+            read += 1
+            target, why = target_weight(board.get(mechanism.ref))
+            target = min(target, room_for(runtime, session, allocation.portfolio_ref, version))
+            held = Decimal(str(allocation.weight))
+            if held == target:
+                continue
+            runtime.book.withdraw(
+                session,
+                allocation.ref,
+                reason=f"{mechanism.ref} re-sized from {held} to {target}: {why}"[:600],
+                withdrawn_by=by,
+                at=at,
+            )
+            if target > 0:
+                runtime.book.allocate(
+                    session,
+                    portfolio_ref=allocation.portfolio_ref,
+                    version_ref=version,
+                    weight=target,
+                    rationale=f"{mechanism.ref} re-sized from its record: {why}"[:600],
+                    decided_by=by,
+                    at=at,
+                )
+            changed.append(f"{mechanism.ref}: {held} to {target}")
+    return DutyResult(
+        "allocation",
+        by,
+        f"{read} scheme allocation(s) read against their records; {len(changed)} re-sized",
+        tuple(changed),
+    )
+
+
 # ------------------------------------------------------------------ the two that think
 
 
@@ -680,6 +743,14 @@ DUTIES: tuple[Duty, ...] = (
         "count the last day's wakes, their longest gap, model calls and open alerts",
         0,
         _health,
+    ),
+    Duty(
+        "allocation",
+        "portfolio_and_risk",
+        "PM",
+        "re-size every scheme's share of the paper book from its record after costs",
+        0,
+        _allocation,
     ),
     Duty(
         "lessons",

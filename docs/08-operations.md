@@ -343,11 +343,12 @@ The agents must also ask for `x_browser` or `discord_browser` in the sources
 seat. Each wake reads up to twelve X accounts and eight rotating cashtag
 searches. Deleting `<workspace>\browser` signs Aurelis out of both sites.
 
-**Every department's daily duty (M56).** Once a day the wake runs five
+**Every department's daily duty (M56).** Once a day the wake runs six
 duties, each by the agent whose charter it is: the audit (ledger, round
 trips held late, agents mostly refused), the integrity check (seals and
 recordings), the health check (wakes, gaps, calls), a lesson from what the
-day closed, and the research director's memo. The first three raise alerts
+day closed, the Portfolio Manager's re-sizing of each scheme from its record
+(M57), and the research director's memo. The first three raise alerts
 when something is wrong. The lesson and the memo go into the shared brain
 every agent reads.
 

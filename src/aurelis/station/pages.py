@@ -1376,6 +1376,7 @@ def mechanisms_page(session: Session) -> str:
             "paper trades",
             "paper P&L",
             "after costs",
+            "share of book",
             "verdict",
         ],
         [
@@ -1399,6 +1400,7 @@ def mechanisms_page(session: Session) -> str:
                 _pill(r["after_costs"])
                 if not str(r["after_costs"]).startswith(("gathering", "not traded"))
                 else escape_text(r["after_costs"]),
+                escape_text(r["share"]),
                 (
                     "<span class='pill bad'>SUSPENDED: LOSING AFTER COSTS</span>"
                     if r["suspended"]

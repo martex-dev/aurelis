@@ -242,6 +242,43 @@ class Book:
         )
         return allocation
 
+    def withdraw(
+        self,
+        session: Session,
+        allocation_ref: str,
+        *,
+        reason: str,
+        withdrawn_by: str,
+        at: dt.datetime | None = None,
+    ) -> Allocation:
+        """Take a share back. The row stays on the record with why; a new
+        allocation, if any, is its own row with its own reason."""
+        if not reason.strip():
+            raise IntegrityViolation("a withdrawal must say why, as an allocation must")
+        moment = at or self._clock.now()
+        row = session.execute(
+            sa.select(Allocation).where(Allocation.ref == allocation_ref)
+        ).scalar_one()
+        if row.withdrawn_at is not None:
+            raise IntegrityViolation(f"{allocation_ref} was already withdrawn")
+        row.withdrawn_at = moment
+        row.withdrawn_reason = reason
+        session.flush()
+        self._ledger.append(
+            session,
+            kind=EventKind.ALLOCATION_WITHDRAWN,
+            actor=withdrawn_by,
+            subject=row.portfolio_ref,
+            payload={
+                "allocation": row.ref,
+                "version": row.version_ref,
+                "weight": str(row.weight),
+                "because": reason[:300],
+            },
+            at=moment,
+        )
+        return row
+
     def allocations(self, session: Session, portfolio_ref: str) -> list[Allocation]:
         """Live allocations — withdrawn ones stay on the record, out of the sum."""
         return list(

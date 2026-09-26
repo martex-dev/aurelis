@@ -1369,6 +1369,22 @@ class MechanismsView:
     rows: list[dict[str, Any]]
 
 
+def _share(session: Session, version_ref: str | None) -> str:
+    """A scheme's live share of the paper book, as the Portfolio Manager set it."""
+    from aurelis.portfolio.tables import Allocation
+
+    if not version_ref:
+        return "-"
+    weights = session.execute(
+        sa.select(Allocation.weight).where(
+            Allocation.version_ref == version_ref, Allocation.withdrawn_at.is_(None)
+        )
+    ).scalars().all()
+    if not weights:
+        return "-"
+    return f"{sum(Decimal(str(w)) for w in weights) * 100:.1f}%"
+
+
 def mechanisms_view(session: Session) -> MechanismsView:
     from aurelis.mechanism.earnings import earnings_board, suspended
     from aurelis.mechanism.paper import pnl_of
@@ -1404,6 +1420,7 @@ def mechanisms_view(session: Session) -> MechanismsView:
                 earned[st.mechanism.ref].verdict if st.mechanism.ref in earned else "not traded"
             ),
             "suspended": suspended(session, st.mechanism.ref),
+            "share": _share(session, st.mechanism.version_ref),
         }
         for st in statuses
     ]

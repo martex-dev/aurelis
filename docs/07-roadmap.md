@@ -2430,6 +2430,21 @@ discovery also stopped for good at their first success.
 
 See [ADR-0057](adr/0057-every-department-works-every-day.md).
 
+## M57 — Capital follows the record ✅
+
+Every scheme was sized at 5% of the paper book from a constant. Its
+allocation row was never read again, and nothing ever withdrew one.
+
+- **A declared ladder.** A scheme gets 5% while gathering or indistinguishable
+  from luck, 10% when earning after costs, and nothing when losing. Schemes
+  together hold at most half the book.
+- **Positions are sized from the live allocation**, not a constant.
+- **The Portfolio Manager re-sizes daily.** It withdraws and re-allocates
+  where the record moved, with the reason on both rows. Risk still assesses
+  every order.
+
+See [ADR-0058](adr/0058-capital-follows-the-record.md).
+
 ---
 
 ## Sequencing

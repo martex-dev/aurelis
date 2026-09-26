@@ -318,3 +318,136 @@ def test_the_station_and_the_brain_show_each_schemes_record_after_costs(
     page = station_app(company).handle("/mechanisms", {}).body.decode()
     assert "SUSPENDED: LOSING AFTER COSTS" in page
     assert "After costs, by episode" not in brain.record, "only schemes that traded"
+
+
+# ------------------------------------------------------------ capital follows the record (M57)
+
+
+def _scheme_with_a_fresh_firing(company: Runtime) -> Mechanism:
+    company.clock.set(dt.datetime.fromtimestamp(_START + 30 * _HOUR, tz=dt.UTC))
+    mechanism = _state(company)
+    _score_all(company, mechanism, upto_bar=910)
+    with company.database.session() as session:
+        snapshot = company.snapshots.ingest(
+            session,
+            CoinbaseCandles(opener=_Payload(_edge(940)), pause=0),
+            desk="crypto",
+            symbol="BTC-USD",
+            bars=940,
+        )
+        derive_price_events(session, company.world, snapshot, tail=940)
+        company.clock.set(dt.datetime.fromtimestamp(_START + 931 * _HOUR + 600, tz=dt.UTC))
+        generate_predictions(session, mechanism, clock=company.clock)
+    return mechanism
+
+
+def _attached(session: Any, mechanism: Mechanism) -> Mechanism:
+    """The mechanism loaded in this session, as the wake loads it, so the
+    version it is composed into is written back."""
+    return session.execute(sa.select(Mechanism).where(Mechanism.ref == mechanism.ref)).scalar_one()
+
+
+def _earning(ref: str) -> Any:
+    wins = _d(*(["120"] * 11), "-40")
+    return {ref: judge(ref, wins, wins, bar=family_bar(1))}
+
+
+def test_the_ladder_sizes_a_record_and_says_why() -> None:
+    from aurelis.mechanism.sizing import BASE_WEIGHT, EARNING_WEIGHT, target_weight
+
+    luck = judge("MEC-0001", _d(*(["10", "-10"] * 6)), _d("0"), bar=family_bar(1))
+    assert target_weight(None) == (BASE_WEIGHT, "no round trip closed yet: the base share")
+    assert target_weight(_earning("MEC-0001")["MEC-0001"])[0] == EARNING_WEIGHT
+    assert target_weight(_losing("MEC-0001")["MEC-0001"])[0] == 0
+    weight, why = target_weight(luck)
+    assert weight == BASE_WEIGHT and why.startswith("not distinguishable from luck")
+
+
+def test_a_scheme_earning_after_costs_is_given_twice_the_share(
+    company: Runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aurelis.mechanism.paper import trade_firings
+    from aurelis.portfolio.tables import Allocation
+
+    mechanism = _scheme_with_a_fresh_firing(company)
+    monkeypatch.setattr(earnings, "earnings_board", lambda session: _earning(mechanism.ref))
+    with company.database.session() as session:
+        mechanism = _attached(session, mechanism)
+        result = trade_firings(company, session, mechanism, at=company.clock.now())
+        allocation = session.execute(
+            sa.select(Allocation).where(Allocation.version_ref == mechanism.version_ref)
+        ).scalar_one()
+    assert result.opened
+    assert Decimal(str(allocation.weight)) == Decimal("0.10")
+    assert "earning after costs" in allocation.rationale
+
+
+def test_the_portfolio_manager_resizes_a_scheme_when_its_record_moves(
+    company: Runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aurelis.autonomy.duties import run_duties
+    from aurelis.mechanism.paper import trade_firings
+    from aurelis.portfolio.tables import Allocation
+
+    mechanism = _scheme_with_a_fresh_firing(company)
+    with company.database.session() as session:
+        mechanism = _attached(session, mechanism)
+        trade_firings(company, session, mechanism, at=company.clock.now())
+        version = mechanism.version_ref
+    monkeypatch.setattr(earnings, "earnings_board", lambda session: _earning(mechanism.ref))
+    (duty,) = run_duties(company, at=company.clock.now(), only=("allocation",))
+    (again,) = run_duties(company, at=company.clock.now(), only=("allocation",), force=True)
+    with company.database.session() as session:
+        rows = list(
+            session.execute(
+                sa.select(Allocation)
+                .where(Allocation.version_ref == version)
+                .order_by(Allocation.decided_at, Allocation.ref)
+            ).scalars()
+        )
+        pm = company.roster.by_handle(session, "PM").ref
+        withdrawn = (
+            session.execute(
+                sa.text("SELECT actor FROM events WHERE kind = :k"),
+                {"k": EventKind.ALLOCATION_WITHDRAWN.value},
+            )
+            .scalars()
+            .all()
+        )
+    old, new = rows
+    assert Decimal(str(old.weight)) == Decimal("0.05") and old.withdrawn_at is not None
+    assert "re-sized from 0.05" in old.withdrawn_reason.replace("0.0500", "0.05")
+    assert Decimal(str(new.weight)) == Decimal("0.10") and new.withdrawn_at is None
+    assert new.decided_by == pm and withdrawn == [pm]
+    assert "1 re-sized" in duty.done and duty.findings[0].startswith(mechanism.ref)
+    assert "0 re-sized" in again.done, "a share that matches its record is left alone"
+
+
+def test_schemes_together_never_hold_more_than_half_the_book(
+    company: Runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aurelis.mechanism import sizing
+    from aurelis.trading.deployment import open_paper_book
+
+    with company.database.session() as session:
+        pm = company.roster.by_handle(session, "PM").ref
+        book = open_paper_book(
+            company,
+            session,
+            desk="crypto",
+            equity=Decimal("100000"),
+            opened_by=pm,
+            at=company.clock.now(),
+        )
+        monkeypatch.setattr(sizing, "scheme_versions", lambda session: {"SV-A", "SV-B"})
+        company.book.allocate(
+            session,
+            portfolio_ref=book,
+            version_ref="SV-A",
+            weight=Decimal("0.45"),
+            rationale="a test holding",
+            decided_by=pm,
+            at=company.clock.now(),
+        )
+        room = sizing.room_for(company, session, book, "SV-B")
+    assert room == Decimal("0.05")
