@@ -40,6 +40,7 @@ from aurelis.service.grants import (
     microstructure_for,
     news_for,
 )
+from aurelis.service.notify import Notifier, desktop_notify
 from aurelis.service.tables import DataGrant, ServiceCycle
 from aurelis.world.derive import derive_price_events
 from aurelis.world.sources import sync_catalogue
@@ -52,6 +53,34 @@ told about before it starts each wake, so a run cannot discover it is over
 budget by going over budget."""
 
 SERVICE_ACTOR = "SERVICE"
+
+ASLEEP_SOURCE = "service.asleep"
+ASLEEP_SUBJECT = "the company"
+"""The one alert that says no agent can think (M60). Fixed, so a week of
+failed wakes is one open alert, not a hundred and sixty-eight."""
+
+
+def wake_up_instruction(failure: str) -> tuple[str, str]:
+    """Why the company cannot think, and what the person should do, in words
+    a person can act on without reading the provider's error."""
+    text = failure.lower()
+    if any(word in text for word in ("authenticat", "oauth", "not logged in", "log in", "login")):
+        return (
+            "The Claude login the agents use has expired.",
+            "Open a terminal, run `claude`, type /login and sign in. The next wake "
+            "picks it up by itself; nothing needs restarting.",
+        )
+    if any(word in text for word in ("allowance", "usage limit", "rate limit", "resets")):
+        return (
+            "The subscription's usage allowance is spent.",
+            "Nothing to do: the first wake after the allowance resets thinks again. "
+            "A bigger plan, or a lower --calls-per-day, makes it last.",
+        )
+    return (
+        "No model could be reached.",
+        "Check the internet connection, then that `claude -p hi` answers in a "
+        "terminal. The next wake retries by itself.",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +147,7 @@ class Service:
         research_source: Any | None = None,
         brain_root: Any = None,
         calls_per_wake: int | None = None,
+        notifier: Notifier | None = None,
     ) -> None:
         self.runtime = runtime
         self.calls_per_day = calls_per_day
@@ -140,6 +170,8 @@ class Service:
         """Where the shared brain's Obsidian vault is written each wake."""
         self.grants = Grants(runtime.ledger, runtime.clock)
         self._raiser = _operations_director(runtime)
+        self._notify = notifier or desktop_notify
+        """Who hears it when the company falls asleep or wakes (M60)."""
 
     # ------------------------------------------------------------- the wake
 
@@ -327,6 +359,13 @@ class Service:
                 calls = outcome.calls
                 if outcome.gained:
                     notes.append(f"conditions gained: {', '.join(sorted(outcome.gained))}")
+                if calls == 0 and outcome.provider_failures:
+                    incidents.append(
+                        self._asleep(service_ref, outcome.provider_failures[0], at=moment)
+                    )
+                    notes.append("ASLEEP: no agent could reach a model this wake")
+                elif calls > 0:
+                    self._awake(calls, at=moment)
             except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
                 incidents.append(
                     self._incident(
@@ -346,6 +385,9 @@ class Service:
                         at=moment,
                     )
                 )
+                if isinstance(error, ProviderUnavailable):
+                    incidents.append(self._asleep(service_ref, str(error), at=moment))
+                    notes.append("ASLEEP: no agent could reach a model this wake")
         left_after = max(0, left - calls)
 
         if derived:
@@ -869,6 +911,56 @@ class Service:
             incidents=tuple(incidents),
             note=note,
         )
+
+    # ------------------------------------------------------- asleep, awake
+
+    def _asleep(self, service_ref: str, failure: str, *, at: dt.datetime) -> str:
+        """The company tried to think and could not reach a model (M60).
+
+        One open alert, however many wakes it lasts, and one desktop
+        notification when it starts, not one an hour.
+        """
+        already = self._open_asleep()
+        why, todo = wake_up_instruction(failure)
+        ref = self._incident(
+            severity=Severity.CRITICAL,
+            source=ASLEEP_SOURCE,
+            subject=ASLEEP_SUBJECT,
+            desk=None,
+            message=f"The company is asleep: no agent could think this wake. {why} "
+            f"The provider said: {failure}",
+            action=todo,
+            at=at,
+        )
+        if already is None:
+            self._notify("Aurelis is asleep", f"{why} {todo}")
+        return ref
+
+    def _awake(self, calls: int, *, at: dt.datetime) -> None:
+        """Models answered again: close the asleep alert and say so once."""
+        alert = self._open_asleep()
+        if alert is None or self._raiser is None:
+            return
+        with self.runtime.database.session() as session:
+            self.runtime.alerts.resolve(
+                session,
+                alert,
+                resolution=f"the agents reached a model again: {calls} call(s) this wake",
+                by=self._raiser,
+                at=at,
+            )
+        self._notify("Aurelis is awake", f"The agents are thinking again: {calls} model call(s).")
+
+    def _open_asleep(self) -> str | None:
+        from aurelis.alerts.tables import Alert
+
+        with self.runtime.database.session() as session:
+            ref = session.execute(
+                sa.select(Alert.ref).where(
+                    Alert.source == ASLEEP_SOURCE, Alert.resolved_at.is_(None)
+                )
+            ).scalar_one_or_none()
+        return None if ref is None else str(ref)
 
     # ------------------------------------------------------------ helpers
 

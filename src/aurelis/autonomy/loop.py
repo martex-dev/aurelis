@@ -37,6 +37,7 @@ import sqlalchemy as sa
 from aurelis.autonomy.agenda import Action, ActionRefused, choose, stuck_reasons
 from aurelis.autonomy.tables import AutonomyCycle
 from aurelis.core.enums import Actor, EventKind
+from aurelis.core.errors import ProviderUnavailable
 from aurelis.core.ids import uuid7
 from aurelis.mandate.assessment import assess
 from aurelis.org.desks import Desk
@@ -64,6 +65,10 @@ class CycleRecord:
     moved: bool
     detail: str
     calls: int
+    provider_down: bool = False
+    """The action failed because no model could be reached, so the seat never
+    thought. Distinct from a refused or unusable answer, which is the agent's
+    own (M60)."""
 
     def describe(self) -> str:
         if self.action is None:
@@ -107,6 +112,11 @@ class AutonomyRun:
             lines.append("  no condition moved")
         lines.append(f"  stopped: {self.stopped_because}")
         return "\n".join(lines)
+
+    @property
+    def provider_failures(self) -> tuple[str, ...]:
+        """What the provider said, for every action that could not reach it."""
+        return tuple(c.detail for c in self.cycles if c.provider_down)
 
 
 def _model_calls(runtime: Any) -> int:
@@ -397,6 +407,7 @@ def run_autonomy(
 
         action = decision.action
         started_calls = _model_calls(runtime)
+        provider_down = False
         try:
             detail = _act(runtime, action, source=source, at=moment)
             outcome = "acted"
@@ -418,6 +429,7 @@ def run_autonomy(
             # times, until the cycle bound stopped it.
             detail = f"{type(error).__name__}: {error}"
             outcome = "failed"
+            provider_down = isinstance(error, ProviderUnavailable)
             failed.add(action.key)
 
         after = _met(runtime, at=moment)
@@ -430,6 +442,7 @@ def run_autonomy(
             moved=moved,
             detail=detail,
             calls=_model_calls(runtime) - started_calls,
+            provider_down=provider_down,
         )
         records.append(record)
         _write(runtime, run_ref, record, unmet=unmet, at=moment)

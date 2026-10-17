@@ -408,6 +408,17 @@ header.bar .brand::before {
 .tile .n { font-size:20px; color:var(--ink); font-weight:bold; }
 .tile .l { font-size:10px; color:var(--dim); text-transform:none; }
 .panel.now.ok { border-left:3px solid var(--ok); }
+.health { border:1px solid var(--edge); border-left:6px solid var(--dim); padding:10px 14px;
+          margin:0 0 12px; background:var(--plate); }
+.health p { margin:4px 0; }
+.health .headline { font-size:18px; font-weight:bold; color:var(--ink); }
+.health.thinking { border-left-color:var(--ok); }
+.health.thinking .headline { color:var(--ok); }
+.health.asleep, .health.stopped { border:2px solid var(--bad); border-left:10px solid var(--bad);
+          background:#2a1416; animation: alarm 2s ease-in-out infinite; }
+.health.asleep .headline, .health.stopped .headline { color:var(--bad); font-size:22px; }
+.health .todo { color:var(--ink); }
+@keyframes alarm { 50% { background:#3a1a1d; } }
 #feed li.fresh { animation: fresh 3s ease-out; }
 @keyframes fresh { from { background:#1f3a2f; } to { background:transparent; } }
 """

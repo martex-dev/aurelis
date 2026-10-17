@@ -153,6 +153,21 @@ def _today_counts(session: Session, now: dt.datetime) -> dict[str, int]:
     return counts
 
 
+def health_panel(session: Session, now: dt.datetime) -> str:
+    """The one-line answer to "is my company thinking?", loud when it is not (M60)."""
+    from aurelis.station.health import company_health
+
+    health = company_health(session, now)
+    todo = (
+        f"<p class='todo'><b>What to do:</b> {escape_text(health.todo)}</p>" if health.todo else ""
+    )
+    return (
+        f"<div class='health {health.state}'>"
+        f"<p class='headline'>{escape_text(health.headline)}</p>"
+        f"<p>{escape_text(health.detail)}</p>{todo}</div>"
+    )
+
+
 def now_panel(session: Session, facility: Facility, now: dt.datetime | None = None) -> str:
     """The part of the facility that changes every minute: the wake, the
     building lit by who acted in the last ten minutes, and every agent's last
@@ -217,6 +232,7 @@ def now_panel(session: Session, facility: Facility, now: dt.datetime | None = No
         else ""
     )
     return (
+        f"{health_panel(session, moment)}"
         f"<div class='panel now {tone}'>"
         f"<p><b>{escape_text(wake.headline(moment))}</b></p>"
         f"<p class='mono'>This wake so far: {escape_text(wake_line)}.</p>{note}</div>"

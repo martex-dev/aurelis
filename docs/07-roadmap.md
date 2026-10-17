@@ -2470,6 +2470,25 @@ cycle, and shown nowhere but the terminal.
 
 See [ADR-0060](adr/0060-the-station-shows-the-path-to-real-money.md).
 
+## M60 — The company says when it is asleep ✅
+
+From 7 October the subscription login the seats use had expired. The service
+woke every hour for eleven days, fetched, scored and recorded, and made zero
+model calls. The only sign was "0 model call(s)" in small print.
+
+- **One critical alert, `service.asleep`.** A wake whose agents could not
+  reach a model, and that made no call, raises it. It says why in plain
+  words (expired login, spent allowance, no connection) and what to do. It
+  stays one open alert however many wakes it lasts.
+- **The person is told.** A Windows desktop notification fires when the
+  company falls asleep and again when it wakes. The first wake that reaches
+  a model closes the alert.
+- **The facility answers "is it thinking?" first.** The answer is
+  *thinking*, *asleep*, *stopped* (no wake for two and a half hours) or
+  *quiet*. The two alarming states are drawn large and red, with what to do.
+
+See [ADR-0061](adr/0061-the-company-says-when-it-is-asleep.md).
+
 ---
 
 ## Sequencing
