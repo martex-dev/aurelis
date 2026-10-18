@@ -221,23 +221,31 @@ class Snapshots:
 
     @staticmethod
     def bars_of(session: Session, ref: str) -> list[Bar]:
+        # Plain rows rather than ORM objects: the brain's base rates read
+        # hundreds of thousands of bars, and building an instance per bar was
+        # most of the cost of a seat (M67).
         rows = session.execute(
-            sa.select(SnapshotBar)
+            sa.select(
+                SnapshotBar.timestamp,
+                SnapshotBar.open,
+                SnapshotBar.high,
+                SnapshotBar.low,
+                SnapshotBar.close,
+                SnapshotBar.volume,
+            )
             .where(SnapshotBar.snapshot_ref == ref)
             .order_by(SnapshotBar.timestamp)
-        ).scalars()
+        ).all()
         return [
             Bar(
-                timestamp=row.timestamp
-                if row.timestamp.tzinfo
-                else row.timestamp.replace(tzinfo=dt.UTC),
-                open=Decimal(row.open),
-                high=Decimal(row.high),
-                low=Decimal(row.low),
-                close=Decimal(row.close),
-                volume=Decimal(row.volume),
+                timestamp=ts if ts.tzinfo else ts.replace(tzinfo=dt.UTC),
+                open=Decimal(o),
+                high=Decimal(h),
+                low=Decimal(low),
+                close=Decimal(c),
+                volume=Decimal(v),
             )
-            for row in rows
+            for ts, o, h, low, c, v in rows
         ]
 
     def verify(self, session: Session, ref: str) -> tuple[bool, str]:

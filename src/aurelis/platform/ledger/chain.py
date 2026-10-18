@@ -116,7 +116,9 @@ class ChainVerification:
         return f"chain BROKEN at seq {self.broken_at}: {self.reason}"
 
 
-def verify_chain(events: list[EventRow]) -> ChainVerification:
+def verify_chain(
+    events: list[EventRow], *, after_seq: int = 0, after_hash: str | None = GENESIS
+) -> ChainVerification:
     """Walk the chain in sequence order and check every link.
 
     ``events`` must be ordered by ``seq``. Four things are checked, and the
@@ -127,8 +129,8 @@ def verify_chain(events: list[EventRow]) -> ChainVerification:
     if not events:
         return ChainVerification(checked=0, ok=True, first_seq=None, last_seq=None)
 
-    expected_prev: str | None = GENESIS
-    previous_seq: int | None = None
+    expected_prev: str | None = after_hash
+    previous_seq: int | None = after_seq or None
 
     for event in events:
         if previous_seq is None:

@@ -167,8 +167,33 @@ def _fingerprint(session: Session) -> tuple[Any, ...]:
     )
 
 
+BRIEF_TTL = 300.0
+"""Seconds a computed record is reused, whatever has changed since (M67).
+
+The fingerprint below changes whenever any view or mechanism prediction is
+graded, which on the live company is nearly every minute. So the record was
+rebuilt for almost every seat, reading hundreds of thousands of bars each
+time: fifteen of a seat's nineteen seconds on the live record, measured. A
+summary five minutes old is the same summary. Tests set this to zero."""
+
+_RECENT: dict[str, tuple[float, str]] = {}
+
+
 def company_brief(session: Session) -> str:
-    """The record part of the brain. Cached until the record it reads changes."""
+    """The record part of the brain. Reused for :data:`BRIEF_TTL` seconds, and
+    after that until the record it reads changes."""
+    import time
+
+    url = str(session.get_bind().engine.url)
+    recent = _RECENT.get(url)
+    if recent is not None and BRIEF_TTL > 0 and time.monotonic() - recent[0] < BRIEF_TTL:
+        return recent[1]
+    text = _fingerprinted(session)
+    _RECENT[url] = (time.monotonic(), text)
+    return text
+
+
+def _fingerprinted(session: Session) -> str:
     key = _fingerprint(session)
     cached = _CACHE.get(key)
     if cached is not None:

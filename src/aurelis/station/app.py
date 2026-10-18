@@ -469,6 +469,11 @@ class _Handler(BaseHTTPRequestHandler):
         # preflight, and this server answers no preflight. A JSON body is
         # required as well.
         to_manager = parts == ["office", "manager"]
+        length = _int([self.headers.get("Content-Length") or "0"], 0)
+        # Read the body before any answer, refusals included: answering first
+        # and closing leaves the sender mid-write, which Windows reports to it
+        # as an aborted connection rather than as the refusal.
+        raw = self.rfile.read(length) if 0 < length <= _MAX_SAY else b""
         if (
             not (to_manager or (len(parts) == 3 and parts[:2] == ["office", "chat"]))
             or self.headers.get("X-Aurelis-Office") != "1"
@@ -476,12 +481,12 @@ class _Handler(BaseHTTPRequestHandler):
         ):
             self._send(Response(b'{"error": "not here"}', 403, "application/json"))
             return
-        length = _int([self.headers.get("Content-Length") or "0"], 0)
         if not 0 < length <= _MAX_SAY:
+            self.close_connection = True
             self._send(Response(b'{"error": "say less"}', 413, "application/json"))
             return
         try:
-            text = str(json.loads(self.rfile.read(length)).get("text", ""))
+            text = str(json.loads(raw).get("text", ""))
             response = self.app.manage(text) if to_manager else self.app.say(parts[2], text)
         except Exception as error:  # noqa: BLE001 - a 500 is better than a hang
             body = json.dumps({"error": f"{type(error).__name__}: {error}"}).encode()

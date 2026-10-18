@@ -60,6 +60,37 @@ ASLEEP_SUBJECT = "the company"
 failed wakes is one open alert, not a hundred and sixty-eight."""
 
 
+def adaptive_wake_budget(session: Any, ceiling: int, now: dt.datetime) -> tuple[int, str]:
+    """How many model calls this wake may spend, given how the allowance has held (M67).
+
+    The subscription's allowance is shared with everything else the operator
+    runs on it, and it is not published as a number. So the service measures
+    it. When the allowance ran out in the last six hours, the wake spends half
+    its budget. When it ran out earlier in the last day, three quarters. When
+    it has held for a day, the whole budget the operator set. Never more than
+    that: ``ceiling`` is the operator's.
+    """
+    from aurelis.alerts.tables import Alert
+
+    raised = list(
+        session.execute(
+            sa.select(Alert.raised_at, Alert.message).where(
+                Alert.source == ASLEEP_SOURCE, Alert.raised_at >= now - dt.timedelta(hours=24)
+            )
+        ).all()
+    )
+    spent = [
+        at if at.tzinfo else at.replace(tzinfo=dt.UTC)
+        for at, message in raised
+        if "allowance" in str(message).lower()
+    ]
+    if any(now - at <= dt.timedelta(hours=6) for at in spent):
+        return max(10, ceiling // 2), "the allowance ran out in the last six hours: half budget"
+    if spent:
+        return max(10, (ceiling * 3) // 4), "the allowance ran out in the last day: 3/4 budget"
+    return ceiling, ""
+
+
 def wake_up_instruction(failure: str) -> tuple[str, str]:
     """Why the company cannot think, and what the person should do, in words
     a person can act on without reading the provider's error."""
@@ -339,7 +370,11 @@ class Service:
         # 3. work, inside what is left of today
         left = self.calls_per_day - self._calls_since(moment - dt.timedelta(days=1))
         if self.calls_per_wake is not None:
-            left = min(left, self.calls_per_wake)
+            with runtime.database.session() as session:
+                wake_budget, why = adaptive_wake_budget(session, self.calls_per_wake, moment)
+            if why:
+                notes.append(f"budget {wake_budget} of {self.calls_per_wake}: {why}")
+            left = min(left, wake_budget)
         run_ref: str | None = None
         calls = 0
         if left <= 0:

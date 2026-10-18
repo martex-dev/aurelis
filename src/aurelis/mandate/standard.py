@@ -381,11 +381,50 @@ def _paper_gap(session: Session) -> tuple[bool, str]:
     )
 
 
+_FULL_EVERY = 3600.0
+"""Seconds between full passes of the chain check in one process (M67)."""
+
+_VERIFIED: dict[str, tuple[int, str, float, int]] = {}
+"""Per database: (last verified seq, its chain hash, when the last full pass
+ran, events checked by it). In this process's memory only, never stored: a
+checkpoint written to the record would be trusted by the code it checks."""
+
+
 def _chain_intact(session: Session) -> tuple[bool, str]:
+    import time
+
     from aurelis.platform.clock_default import default_clock
+    from aurelis.platform.db.tables import Event
     from aurelis.platform.ledger.ledger import Ledger
 
-    report = Ledger(default_clock()).verify(session)
+    ledger = Ledger(default_clock())
+    key = str(session.get_bind().engine.url)
+    known = _VERIFIED.get(key)
+    now = time.monotonic()
+    if known is not None and now - known[2] < _FULL_EVERY:
+        seq, link, full_at, full_count = known
+        report = ledger.verify_since(session, seq=seq, chain_hash=link)
+        if report.ok:
+            last = report.last_seq or seq
+            if last != seq:
+                tip = session.execute(
+                    sa.select(Event.chain_hash).where(Event.seq == last)
+                ).scalar_one()
+                _VERIFIED[key] = (last, tip, full_at, full_count)
+            return True, (
+                f"chain verified: {last} events, the last {last - full_count} linked "
+                "since this process's full pass"
+            )
+        _VERIFIED.pop(key, None)
+        return False, report.describe()
+    report = ledger.verify(session)
+    if report.ok and report.last_seq:
+        tip = session.execute(
+            sa.select(Event.chain_hash).where(Event.seq == report.last_seq)
+        ).scalar_one()
+        _VERIFIED[key] = (report.last_seq, tip, now, report.last_seq)
+    else:
+        _VERIFIED.pop(key, None)
     return report.ok, report.describe()
 
 

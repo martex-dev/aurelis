@@ -2602,6 +2602,22 @@ Seven agents formed views. INTEL alone held nine charters, so every agent was
 
 See [ADR-0067](adr/0067-filling-the-building.md).
 
+## M67 — The company thinks faster ✅
+
+A wake of 100 calls took three and a half hours, and the model was not the
+slow part.
+
+- **The brain's record is reused for five minutes.** It had been rebuilt for
+  nearly every seat: 15 of a seat's 19 seconds.
+- **Bars are read as plain rows,** not ORM objects.
+- **The mandate's chain check is incremental between hourly full passes.**
+  It had cost 26 seconds several times per action. It still catches a broken
+  link.
+- **The wake budget adapts to the allowance:** half for six hours after it
+  runs out, three quarters for the day, then the operator's full budget.
+
+See [ADR-0068](adr/0068-the-company-thinks-faster.md).
+
 ---
 
 ## Sequencing

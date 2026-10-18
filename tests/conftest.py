@@ -69,3 +69,13 @@ def uninitialised(
         yield built
     finally:
         built.close()
+
+
+@pytest.fixture(autouse=True)
+def _brain_reads_the_record_as_it_is_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The live service reuses the brain's record for five minutes (M67). A
+    test that changes the record and reads the brain straight after needs it
+    rebuilt, so the reuse is off in tests."""
+    from aurelis.brain import briefing
+
+    monkeypatch.setattr(briefing, "BRIEF_TTL", 0.0)

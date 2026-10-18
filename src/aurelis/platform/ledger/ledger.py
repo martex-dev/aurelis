@@ -139,3 +139,19 @@ class Ledger:
             session.execute(sa.select(Event).order_by(Event.seq)).scalars().all()
         )
         return verify_chain(list(events))
+
+    def verify_since(self, session: Session, *, seq: int, chain_hash: str) -> ChainVerification:
+        """Verify every event after ``seq``, linking the first to ``chain_hash``.
+
+        Sound only when the caller verified the chain up to ``seq`` itself and
+        holds ``chain_hash`` in memory: the events up to there are protected by
+        the append-only triggers, and this proves each new one links to the
+        last one already proven. A full :meth:`verify` is still the audit (the
+        daily duty runs one), and callers that use this re-run it regularly.
+        """
+        events: Sequence[Event] = (
+            session.execute(sa.select(Event).where(Event.seq > seq).order_by(Event.seq))
+            .scalars()
+            .all()
+        )
+        return verify_chain(list(events), after_seq=seq, after_hash=chain_hash)
