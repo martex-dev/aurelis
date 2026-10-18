@@ -834,6 +834,30 @@ class Service:
                 )
             )
 
+        # 4e. huddles (M64): two agents holding opposite open views on one
+        #     market meet, answer each other and revise; a moderator writes
+        #     the company's position. Five calls each, capped per wake and day.
+        from aurelis.collab.huddle import CALLS, hold_huddles
+
+        try:
+            huddles = hold_huddles(runtime, at=moment, calls_left=left_after)
+            calls += CALLS * len(huddles)
+            left_after = max(0, left_after - CALLS * len(huddles))
+            if huddles:
+                notes.append(f"huddles: {', '.join(huddles)}")
+        except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+            incidents.append(
+                self._incident(
+                    severity=Severity.WARNING,
+                    source="service.huddles",
+                    subject=service_ref,
+                    desk=None,
+                    message=f"the huddles did not run: {type(error).__name__}: {error}",
+                    action="Disagreements wait for the next wake; nothing else is affected.",
+                    at=moment,
+                )
+            )
+
         # 5. the shared brain: the operator's inbox is read into it, and it is
         #    rendered as a vault the operator can open in Obsidian (M46). The
         #    record is the database; a vault that fails to render is a warning.

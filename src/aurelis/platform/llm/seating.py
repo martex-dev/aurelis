@@ -86,8 +86,19 @@ def standins() -> Callable[[LlmRequest], str]:
             )
         if "You asked colleagues, and they answered" in prompt:
             return "REPLY: I asked, and here is what they said, in short: nothing has an edge yet."
-        if "The Company Manager asks, for the operator:" in prompt:
+        if "A colleague asks you:" in prompt:
             return "Plainly: my record is no better than a coin toss so far."
+        if "moderating; you hold neither view" in prompt:
+            return (
+                "POSITION: none\n"
+                "WHY: Both cases rest on the same few bars; neither showed an edge.\n"
+                "NOTE: When two colleagues read the same market both ways, abstaining is "
+                "usually the honest call."
+            )
+        if "PROBABILITY_UP: <a number from 0 to 1>" in prompt:
+            return "I hold my view, a little less firmly than before.\nPROBABILITY_UP: 0.55"
+        if "Make your case to the room." in prompt:
+            return "My case is the recent move and the book; I could be wrong if flows turn."
         if "The company right now:" in prompt and "The operator says:" in prompt:
             if "nothing to do" in prompt.lower():
                 return "REPLY: Understood, nothing to do."

@@ -423,7 +423,7 @@ def verify_seal(row: Thesis) -> bool:
 class Seat:
     """Put one agent through the two questions and seal what it says."""
 
-    __slots__ = ("_adversary", "_artifacts", "_clock", "_ledger", "_provider")
+    __slots__ = ("_adversary", "_artifacts", "_clock", "_consultant", "_ledger", "_provider")
 
     def __init__(
         self,
@@ -433,8 +433,12 @@ class Seat:
         clock: Clock | None = None,
         *,
         adversary: Adversary | None = None,
+        consultant: Any = None,
     ) -> None:
         self._provider = provider
+        self._consultant = consultant
+        """Who the agent may ask for help before it states its view (M64), or
+        ``None`` for a seat where it may not."""
         self._artifacts = artifacts
         self._ledger = ledger
         self._clock = clock or SystemClock()
@@ -534,6 +538,7 @@ class Seat:
             f"{render_material(material)}{brain_notes}\n\n"
             f"{view_question(picked.snapshot.symbol)}"
         )
+        hint = f"\n\n{self._consultant.hint()}" if self._consultant is not None else ""
         model_id = model_for(self._provider.name, tier)
         response = self._provider.complete(
             session,
@@ -542,11 +547,50 @@ class Seat:
                     provider=self._provider.name, model=model_id, tier=tier, max_tokens=500
                 ),
                 system=system,
-                messages=(Message("user", rendered),),
+                messages=(Message("user", rendered + hint),),
                 actor=agent_ref,
                 task_ref=task_ref,
             ),
         )
+        # The agent may ask one colleague one question first (M64). The answer
+        # is an opinion: it is shown, and its figures are not citable.
+        if self._consultant is not None:
+            from aurelis.collab.consult import parse_ask
+
+            asked = parse_ask(response.text, self._consultant.handles)
+            if asked is not None:
+                handle, ask_text = asked
+                heard = self._consultant(
+                    handle,
+                    ask_text,
+                    topics=(picked.snapshot.symbol,),
+                    at=moment,
+                    session=session,
+                )
+                response = self._provider.complete(
+                    session,
+                    LlmRequest(
+                        model=ModelRef(
+                            provider=self._provider.name,
+                            model=model_id,
+                            tier=tier,
+                            max_tokens=500,
+                        ),
+                        system=system,
+                        messages=(
+                            Message(
+                                "user",
+                                f"{rendered}\n\nYou asked {handle}: {ask_text}\n"
+                                f"{handle} answered (an opinion, like a note: weigh it, but "
+                                f"do not cite a figure that appears only here): {heard}\n\n"
+                                "Now state your view or decline, in the form above. You "
+                                "may not ask again.",
+                            ),
+                        ),
+                        actor=agent_ref,
+                        task_ref=task_ref,
+                    ),
+                )
         try:
             view = parse_view(response.text)
         except JudgementRefused as error:
@@ -939,12 +983,17 @@ def seat_agent(
                 else ModelTier.MID,
             )
         )
+        from aurelis.collab.consult import Consultant, colleagues
+
         seat = Seat(
             runtime.provider,
             runtime.artifacts,
             runtime.ledger,
             clock=runtime.clock,
             adversary=adversary,
+            consultant=Consultant(
+                runtime, seated.ref, tuple(colleagues(session, besides=seated.ref))
+            ),
         )
         refusal: JudgementRefused | None = None
         try:

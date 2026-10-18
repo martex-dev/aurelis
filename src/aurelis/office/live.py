@@ -302,6 +302,7 @@ def room_panel(session: Session, room_id: str, now: dt.datetime, provider: str =
         tabs = [
             *portal,
             ("directives", "directives", directives_panel(session)),
+            ("together", "working together", together_panel(session)),
             ("company", "the company", _control(session, state, now)),
             ("money", "path to real money", _lazy("mandate")),
             ("feed", "live feed", _now(state, CONTROL)),
@@ -417,6 +418,77 @@ def _talk(session: Session, ref: str, handle: str, provider: str, *, manager: bo
         "<button type='submit'>Send</button></form>"
         + _provider_line(provider)
         + f"<p class='faint'>{about}</p></div>"
+    )
+
+
+def together_panel(session: Session) -> str:
+    """Who asked whom for help, the huddles held, and whether talking helps (M64)."""
+    from aurelis.collab.huddle import HUDDLE, huddle_record
+    from aurelis.meetings.tables import Decision, Meeting
+    from aurelis.platform.db.tables import Event
+
+    names = {p.ref: p.handle for p in people(session)}
+    record = huddle_record(session)
+    measured = (
+        f"Brier before talking {record.brier_before}, after {record.brier_after}, over "
+        f"{record.resolved} resolved view(s): {record.verdict()}."
+        if record.brier_before is not None
+        else f"{record.held} huddle(s) held; none of their views has resolved yet."
+    )
+    huddles = session.execute(
+        sa.select(Meeting, Decision)
+        .join(Decision, Decision.meeting_ref == Meeting.ref, isouter=True)
+        .where(Meeting.type == HUDDLE)
+        .order_by(Meeting.convened_at.desc())
+        .limit(12)
+    ).all()
+    rows = "".join(
+        f"<li><a href='/meeting/{escape(m.ref)}'>{escape(m.ref)}</a> "
+        f"{m.convened_at:%m-%d %H:%M} · {escape(m.subject)} · position: "
+        f"<b>{escape(d.outcome if d is not None else 'open')}</b>"
+        + (
+            " · after talking: "
+            + ", ".join(
+                f"{escape(names.get(e.get('agent', ''), e.get('agent', '')))} "
+                f"{escape(str(e.get('before_up', ''))[:4])}→{escape(str(e.get('after_up')))}"
+                for e in (d.supporting or [])
+            )
+            if d is not None
+            else ""
+        )
+        + "</li>"
+        for m, d in huddles
+    )
+    asked = session.execute(
+        sa.select(Event.actor, Event.subject, Event.payload, Event.created_at)
+        .where(Event.kind == "agent.consulted")
+        .order_by(Event.seq.desc())
+        .limit(15)
+    ).all()
+    asks = "".join(
+        f"<li><span class='mono'>{at:%m-%d %H:%M}</span> <b>{escape(names.get(a, a))}</b> asked "
+        f"<b>{escape(names.get(s or '', s or ''))}</b>: {escape(str(p.get('question', ''))[:160])}"
+        f"<br><span class='faint'>answer: {escape(str(p.get('answer', ''))[:240])}</span></li>"
+        for a, s, p, at in asked
+    )
+    return (
+        "<p class='plain sm'>The agents work together in two ways. Before stating a view, any "
+        "agent may ask one colleague one question; the question and the answer are real "
+        "messages. And when two agents hold opposite open views on the same market, the "
+        "company holds a huddle: each makes its case, answers the other and revises, and a "
+        "moderator who holds neither view writes the company's position.</p>"
+        f"<h2>does talking help?</h2><p class='plain sm'>{escape(measured)}</p>"
+        + (
+            f"<h2>huddles</h2><ul class='steps'>{rows}</ul>"
+            if rows
+            else "<p class='plain sm'>No huddle yet: no two agents have held opposite open "
+            "views on one market since this was built.</p>"
+        )
+        + (
+            f"<h2>who asked whom</h2><ul class='steps'>{asks}</ul>"
+            if asks
+            else "<p class='plain sm'>Nobody has asked a colleague for help yet.</p>"
+        )
     )
 
 

@@ -142,7 +142,7 @@ def test_the_manager_asks_colleagues_by_real_messages_and_reports_back(company: 
     assert "coin toss" in done.asked[0][2], "the Critic's own answer"
     assert exchange.answer is not None
     assert "I asked" in exchange.answer.text, "the report written after hearing them"
-    assert _count(company, "SELECT count(*) FROM events WHERE kind = 'manager.consulted'") == 1
+    assert _count(company, "SELECT count(*) FROM events WHERE kind = 'agent.consulted'") == 1
     with company.database.session() as session:
         kinds = [str(k) for k in session.execute(sa.text("SELECT kind FROM messages")).scalars()]
         boss = manager_ref(session)

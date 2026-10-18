@@ -191,6 +191,8 @@ class EventKind(StrEnum):
     DIRECTIVE_REVOKED = "manager.directive_revoked"
     MANAGER_CONSULTED = "manager.consulted"
     """The Manager asked a colleague on the operator's behalf (M63)."""
+    AGENT_CONSULTED = "agent.consulted"
+    """An agent asked a colleague for help, by message, and got an answer (M64)."""
     SOCIAL_FOLLOWED = "social.followed"
     SOCIAL_DROPPED = "social.dropped"
     SOCIAL_CURATED = "social.curated"

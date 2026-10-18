@@ -2549,6 +2549,25 @@ person's wish into different work.
 
 See [ADR-0064](adr/0064-the-manager.md).
 
+## M64 — The agents work together ✅
+
+The live company had held one meeting in its life, and its agents had sent
+each other no messages.
+
+- **Asking for help while working.** Before stating a view, an agent may ask
+  one colleague one question. The colleague answers from its own seat, and
+  both travel as real messages. The answer is an opinion, so its figures are
+  not citable.
+- **Huddles on disagreements.** When two agents hold opposite open views on
+  one market, they meet. Each makes its case, answers the other and revises,
+  and a moderator who holds neither view writes the company's position and a
+  brain note. Each huddle is five calls, capped per wake and per day. The
+  sealed views stand.
+- **Does talking help?** Before and after probabilities are both scored when
+  the views resolve, and the Control Room shows which was better.
+
+See [ADR-0065](adr/0065-the-agents-work-together.md).
+
 ---
 
 ## Sequencing

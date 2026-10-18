@@ -28,7 +28,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from aurelis.chat.talk import Exchange, _conversation, _record, _staffed, _turn, thread
+from aurelis.chat.talk import Exchange, _conversation, _staffed, _turn, thread
 from aurelis.core.enums import Actor, EventKind, ModelTier
 
 __all__ = ["MANAGER_HANDLE", "MANAGER_SYSTEM", "Plan", "manage", "manager_ref", "parse"]
@@ -69,14 +69,6 @@ and what the operator would need to do.
 Format: start with "REPLY:" and your answer to the operator, then any DIRECTIVE, \
 REVOKE or ASK lines, each on its own line. Only quote numbers that appear in what \
 you are shown."""
-
-COLLEAGUE_SYSTEM = """\
-You work at Aurelis, an autonomous quantitative research company made of AI agents. \
-The Company Manager is asking you something on behalf of the operator, the person \
-who owns the company. Answer honestly and briefly (under about 150 words), in plain \
-words, from your own work and record. Only quote numbers that appear in what you are \
-shown. You cannot act from here; say what you think and why."""
-
 
 @dataclass(frozen=True, slots=True)
 class Plan:
@@ -203,72 +195,17 @@ def _situation(session: Session, now: dt.datetime) -> str:
 def _consult(
     runtime: Any, manager: str, handle: str, question: str, *, at: dt.datetime
 ) -> tuple[str, str]:
-    """Ask one colleague on the operator's behalf: a real message each way."""
-    from aurelis.brain.briefing import briefing, system_with_brain
-    from aurelis.comms.tables import MessageKind
-    from aurelis.judgement.seat import identity_of
-    from aurelis.platform.llm.routing import model_for
-    from aurelis.platform.llm.types import LlmRequest, Message, ModelRef
+    """Ask one colleague on the operator's behalf: a real message each way (M64)."""
+    from aurelis.collab.consult import consult
 
-    with runtime.database.session() as session:
-        colleague = runtime.roster.by_handle(session, handle)
-        _post(runtime, session, manager, colleague.ref, MessageKind.QUESTION, question, at)
-        identity = identity_of(colleague, session)
-        system = system_with_brain(COLLEAGUE_SYSTEM, identity, briefing(session))
-        prompt = (
-            f"Your own record:\n{_record(session, colleague.ref)}\n\n"
-            f"The Company Manager asks, for the operator: {question}\n\n"
-            f"Answer as {colleague.handle}."
-        )
-    tier = (
-        colleague.authority.tier
-        if colleague.authority.tier is not ModelTier.NONE
-        else ModelTier.MID
+    return consult(
+        runtime,
+        asker=manager,
+        handle=handle,
+        question=question,
+        preface="The Company Manager is asking you on behalf of the operator.",
+        at=at,
     )
-    with runtime.database.session() as session:
-        model_id = model_for(runtime.provider.name, tier)
-        response = runtime.provider.complete(
-            session,
-            LlmRequest(
-                model=ModelRef(
-                    provider=runtime.provider.name, model=model_id, tier=tier, max_tokens=500
-                ),
-                system=system,
-                messages=(Message("user", prompt),),
-                actor=colleague.ref,
-            ),
-        )
-        answer = response.text.strip() or "(no answer)"
-        _post(runtime, session, colleague.ref, manager, MessageKind.ANSWER, answer, at)
-        runtime.ledger.append(
-            session,
-            kind=EventKind.MANAGER_CONSULTED,
-            actor=manager,
-            subject=colleague.ref,
-            payload={"question": question[:300], "answer": answer[:300]},
-            at=at,
-        )
-    return colleague.ref, answer
-
-
-def _post(
-    runtime: Any, session: Session, sender: str, to: str, kind: Any, body: str, at: dt.datetime
-) -> None:
-    """A real message between agents, if the sender's charter may write one."""
-    try:
-        with session.begin_nested():
-            runtime.comms.post(
-                session,
-                from_agent=sender,
-                kind=kind,
-                subject=body[:120],
-                body=body,
-                to_agents=(to,),
-                requires_response=kind.value == "question",
-                at=at,
-            )
-    except Exception:  # noqa: BLE001 - a charter without the scope still asked; the event says so
-        return
 
 
 def _model_of(runtime: Any, manager: Any) -> str:
