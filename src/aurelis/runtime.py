@@ -22,6 +22,7 @@ from aurelis.agents.tools import ToolBox
 from aurelis.alerts.service import Alerts
 from aurelis.authoring.invariants import install_authoring_invariants
 from aurelis.brain.invariants import install_brain_invariants
+from aurelis.chat.invariants import install_chat_invariants
 from aurelis.comms.channels import Comms
 from aurelis.core.clock import Clock, SystemClock
 from aurelis.core.config import Settings, load_settings
@@ -283,6 +284,7 @@ class Runtime:
                     *install_brain_invariants(connection),
                     *install_evolution_invariants(connection),
                     *install_social_invariants(connection),
+                    *install_chat_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:

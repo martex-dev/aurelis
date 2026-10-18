@@ -2513,6 +2513,23 @@ central control room. Nullius drew it, and Aurelis never had it.
 
 See [ADR-0062](adr/0062-the-office.md).
 
+## M62 — Talking to the agents ✅
+
+Until now the only way to reach an agent was a file dropped in the brain's
+Inbox: a letter, with no reply.
+
+- **Click an agent and talk to it.** It answers from its own seat, as itself:
+  its charters, its method, the shared brain, its own record and the
+  conversation so far.
+- **Both sides are kept, append-only,** with a ledger event each. The
+  operator's line stands even when no answer comes.
+- **It can talk, not act.** No tool, no view, no order. Figures it was not
+  shown are flagged under the answer, and the provider and model are named.
+- **One guarded POST** is the only thing the station accepts. Another site
+  in the same browser cannot use it.
+
+See [ADR-0063](adr/0063-talking-to-the-agents.md).
+
 ---
 
 ## Sequencing

@@ -31,6 +31,10 @@ STOPPED_AFTER = dt.timedelta(hours=2, minutes=30)
 
 _RECENT = dt.timedelta(hours=2)
 
+_LATELY = dt.timedelta(minutes=45)
+"""A model answering this recently means the service is alive, whatever the
+last wake's start time says."""
+
 
 @dataclass(frozen=True, slots=True)
 class Health:
@@ -104,7 +108,17 @@ def company_health(session: Session, now: dt.datetime) -> Health:
             Event.kind.in_(("service.woke", "service.started"))
         )
     ).scalar_one_or_none()
-    if last_wake is not None and now - _aware(last_wake) > STOPPED_AFTER:
+    # A wake's events are stamped with the moment it started, and a wake of a
+    # hundred model calls runs for hours (WAKE-0561: 01:55 to 05:22). So a
+    # model answering recently is also a sign of life, not only a recent wake.
+    thinking_lately = (
+        last_call is not None and dt.timedelta(0) <= now - _aware(last_call) <= _LATELY
+    )
+    if (
+        last_wake is not None
+        and now - _aware(last_wake) > STOPPED_AFTER
+        and not thinking_lately
+    ):
         return Health(
             "stopped",
             "Your company has stopped: the service has not woken.",

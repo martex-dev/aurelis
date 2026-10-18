@@ -84,6 +84,12 @@ def standins() -> Callable[[LlmRequest], str]:
                 "LESSON: A view stated with high confidence on a market that had not moved "
                 "scored worst; confidence should follow the evidence, not the story.\n"
             )
+        if "Answer the operator as" in prompt:
+            return (
+                "Honestly, my record so far is no better than a coin toss, so I would not "
+                "trust any single view of mine yet. I would keep sealing views and let the "
+                "grades decide."
+            )
         if "Which voices should the company follow" in prompt:
             from aurelis.social.standin import scripted_curation
 

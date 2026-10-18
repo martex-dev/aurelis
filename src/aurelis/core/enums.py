@@ -182,6 +182,10 @@ class EventKind(StrEnum):
     check, the lesson or the memo, with what it found. The actor is the agent
     whose charter it is (M56)."""
 
+    CHAT_ASKED = "chat.asked"
+    """The operator said something to an agent in the Office (M62)."""
+    CHAT_ANSWERED = "chat.answered"
+    """The agent answered the operator, through its own seat (M62)."""
     SOCIAL_FOLLOWED = "social.followed"
     SOCIAL_DROPPED = "social.dropped"
     SOCIAL_CURATED = "social.curated"

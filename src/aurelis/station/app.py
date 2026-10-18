@@ -44,6 +44,8 @@ from aurelis.station.render import page
 __all__ = ["StationServer", "serve", "station_app"]
 
 _POLL_SECONDS = 1.0
+_MAX_SAY = 8_000
+"""Bytes of one thing the operator may say to an agent."""
 _SSE_KEEPALIVE = 15.0
 
 
@@ -120,16 +122,45 @@ class StationApp:
             return self._render("Not found", None, f"/{path.strip('/')}")
         return handler(self, rest, query)
 
+    # -------------------------------------------------------------- talk
+
+    def say(self, agent_ref: str, text: str) -> Response:
+        """The operator says ``text`` to an agent and gets its answer (M62)."""
+        from aurelis.chat.talk import ask
+
+        if not text.strip():
+            return Response(b'{"error": "say something"}', 400, "application/json")
+        try:
+            exchange = ask(self.runtime, agent_ref, text)
+        except KeyError:
+            return Response(b'{"error": "nobody by that name works here"}', 404, "application/json")
+        return Response(
+            json.dumps(
+                {
+                    "question": _turn_json(exchange.question),
+                    "answer": _turn_json(exchange.answer) if exchange.answer else None,
+                    "error": exchange.error,
+                }
+            ).encode("utf-8"),
+            content_type="application/json; charset=utf-8",
+        )
+
     # -------------------------------------------------------------- views
 
     def _office(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
         """The Office's live layer: the state it polls and the rooms it opens."""
-        import json
-
         from aurelis.office import live
 
         now = self.runtime.clock.now()
         with self.runtime.database.session() as session:
+            if len(rest) == 2 and rest[0] == "chat":
+                from aurelis.chat.talk import thread
+
+                turns = [_turn_json(t) for t in thread(session, rest[1].removesuffix(".json"))]
+                return Response(
+                    json.dumps({"turns": turns}).encode("utf-8"),
+                    content_type="application/json; charset=utf-8",
+                )
             if rest == ["live.json"]:
                 return Response(
                     json.dumps(live.live_state(session, now)).encode("utf-8"),
@@ -139,7 +170,7 @@ class StationApp:
             if len(rest) == 2 and rest[0] == "room":
                 fragment = live.room_panel(session, rest[1], now)
             elif len(rest) == 2 and rest[0] == "agent":
-                fragment = live.agent_panel(session, rest[1])
+                fragment = live.agent_panel(session, rest[1], self.runtime.provider.name)
             elif len(rest) == 2 and rest[0] == "tab":
                 fragment = live.tab(session, rest[1], now)
         if fragment is None:
@@ -317,6 +348,17 @@ class StationApp:
         ]
 
 
+def _turn_json(turn: Any) -> dict[str, Any]:
+    return {
+        "ref": turn.ref,
+        "speaker": turn.speaker,
+        "text": turn.text,
+        "at": turn.said_at.strftime("%Y-%m-%d %H:%M"),
+        "model": turn.model,
+        "unsourced": list(turn.unsourced or []),
+    }
+
+
 Route = Callable[[StationApp, list[str], dict[str, list[str]]], Response]
 
 _ROUTES: dict[str, Route] = {
@@ -354,7 +396,12 @@ def station_app(runtime: Runtime) -> StationApp:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    """GET only. Every other verb is a 501 from the standard library."""
+    """GET, and one POST: the operator talking to an agent in the Office (M62).
+
+    Every other verb is a 501 from the standard library. The POST is the only
+    way anything reaches the company through the station, and it can only
+    record a line of conversation and ask the agent for an answer.
+    """
 
     server_version = "AurelisStation"
     protocol_version = "HTTP/1.1"
@@ -385,6 +432,39 @@ class _Handler(BaseHTTPRequestHandler):
             ).encode()
             response = Response(body, status=500)
 
+        self.send_response(response.status)
+        self.send_header("Content-Type", response.content_type)
+        self.send_header("Content-Length", str(len(response.body)))
+        self.end_headers()
+        self.wfile.write(response.body)
+
+    def do_POST(self) -> None:  # noqa: N802 - the stdlib's spelling
+        parts = [p for p in urlparse(self.path).path.split("/") if p]
+        # Two guards against another web page in the same browser posting
+        # here. Such a page cannot set a custom header without a CORS
+        # preflight, and this server answers no preflight. A JSON body is
+        # required as well.
+        if (
+            len(parts) != 3
+            or parts[:2] != ["office", "chat"]
+            or self.headers.get("X-Aurelis-Office") != "1"
+            or not (self.headers.get("Content-Type") or "").startswith("application/json")
+        ):
+            self._send(Response(b'{"error": "not here"}', 403, "application/json"))
+            return
+        length = _int([self.headers.get("Content-Length") or "0"], 0)
+        if not 0 < length <= _MAX_SAY:
+            self._send(Response(b'{"error": "say less"}', 413, "application/json"))
+            return
+        try:
+            text = str(json.loads(self.rfile.read(length)).get("text", ""))
+            response = self.app.say(parts[2], text)
+        except Exception as error:  # noqa: BLE001 - a 500 is better than a hang
+            body = json.dumps({"error": f"{type(error).__name__}: {error}"}).encode()
+            response = Response(body, 500, "application/json")
+        self._send(response)
+
+    def _send(self, response: Response) -> None:
         self.send_response(response.status)
         self.send_header("Content-Type", response.content_type)
         self.send_header("Content-Length", str(len(response.body)))

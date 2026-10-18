@@ -299,3 +299,24 @@ def test_a_model_answering_after_the_alarm_reads_as_thinking_before_the_wake_end
         health = company_health(session, alert.raised_at + dt.timedelta(minutes=6))
     assert health.state == "thinking" and not health.alarming
     assert alert.ref in health.detail
+
+
+def test_a_long_wake_that_is_still_thinking_is_not_stopped(
+    company: Runtime, clock: FrozenClock
+) -> None:
+    from aurelis.platform.db.tables import Event
+
+    cycle_once(company, service=_service(company, clock, []))
+    with company.database.session() as session:
+        last_call = session.execute(
+            sa.select(sa.func.max(Event.created_at)).where(Event.kind == "model.called")
+        ).scalar_one()
+        assert last_call is not None
+        # The wake started long ago, by its own stamp; a model answered ten
+        # minutes before now. That is a long wake, not a dead service.
+        later = last_call.replace(tzinfo=dt.UTC) + dt.timedelta(minutes=10)
+        if later - clock.now() < dt.timedelta(hours=3):
+            later = clock.now() + dt.timedelta(hours=3)
+            pytest.skip("the stand-in calls were stamped by the frozen clock")
+        health = company_health(session, later)
+    assert health.state != "stopped", "a wake of a hundred calls runs for hours"

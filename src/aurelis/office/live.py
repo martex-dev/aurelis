@@ -310,8 +310,81 @@ def room_panel(session: Session, room_id: str, now: dt.datetime) -> str | None:
     return f"<nav class='tabs'>{buttons}</nav>{sections}"
 
 
-def agent_panel(session: Session, ref: str) -> str | None:
-    """One agent's profile, opened over the map."""
+def _bold(escaped: str) -> str:
+    """``**this**`` as bold, on text that is already escaped, and nothing else."""
+    import re
+
+    return re.sub(r"\*\*([^*\n]{1,200})\*\*", r"<b>\1</b>", escaped)
+
+
+def _bubble(
+    speaker: str, text: str, at: str, unsourced: list[str], handle: str, model: str | None = None
+) -> str:
+    who = "you" if speaker == "operator" else handle
+    if model:
+        at = f"{at} · {model}"
+    flagged = (
+        f"<span class='flag'>figures not from its material: {escape(', '.join(unsourced))}</span>"
+        if unsourced
+        else ""
+    )
+    return (
+        f"<div class='bubble {escape(speaker)}'><span class='said'>{escape(who)} · {escape(at)}"
+        f"</span><p>{_bold(escape(text))}</p>{flagged}</div>"
+    )
+
+
+def _provider_line(provider: str) -> str:
+    if not provider:
+        return ""
+    if provider == "mock":
+        return (
+            "<p class='flagline'>Answers here come from the offline stand-in (mock), not a "
+            "real model. Start the station with AURELIS_PROVIDER=agent_sdk to talk to the "
+            "real agent.</p>"
+        )
+    return f"<p class='faint'>Answers come from {escape(provider)}.</p>"
+
+
+def agent_panel(session: Session, ref: str, provider: str = "") -> str | None:
+    """One agent, opened over the map: a conversation with it, and its profile (M62)."""
+    from aurelis.chat.talk import thread
     from aurelis.station import pages
 
-    return pages.agent_page(session, ref)
+    profile = pages.agent_page(session, ref)
+    if profile is None:
+        return None
+    handle = next((p.handle for p in people(session) if p.ref == ref), ref)
+    log = "".join(
+        _bubble(
+            t.speaker,
+            t.text,
+            t.said_at.strftime("%m-%d %H:%M"),
+            list(t.unsourced or []),
+            handle,
+            t.model,
+        )
+        for t in thread(session, ref)
+    ) or (
+        f"<p class='plain sm empty'>You have not talked to {escape(handle)} yet. Ask it "
+        "anything: what it is working on, why it declined a market, what it thinks of "
+        "its own record.</p>"
+    )
+    talk = (
+        f"<div class='chat' data-chat='{escape(ref)}' data-handle='{escape(handle)}'>"
+        f"<div class='chat-log'>{log}</div>"
+        "<form class='chat-form'>"
+        f"<textarea rows='2' placeholder='Say something to {escape(handle)}… "
+        "(Enter to send, Shift+Enter for a new line)'></textarea>"
+        "<button type='submit'>Send</button></form>"
+        + _provider_line(provider)
+        + "<p class='faint'>It answers from its own seat, as itself: its charters, its method, "
+        "its record and the shared brain. It can explain, argue and suggest; it cannot "
+        "trade or change anything from here. Every line is kept on the record, and each "
+        "answer is one model call on your subscription.</p></div>"
+    )
+    return (
+        "<nav class='tabs'><button type='button' class='tabbtn on' data-tab='talk'>talk</button>"
+        "<button type='button' class='tabbtn' data-tab='profile'>profile</button></nav>"
+        f"{_section('talk', talk, hidden=False)}{_section('profile', profile)}"
+    )

@@ -144,6 +144,9 @@ class RefKind(StrEnum):
     """One note in the shared brain, from an agent or the operator. Its own
     prefix because notes are cited by other agents and linked in the vault."""
 
+    CHAT = "CHT"
+    """One line of a conversation between the operator and an agent (M62)."""
+
     SOURCE_REQUEST = "SRQ"
     """One agent's answer about one source in the catalogue: wanted or
     declined, with the reason. Its own prefix because the answers are what

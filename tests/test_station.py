@@ -318,14 +318,22 @@ def test_a_missing_subject_is_not_invented(reviewed: Runtime) -> None:
     assert "HYP-9999" in response.body.decode("utf-8")
 
 
-def test_the_station_serves_only_get() -> None:
-    """Read-only as a property of the code, not a promise in a docstring."""
+def test_the_station_serves_get_and_only_the_conversation_post() -> None:
+    """Read-only as a property of the code, except one guarded route (M62).
+
+    The one POST records a line of conversation and asks the agent; it
+    reaches nothing else. ADR-0063.
+    """
+    import inspect
+
     from aurelis.station.app import _Handler
 
-    assert hasattr(_Handler, "do_GET")
-    assert not any(
-        name.startswith("do_") and name != "do_GET" for name in vars(_Handler)
-    )
+    verbs = {name for name in vars(_Handler) if name.startswith("do_")}
+    assert verbs == {"do_GET", "do_POST"}
+    source = inspect.getsource(_Handler.do_POST)
+    assert "self.app.say(" in source
+    assert "self.app.handle(" not in source, "a POST never reaches the page router"
+    assert '["office", "chat"]' in source and "X-Aurelis-Office" in source
 
 
 def test_agent_prose_cannot_become_markup(company: Runtime) -> None:

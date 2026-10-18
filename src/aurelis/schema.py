@@ -19,6 +19,7 @@ from aurelis.alerts import tables as _alerts
 from aurelis.authoring import tables as _authoring
 from aurelis.autonomy import tables as _autonomy
 from aurelis.brain import tables as _brain
+from aurelis.chat import tables as _chat
 from aurelis.comms import tables as _comms
 from aurelis.desks import tables as _desks
 from aurelis.evolution import tables as _evolution
@@ -76,6 +77,7 @@ TABLE_MODULES = (
     _brain,
     _evolution,
     _social,
+    _chat,
     _world,
 )
 """Every module that defines tables, in dependency order.
