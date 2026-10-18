@@ -2587,6 +2587,21 @@ forex, commodity or futures price had ever been recorded.
 
 See [ADR-0066](adr/0066-the-strategy-lab.md).
 
+## M66 — Filling the building ✅
+
+Seven agents formed views. INTEL alone held nine charters, so every agent was
+"basic at everything".
+
+- **Twelve specialists, split off by the company's own fission:** NEWS,
+  SOCIAL, TECH, MACRO, ONCHAIN, FUND, STAT, BACKTEST, ML, ARCH, ROBUST, ADV.
+  Each passes onboarding before it works.
+- **Each reads the material through its own remit.** Every seat now shows a
+  charter's remit, not only its title.
+- **Nineteen agents form views,** and the Office draws each as the figure its
+  work suggests.
+
+See [ADR-0067](adr/0067-filling-the-building.md).
+
 ---
 
 ## Sequencing

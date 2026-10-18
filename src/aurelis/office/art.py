@@ -1044,6 +1044,19 @@ BUILDS: dict[str, str] = {
     "INFRA": "builder",
     "GOV": "reviewer",
     "SERVICE": "system",
+    # the specialists (M66)
+    "NEWS": "literature",
+    "SOCIAL": "literature",
+    "TECH": "analyst",
+    "MACRO": "theorist",
+    "ONCHAIN": "builder",
+    "FUND": "reviewer",
+    "STAT": "analyst",
+    "BACKTEST": "builder",
+    "ML": "designer",
+    "ARCH": "designer",
+    "ROBUST": "replicator",
+    "ADV": "skeptic",
 }
 
 _BY_DEPARTMENT: dict[str, str] = {

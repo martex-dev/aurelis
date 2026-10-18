@@ -1125,11 +1125,12 @@ def identity_of(seated: Any, session: Session | None = None) -> str:
     -- given a session -- the method the company last adopted for it (M48)."""
     from aurelis.org.registry import charter
 
-    titles = sorted({charter(held).name for held in seated.coverage})
+    held = sorted({charter(c).charter_id for c in seated.coverage})
+    titles = [f"{charter(c).name} ({charter(c).remit})" for c in held]
     desk = f" on the {seated.desk.value} desk" if seated.desk is not None else ""
     who = (
         f"You are {seated.handle} ({seated.ref}), {seated.department.value.replace('_', ' ')}"
-        f"{desk}. Your charters: {', '.join(titles) or 'none'}. Read the material "
+        f"{desk}. Your charters: {'; '.join(titles) or 'none'}. Read the material "
         "through that specialism; it is why you and not somebody else are being asked."
     )
     if session is None:

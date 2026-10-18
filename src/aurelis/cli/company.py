@@ -134,6 +134,23 @@ def agent_hire(workspace: WorkspaceOption = None) -> None:
     _print_roster(everyone)
 
 
+@agent_app.command("specialise")
+def agent_specialise(workspace: WorkspaceOption = None) -> None:
+    """Split the generalists' charters onto specialists (M66). Idempotent."""
+    from aurelis.orgdev.specialists import fill_the_building
+
+    runtime = _runtime(workspace)
+    try:
+        runtime.initialise()
+        hired = fill_the_building(runtime)
+    finally:
+        runtime.close()
+    if hired:
+        console.print(f"Hired {len(hired)} specialist(s): {', '.join(hired)}")
+    else:
+        console.print("Every specialist is already on the payroll.")
+
+
 @agent_app.command("list")
 def agent_list(workspace: WorkspaceOption = None) -> None:
     """Who works here."""
