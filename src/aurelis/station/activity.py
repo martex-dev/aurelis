@@ -120,6 +120,11 @@ def describe(kind: str, subject: str | None, payload: dict[str, Any]) -> str:
             f"{p.get('agent')}'s view on {p.get('instrument')} ({p.get('direction')}) "
             f"was {verdict}, Brier {p.get('brier')} ({s})"
         )
+    if kind == "lab.ran":
+        return (
+            f"the strategy lab ran {s}: {p.get('tests')} tests on {p.get('series')} "
+            f"markets, {p.get('survivors')} survived"
+        )
     if kind == "agent.consulted":
         return f"asked {s}: {str(p.get('question', ''))[:120]}"
     if kind == "meeting.convened" and p.get("type") == "huddle":

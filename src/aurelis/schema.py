@@ -26,6 +26,7 @@ from aurelis.evolution import tables as _evolution
 from aurelis.intel import snapshots as _snapshots
 from aurelis.intel import tables as _intel
 from aurelis.judgement import tables as _judgement
+from aurelis.lab import tables as _lab
 from aurelis.manager import tables as _manager
 from aurelis.mandate import tables as _mandate
 from aurelis.mechanism import tables as _mechanism
@@ -80,6 +81,7 @@ TABLE_MODULES = (
     _social,
     _chat,
     _manager,
+    _lab,
     _world,
 )
 """Every module that defines tables, in dependency order.

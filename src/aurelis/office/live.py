@@ -128,11 +128,11 @@ def live_state(session: Session, now: dt.datetime) -> dict[str, Any]:
 #: It is the part of the station that is about that department's work.
 _EXTRA: dict[str, tuple[str, str]] = {
     "market_intelligence": ("voices", "whom the company follows"),
-    "quantitative_research": ("mechanisms", "mechanisms under test"),
-    "strategy_laboratory": ("theses", "sealed views and their grades"),
+    "quantitative_research": ("lab", "the strategy lab"),
+    "strategy_laboratory": ("mechanisms", "mechanisms under test"),
     "portfolio_and_risk": ("mandate", "capital, risk and the path to money"),
     "trading_operations": ("mandate", "the paper book"),
-    "executive": ("missions", "missions"),
+    "executive": ("theses", "every sealed view and its grade"),
     "knowledge_and_memory": ("brain", "the shared brain"),
     "audit_and_governance": ("graveyard", "what failed, and why"),
     "institutional_governance": ("timeline", "the record, newest first"),
@@ -194,6 +194,7 @@ def _page(session: Session, name: str, now: dt.datetime) -> str:
     from aurelis.station import pages
 
     builders: dict[str, Any] = {
+        "lab": lambda: lab_panel(session),
         "voices": lambda: pages.voices_page(session, now=now),
         "mechanisms": lambda: pages.mechanisms_page(session),
         "theses": lambda: pages.theses_page(session, now=now),
@@ -418,6 +419,71 @@ def _talk(session: Session, ref: str, handle: str, provider: str, *, manager: bo
         "<button type='submit'>Send</button></form>"
         + _provider_line(provider)
         + f"<p class='faint'>{about}</p></div>"
+    )
+
+
+def lab_panel(session: Session) -> str:
+    """The strategy lab's latest run, in plain words, then the numbers (M65)."""
+    from aurelis.lab.run import lab_summary
+    from aurelis.lab.tables import LabResult
+
+    summary = lab_summary(session)
+    if summary is None:
+        return (
+            "<p class='plain sm'>The strategy lab has not run yet. It runs once a week from "
+            "the service, or now with <span class='mono'>aurelis lab run</span>.</p>"
+        )
+    families = "".join(
+        f"<tr><td>{escape(name)}</td><td>{tests}</td><td>{survived}</td>"
+        f"<td>{summary.family_oos.get(name, (0.0, 0.0))[0]}</td>"
+        f"<td>{summary.family_oos.get(name, (0.0, 0.0))[1]}%</td></tr>"
+        for name, (tests, survived) in sorted(
+            summary.by_family.items(), key=lambda kv: -summary.family_oos.get(kv[0], (0.0, 0.0))[0]
+        )
+    )
+    desks = "".join(
+        f"<tr><td>{escape(desk)}</td><td>{tests}</td><td>{survived}</td></tr>"
+        for desk, (tests, survived) in sorted(summary.by_desk.items())
+    )
+    top = list(
+        session.execute(
+            sa.select(LabResult)
+            .where(LabResult.run_ref == summary.ref)
+            .order_by(LabResult.oos_sharpe.desc())
+            .limit(15)
+        ).scalars()
+    )
+    best = "".join(
+        f"<tr><td>{escape(r.strategy)}</td><td>{escape(r.symbol)}</td><td>{r.is_sharpe}</td>"
+        f"<td>{r.oos_sharpe}</td><td>{r.oos_return}</td><td>{r.oos_hold}</td>"
+        f"<td>{escape(r.verdict)}</td></tr>"
+        for r in top
+    )
+    return (
+        "<p class='plain'>The lab takes the strategies people teach (moving averages, "
+        "momentum, breakouts, RSI and Bollinger reversion, MACD, and mechanical versions of "
+        "the ICT fair value gap and the SMC liquidity sweep) and tests every one on years of "
+        "daily history on every desk, after each desk's real costs. To <b>survive</b> a "
+        "strategy must beat what luck alone would produce from this many tries in the first "
+        "70% of the data, then beat simply holding the market in the last 30%, which it "
+        "never saw.</p>"
+        f"<div class='tiles'><div class='tile'><div class='n'>{summary.tests}</div>"
+        "<div class='l'>tests</div></div>"
+        f"<div class='tile'><div class='n'>{summary.markets}</div>"
+        "<div class='l'>markets</div></div>"
+        f"<div class='tile'><div class='n'>{summary.survivors}</div>"
+        "<div class='l'>survived</div></div></div>"
+        f"<p class='plain sm'>{escape(summary.line())}</p>"
+        "<h2>by family, averaged over every market</h2><table><thead><tr><th>family</th>"
+        "<th>tests</th><th>survived</th><th>mean out-of-sample Sharpe</th>"
+        f"<th>beat holding</th></tr></thead><tbody>{families}</tbody></table>"
+        "<h2>by desk</h2><table><thead><tr><th>desk</th><th>tests</th><th>survived</th></tr>"
+        f"</thead><tbody>{desks}</tbody></table>"
+        "<h2>best out of sample</h2><p class='plain sm'>Sorted by the last 30% alone, which "
+        "is how people fool themselves: read the verdict column, not the order.</p>"
+        "<table><thead><tr><th>strategy</th><th>market</th><th>in-sample Sharpe</th>"
+        "<th>out-of-sample Sharpe</th><th>out-of-sample return</th><th>holding</th>"
+        f"<th>verdict</th></tr></thead><tbody>{best}</tbody></table>"
     )
 
 

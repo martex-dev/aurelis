@@ -2568,6 +2568,25 @@ each other no messages.
 
 See [ADR-0065](adr/0065-the-agents-work-together.md).
 
+## M65 — The strategy lab ✅
+
+The taught strategies had never been tested side by side, and no stock,
+forex, commodity or futures price had ever been recorded.
+
+- **Years of daily history on every desk with free data.** Coinbase covers
+  crypto. Yahoo's keyless chart endpoint covers 32 equities, ETFs, indices,
+  FX pairs, commodities and futures.
+- **The catalogue.** 36 strategies: moving-average crossovers, momentum,
+  breakouts, RSI and Bollinger reversion, MACD, and mechanical versions of
+  the ICT fair value gap and the SMC liquidity sweep. None can see the future.
+- **Judged honestly.** A strategy pays the desk's real costs, must beat what
+  luck produces from that many tries in sample, and must beat holding the
+  market out of sample.
+- **The company reads it.** Every seat's briefing carries the finding, the
+  Quant Research room shows it, and the service reruns it weekly.
+
+See [ADR-0066](adr/0066-the-strategy-lab.md).
+
 ---
 
 ## Sequencing

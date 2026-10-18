@@ -32,6 +32,7 @@ from aurelis.cli.desk import desk_app
 from aurelis.cli.doctor import Status, run_checks
 from aurelis.cli.duty import duty_app
 from aurelis.cli.evolution import evolution_app
+from aurelis.cli.lab import lab_app
 from aurelis.cli.mandate import mandate_app
 from aurelis.cli.mechanism import mechanism_app
 from aurelis.cli.meeting import meeting_app
@@ -62,6 +63,7 @@ app = typer.Typer(
 db_app = typer.Typer(help="Workspace database.", no_args_is_help=True)
 ledger_app = typer.Typer(help="The company's append-only record.", no_args_is_help=True)
 app.add_typer(db_app, name="db")
+app.add_typer(lab_app, name="lab")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(org_app, name="org")
 app.add_typer(orgdev_app, name="orgdev")

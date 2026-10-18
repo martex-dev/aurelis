@@ -31,6 +31,7 @@ from aurelis.desks.opening import Desks
 from aurelis.evolution.invariants import install_evolution_invariants
 from aurelis.intel.snapshots import Snapshots
 from aurelis.judgement.invariants import install_judgement_invariants
+from aurelis.lab.invariants import install_lab_invariants
 from aurelis.manager.invariants import install_directive_invariants
 from aurelis.mechanism.invariants import install_mechanism_invariants
 from aurelis.mechanism.library import Mechanisms
@@ -287,6 +288,7 @@ class Runtime:
                     *install_social_invariants(connection),
                     *install_chat_invariants(connection),
                     *install_directive_invariants(connection),
+                    *install_lab_invariants(connection),
                 )
         with self.database.session() as session:
             if self.database.added_columns:

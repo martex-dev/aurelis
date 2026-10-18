@@ -71,9 +71,13 @@ class Briefing:
     notes: str
     directives: str = ""
     """The operator's active directives (M63), or empty."""
+    lab: str = ""
+    """What the strategy lab found about the taught strategies (M65), or empty."""
 
     def text(self) -> str:
         parts = [BRAIN_RULE, "", "Record:", self.record or "  (nothing recorded yet)"]
+        if self.lab:
+            parts += ["", "Lab:", self.lab]
         if self.directives:
             parts += ["", "Directives:", DIRECTIVES_RULE, self.directives]
         if self.notes:
@@ -335,7 +339,36 @@ def briefing(session: Session, topics: tuple[str, ...] | list[str] = ()) -> Brie
         record=record,
         notes=_clip([_note_line(n) for n in picked], _NOTES_BUDGET),
         directives=directive_block(session),
+        lab=lab_line(session),
     )
+
+
+_LAB_CACHE: dict[tuple[str, str], str] = {}
+
+
+def lab_line(session: Session) -> str:
+    """The latest lab run as one line, cached until a new run exists."""
+    from aurelis.lab.run import lab_summary
+    from aurelis.lab.tables import LabRun
+
+    try:
+        with session.begin_nested():
+            latest = session.execute(
+                sa.select(LabRun.ref).order_by(LabRun.ran_at.desc()).limit(1)
+            ).scalar_one_or_none()
+    except sa.exc.OperationalError:
+        # A workspace whose schema predates the lab (M65) has no lab to report;
+        # `aurelis db init` adds the table without touching anything else.
+        return ""
+    if latest is None:
+        return ""
+    key = (str(session.get_bind().engine.url), str(latest))
+    if key not in _LAB_CACHE:
+        summary = lab_summary(session)
+        if len(_LAB_CACHE) > 8:
+            _LAB_CACHE.clear()
+        _LAB_CACHE[key] = summary.line() if summary is not None else ""
+    return _LAB_CACHE[key]
 
 
 def system_with_brain(system: str, identity: str, brain: Briefing) -> str:

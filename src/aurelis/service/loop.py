@@ -858,6 +858,28 @@ class Service:
                 )
             )
 
+        # 4f. the strategy lab (M65), weekly: every taught strategy on every
+        #     desk's years of daily history, after costs and luck. No model call.
+        from aurelis.lab.run import lab_due, run_lab
+
+        try:
+            with runtime.database.session() as session:
+                due = lab_due(session, moment)
+            if due:
+                notes.append(f"lab: {run_lab(runtime, at=moment)}")
+        except Exception as error:  # noqa: BLE001 - recorded, and the wake continues
+            incidents.append(
+                self._incident(
+                    severity=Severity.WARNING,
+                    source="service.lab",
+                    subject=service_ref,
+                    desk=None,
+                    message=f"the strategy lab did not run: {type(error).__name__}: {error}",
+                    action="The last lab run stands; the next wake retries.",
+                    at=moment,
+                )
+            )
+
         # 5. the shared brain: the operator's inbox is read into it, and it is
         #    rendered as a vault the operator can open in Obsidian (M46). The
         #    record is the database; a vault that fails to render is a warning.

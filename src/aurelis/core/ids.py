@@ -147,6 +147,9 @@ class RefKind(StrEnum):
     CHAT = "CHT"
     """One line of a conversation between the operator and an agent (M62)."""
 
+    LAB_RUN = "LAB"
+    """One run of the strategy lab over the whole universe (M65)."""
+
     DIRECTIVE = "DIR"
     """A standing instruction from the operator, issued or revoked through the
     Manager (M63). Every seat reads the active ones."""

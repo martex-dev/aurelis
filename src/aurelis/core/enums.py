@@ -193,6 +193,8 @@ class EventKind(StrEnum):
     """The Manager asked a colleague on the operator's behalf (M63)."""
     AGENT_CONSULTED = "agent.consulted"
     """An agent asked a colleague for help, by message, and got an answer (M64)."""
+    LAB_RAN = "lab.ran"
+    """The strategy lab tested the catalogue on the universe (M65)."""
     SOCIAL_FOLLOWED = "social.followed"
     SOCIAL_DROPPED = "social.dropped"
     SOCIAL_CURATED = "social.curated"
