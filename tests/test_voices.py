@@ -449,7 +449,7 @@ def test_the_station_shows_every_voices_record_and_every_sitting(
         curate(company, at=_NOW)
         app = station_app(company)
         page = app.handle("/voices", {}).body.decode()
-        facility = app.handle("/", {}).body.decode()
+        facility = app.handle("/facility", {}).body.decode()
     finally:
         company.close()
     assert "<h1>Voices</h1>" in page and "x/leader" in page and "LEADS PRICE" in page

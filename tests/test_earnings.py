@@ -469,7 +469,7 @@ def test_the_station_shows_the_path_to_real_money(
     monkeypatch.setattr(earnings, "earnings_board", lambda session: _earning("MEC-0001"))
     assess(company)
     page = app.handle("/mandate", {}).body.decode()
-    facility = app.handle("/", {}).body.decode()
+    facility = app.handle("/facility", {}).body.decode()
     assert "NOT YET" in page and f"of {len(STANDARD)} conditions met" in page
     assert "earning" in page and "UNMET" in page and "MET" in page
     assert "MEC-0001" in page and "EARNING AFTER COSTS" in page and "11 / 1" in page

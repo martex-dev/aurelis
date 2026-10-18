@@ -208,7 +208,7 @@ def test_the_facility_refreshes_in_place_and_the_stream_carries_each_line(
         },
     )
     app = station_app(company)
-    home = app.handle("/", {}).body.decode()
+    home = app.handle("/facility", {}).body.decode()
     now = app.handle("/now", {}).body.decode()
     assert "id='now'" in home and "id='feed'" in home and 'fetch("/now")' in home
     assert "<html" not in now and "Who is doing what" in now and "views sealed" in now

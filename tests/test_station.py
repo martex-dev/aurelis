@@ -300,7 +300,7 @@ def test_the_timeline_can_be_read_forward_from_a_cursor(company: Runtime) -> Non
 
 
 def test_the_facility_page_renders_the_building(reviewed: Runtime) -> None:
-    html = _get(_app(reviewed), "/")
+    html = _get(_app(reviewed), "/facility")
     assert "<svg" in html
     assert "QUANTITATIVE RESEARCH" in html
     assert "NO CORRIDOR" in html
@@ -392,7 +392,7 @@ def test_the_whole_review_is_legible_without_a_terminal(reviewed: Runtime) -> No
 
 def test_every_figure_on_the_front_page_carries_a_title(reviewed: Runtime) -> None:
     """The checkable form of "nothing on this page was typed"."""
-    html = _get(_app(reviewed), "/")
+    html = _get(_app(reviewed), "/facility")
     figures = re.findall(r"<span class='v figure[^']*' title='([^']*)'>", html)
     assert figures
     assert all(title.strip() for title in figures)

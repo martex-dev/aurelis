@@ -97,6 +97,14 @@ class StationApp:
         parts = [unquote(part) for part in path.strip("/").split("/") if part]
 
         if not parts:
+            # The Office is the front door (M61): the company drawn as the
+            # building it works in. The schematic facility is one click away.
+            from aurelis.office import render_office
+
+            with self.runtime.database.session() as session:
+                html = render_office(session, self.runtime.clock.now())
+            return Response(html.encode("utf-8"))
+        if parts == ["facility"]:
             with self.runtime.database.session() as session:
                 body = pages.facility_page(session, self.facility, self.runtime.clock.now())
             return self._render("Facility", body, "")
@@ -113,6 +121,30 @@ class StationApp:
         return handler(self, rest, query)
 
     # -------------------------------------------------------------- views
+
+    def _office(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
+        """The Office's live layer: the state it polls and the rooms it opens."""
+        import json
+
+        from aurelis.office import live
+
+        now = self.runtime.clock.now()
+        with self.runtime.database.session() as session:
+            if rest == ["live.json"]:
+                return Response(
+                    json.dumps(live.live_state(session, now)).encode("utf-8"),
+                    content_type="application/json; charset=utf-8",
+                )
+            fragment: str | None = None
+            if len(rest) == 2 and rest[0] == "room":
+                fragment = live.room_panel(session, rest[1], now)
+            elif len(rest) == 2 and rest[0] == "agent":
+                fragment = live.agent_panel(session, rest[1])
+            elif len(rest) == 2 and rest[0] == "tab":
+                fragment = live.tab(session, rest[1], now)
+        if fragment is None:
+            return Response(b"<p class='load'>nothing here</p>", status=404)
+        return Response(fragment.encode("utf-8"))
 
     def _timeline(self, _rest: list[str], query: dict[str, list[str]]) -> Response:
         limit = _int(query.get("limit"), 200)
@@ -288,6 +320,7 @@ class StationApp:
 Route = Callable[[StationApp, list[str], dict[str, list[str]]], Response]
 
 _ROUTES: dict[str, Route] = {
+    "office": StationApp._office,
     "timeline": StationApp._timeline,
     "department": StationApp._department,
     "agent": StationApp._agent,

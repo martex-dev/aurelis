@@ -51,6 +51,8 @@ def _aware(moment: dt.datetime) -> dt.datetime:
 
 def _hours(delta: dt.timedelta) -> str:
     hours = delta.total_seconds() / 3600
+    if hours < 1:
+        return f"{max(1, round(delta.total_seconds() / 60))} minute(s)"
     if hours < 48:
         return f"{hours:.0f} hour(s)"
     return f"{hours / 24:.0f} day(s)"
@@ -73,6 +75,20 @@ def company_health(session: Session, now: dt.datetime) -> Health:
         if last_call is not None
         else "No agent has thought yet."
     )
+    if (
+        asleep is not None
+        and last_call is not None
+        and _aware(last_call) > _aware(asleep.raised_at)
+    ):
+        # A model has answered since the alarm went off: the company is awake
+        # again, and the alert closes when the wake that woke it is written.
+        return Health(
+            "thinking",
+            "Your company is thinking again.",
+            f"A model answered {_hours(now - _aware(last_call))} ago, after alert "
+            f"{asleep.ref}; it closes when this wake is written.",
+            "",
+        )
     if asleep is not None:
         message = asleep.message.split(" The provider said:")[0]
         return Health(

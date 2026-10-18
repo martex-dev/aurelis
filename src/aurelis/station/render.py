@@ -505,7 +505,7 @@ def page(
         f"<body data-seq='{seq}'>"
         f"<header class='bar'><span class='brand'>AURELIS</span>{badge}{header}"
         "<nav>"
-        "<a href='/'>facility</a><a href='/timeline'>timeline</a>"
+        "<a href='/'>office</a><a href='/facility'>facility</a><a href='/timeline'>timeline</a>"
         "<a href='/theses'>theses</a><a href='/world'>world</a>"
         "<a href='/mechanisms'>mechanisms</a><a href='/brain'>brain</a>"
         "<a href='/voices'>voices</a><a href='/mandate'>money</a>"

@@ -247,7 +247,7 @@ def test_the_facility_says_loudly_when_the_company_is_asleep(
         health = company_health(session, clock.now())
     assert health.state == "asleep" and health.alarming
     assert "/login" in health.todo
-    for path in ("/", "/now"):
+    for path in ("/facility", "/now"):
         page = station_app(company).handle(path, {}).body.decode()
         assert "health asleep" in page
         assert "Your company is asleep" in page
@@ -277,3 +277,25 @@ def test_the_facility_says_when_the_service_has_stopped(
     assert health.state == "stopped" and health.alarming
     assert "has not woken" in health.headline
     assert "run-aurelis.ps1" in health.todo
+
+
+def test_a_model_answering_after_the_alarm_reads_as_thinking_before_the_wake_ends(
+    company: Runtime, clock: FrozenClock, provider: _Switchable
+) -> None:
+    from aurelis.core.enums import EventKind
+
+    provider.expired = True
+    cycle_once(company, service=_service(company, clock, []))
+    (alert,) = _asleep_alerts(company)
+    with company.database.session() as session:
+        company.ledger.append(
+            session,
+            kind=EventKind.MODEL_CALLED,
+            actor="SERVICE",
+            subject=None,
+            payload={"model": "m"},
+            at=alert.raised_at + dt.timedelta(minutes=5),
+        )
+        health = company_health(session, alert.raised_at + dt.timedelta(minutes=6))
+    assert health.state == "thinking" and not health.alarming
+    assert alert.ref in health.detail

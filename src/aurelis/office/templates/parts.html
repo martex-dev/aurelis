@@ -1,0 +1,1622 @@
+{# Furniture, fittings and the corridor between rooms.
+
+   Every shape below is a vector primitive placed by `render.py` from a hash of
+   the room's own id, so the station draws identically on every build and no
+   binary asset ships. Nothing here decides what is true — a room's kit is art —
+   but a room drawn with three hairlines in it reads as a room that does
+   nothing, and that would be a claim, and a false one.
+
+   ------------------------------------------------------------------- M30
+
+   Until now everything here was an axis-aligned rectangle lying flat on the
+   floor. That is the whole of why fourteen rooms of equipment read as coloured
+   squares inside a bigger square: nothing in the drawing distinguished a
+   cabinet from a mark painted on the deck. Every fixture is now a solid. It
+   arrives with `f.z`, which is how much of its box is the face you look at
+   rather than the top you look down on, and `solid()` draws it as one object —
+   a cast shadow, a front face in shadow, a top face in the light, a bright seam
+   where the two meet and a dark line all the way round. Detail then goes on the
+   two faces: what is lying on the surface up top, what the machine does below.
+
+   Materials arrive with the fixture too. `f.body` and `f.shade` are the lit and
+   the shadowed side of what it is made of, `f.glow` the colour it lights up in.
+#}
+
+{# --------------------------------------------------------------- the solid #}
+
+{# The top of a thing: rounded where the light catches it, square where it
+   meets its own front. #}
+{% macro topface(x, y, w, h, r, fill) %}
+<path d="M{{ x }} {{ y + r }} a{{ r }} {{ r }} 0 0 1 {{ r }} {{ -r }} h{{ w - 2 * r }}
+         a{{ r }} {{ r }} 0 0 1 {{ r }} {{ r }} v{{ h - r }} h{{ -w }} z" fill="{{ fill }}"/>
+{% endmacro %}
+
+{# The face of a thing: square where it meets its own top, rounded where it
+   stands on the floor. #}
+{% macro frontface(x, y, w, h, r, fill) %}
+<path d="M{{ x }} {{ y }} h{{ w }} v{{ h - r }} a{{ r }} {{ r }} 0 0 1 {{ -r }} {{ r }}
+         h{{ -(w - 2 * r) }} a{{ r }} {{ r }} 0 0 1 {{ -r }} {{ -r }} z" fill="{{ fill }}"/>
+{% endmacro %}
+
+{# One object standing on the floor. Everything with a rectangular footprint is
+   drawn through here, so the whole station is lit the same way and from the
+   same direction. #}
+{% macro solid(f, top, front, r) %}
+{% set th = f.h - f.z %}
+{% set fy = f.y + th %}
+<ellipse cx="{{ f.x + f.w / 2 + f.z * 0.16 }}" cy="{{ f.y + f.h + 1.5 }}"
+         rx="{{ f.w * 0.52 }}" ry="{{ 2.6 + f.z * 0.13 }}" fill="#000" opacity=".45"/>
+{{ frontface(f.x, fy, f.w, f.z, r, front) }}
+{{ frontface(f.x, fy, f.w, f.z, r, 'url(#faceV)') }}
+{{ topface(f.x, f.y, f.w, th, r, top) }}
+{{ topface(f.x, f.y, f.w, th, r, 'url(#topV)') }}
+<line x1="{{ f.x + 0.6 }}" y1="{{ fy }}" x2="{{ f.x + f.w - 0.6 }}" y2="{{ fy }}"
+      stroke="#fff" stroke-width="1.3" stroke-opacity=".22"/>
+<line x1="{{ f.x + r }}" y1="{{ f.y + 0.9 }}" x2="{{ f.x + f.w - r }}" y2="{{ f.y + 0.9 }}"
+      stroke="#fff" stroke-width="1.2" stroke-opacity=".3"/>
+<rect x="{{ f.x }}" y="{{ f.y }}" width="{{ f.w }}" height="{{ f.h }}" rx="{{ r }}"
+      fill="none" stroke="#050912" stroke-width="1.7" stroke-opacity=".72"/>
+{% endmacro %}
+
+{# A cylinder standing on the floor: a lid you look down on, a barrel you look
+   at. For anything that is not a box. #}
+{% macro drum(f, top, front, inset) %}
+{% set th = f.h - f.z %}
+{% set rx = f.w * (0.5 - inset) %}
+{% set cx = f.x + f.w / 2 %}
+<ellipse cx="{{ cx + f.z * 0.14 }}" cy="{{ f.y + f.h + 1.5 }}" rx="{{ rx * 1.05 }}"
+         ry="{{ 2.6 + f.z * 0.13 }}" fill="#000" opacity=".45"/>
+<path d="M{{ cx - rx }} {{ f.y + th / 2 }} v{{ f.z }} a{{ rx }} {{ th / 2 }} 0 0 0 {{ rx * 2 }} 0
+         v{{ -f.z }} z" fill="{{ front }}"/>
+<path d="M{{ cx - rx }} {{ f.y + th / 2 }} v{{ f.z }} a{{ rx }} {{ th / 2 }} 0 0 0 {{ rx * 2 }} 0
+         v{{ -f.z }} z" fill="url(#faceV)"/>
+<ellipse cx="{{ cx }}" cy="{{ f.y + th / 2 }}" rx="{{ rx }}" ry="{{ th / 2 }}" fill="{{ top }}"/>
+<ellipse cx="{{ cx }}" cy="{{ f.y + th / 2 }}" rx="{{ rx }}" ry="{{ th / 2 }}"
+         fill="url(#topV)"/>
+<ellipse cx="{{ cx }}" cy="{{ f.y + th / 2 }}" rx="{{ rx }}" ry="{{ th / 2 }}" fill="none"
+         stroke="#050912" stroke-width="1.6" stroke-opacity=".7"/>
+<path d="M{{ cx - rx }} {{ f.y + th / 2 }} v{{ f.z }} a{{ rx }} {{ th / 2 }} 0 0 0 {{ rx * 2 }} 0
+         v{{ -f.z }}" fill="none" stroke="#050912" stroke-width="1.7" stroke-opacity=".72"/>
+{% endmacro %}
+
+{# -------------------------------------------------------------- furniture #}
+
+{% macro fixture(f, hue, dim) %}
+{% set o = 0.34 if dim else 1 %}
+{% set b = f.body %}
+{% set d = f.shade %}
+{% set g = f.glow %}
+{% set z = f.z %}
+{% set th = f.h - f.z %}
+{% set fy = f.y + f.h - f.z %}
+{% set by = f.y + f.h %}
+<g opacity="{{ o }}">
+{% if f.kind == 'rack' %}
+  {# a server rack: blades in the face, a vented lid, lights that are not in step #}
+  {{ solid(f, b, d, 3) }}
+  {% for i in range(5) %}
+  <line x1="{{ f.x + 6 }}" y1="{{ f.y + 4 + i * (th - 8) / 5 }}" x2="{{ f.x + f.w - 6 }}"
+        y2="{{ f.y + 4 + i * (th - 8) / 5 }}" stroke="#050912" stroke-width="1.5"
+        stroke-opacity=".5"/>
+  {% endfor %}
+  {% for i in range(5) %}
+  {% set uy = fy + 2.5 + i * (z - 5) / 5 %}
+  {% set uh = (z - 5) / 5 - 1.8 %}
+  <rect x="{{ f.x + 4 }}" y="{{ uy }}" width="{{ f.w - 8 }}" height="{{ uh }}" rx="1.2"
+        fill="var(--fix-2)" stroke="#000" stroke-width=".8" stroke-opacity=".5"/>
+  <rect x="{{ f.x + 6.5 }}" y="{{ uy + 1 }}" width="{{ (f.w - 8) * 0.5 }}"
+        height="{{ uh * 0.42 }}" rx=".8" fill="{{ d }}" opacity=".85"/>
+  <circle cx="{{ f.x + f.w - 8 }}" cy="{{ uy + uh / 2 }}" r="1.7" fill="{{ g }}" class="blink"
+          style="animation-delay:{{ i * 0.42 }}s"/>
+  <circle cx="{{ f.x + f.w - 13 }}" cy="{{ uy + uh / 2 }}" r="1.4" fill="var(--m-hazard)"
+          opacity=".55"/>
+  {% endfor %}
+{% elif f.kind == 'cabinet' or f.kind == 'locker' %}
+  {# drawers with pulls and a colour tab, and a folder left on the lid #}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + f.w * 0.16 }}" y="{{ f.y + th * 0.22 }}" width="{{ f.w * 0.4 }}"
+        height="{{ th * 0.56 }}" rx="1.5" fill="#eef2f8" opacity=".55"
+        transform="rotate(-4 {{ f.x + f.w * 0.36 }} {{ f.y + th / 2 }})"/>
+  {% for i in range(3) %}
+  {% set dy = fy + 2 + i * (z - 4) / 3 %}
+  {% set dh = (z - 4) / 3 - 2 %}
+  <rect x="{{ f.x + 3.5 }}" y="{{ dy }}" width="{{ f.w - 7 }}" height="{{ dh }}" rx="1.6"
+        fill="{{ b }}" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  <rect x="{{ f.x + 3.5 }}" y="{{ dy }}" width="{{ f.w - 7 }}" height="{{ dh * 0.3 }}" rx="1.6"
+        fill="#fff" opacity=".08"/>
+  <rect x="{{ f.x + f.w / 2 - 9 }}" y="{{ dy + dh * 0.5 - 1.4 }}" width="18" height="2.8"
+        rx="1.4" fill="{{ d }}"/>
+  <rect x="{{ f.x + 6 }}" y="{{ dy + 2 }}" width="9" height="3" rx="1.2"
+        fill="{{ ['#c85246', '#3f8f5c', '#d8a341'][i] }}"/>
+  {% endfor %}
+{% elif f.kind == 'shelf' or f.kind == 'stacks' %}
+  {# shelving: spines on the face, the tops of the same books on the lid #}
+  {{ solid(f, d, d, 2.5) }}
+  {% for i in range(8) %}
+  <rect x="{{ f.x + 5 + i * (f.w - 10) / 8 }}" y="{{ f.y + 3 + (i % 2) * 2 }}"
+        width="{{ (f.w - 10) / 8 - 1.6 }}" height="{{ th - 7 - (i % 2) * 2 }}" rx="1"
+        fill="{{ ['#b0503f', '#4f8fbf', '#d0a141', '#5f9e63', '#9d6fb5'][i % 5] }}"
+        opacity=".55"/>
+  {% endfor %}
+  {% for row in range(2) %}
+  {% set sy = fy + 2 + row * (z - 4) / 2 %}
+  {% set sh = (z - 4) / 2 %}
+  <rect x="{{ f.x + 3 }}" y="{{ sy + sh - 3 }}" width="{{ f.w - 6 }}" height="2.6"
+        fill="{{ b }}"/>
+  {% for i in range(7) %}
+  {% set lift = ((i * 3 + row) % 3) * 0.8 %}
+  <rect x="{{ f.x + 5.5 + i * (f.w - 11) / 7 }}" y="{{ sy + lift }}"
+        width="{{ (f.w - 11) / 7 - 1.4 }}" height="{{ sh - 3.4 - lift }}" rx=".9"
+        fill="{{ ['#b0503f', '#4f8fbf', '#d0a141', '#5f9e63', '#9d6fb5'][(i * 2 + row) % 5] }}"/>
+  <rect x="{{ f.x + 5.5 + i * (f.w - 11) / 7 }}" y="{{ sy + lift }}"
+        width="{{ ((f.w - 11) / 7 - 1.4) * 0.34 }}" height="{{ sh - 3.4 - lift }}" fill="#fff"
+        opacity=".12"/>
+  {% endfor %}
+  {% endfor %}
+{% elif f.kind == 'board' or f.kind == 'plotwall' %}
+  {# a board on the wall: a thin cap, a working face #}
+  {{ solid(f, b, d, 2.5) }}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="1.5"
+        fill="var(--fix-2)"/>
+  <path d="M{{ f.x + 8 }} {{ by - 7 }} l{{ f.w * 0.17 }} {{ -(z - 12) * 0.5 }}
+           l{{ f.w * 0.15 }} {{ (z - 12) * 0.2 }} l{{ f.w * 0.16 }} {{ -(z - 12) * 0.45 }}
+           l{{ f.w * 0.14 }} {{ (z - 12) * 0.14 }}" fill="none" stroke="{{ g }}"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M{{ f.x + 8 }} {{ by - 7 }} h{{ f.w - 20 }}" stroke="#8fa2ba" stroke-width="1.2"
+        stroke-opacity=".55"/>
+  <path d="M{{ f.x + 8 }} {{ by - 7 }} v{{ -(z - 12) }}" stroke="#8fa2ba" stroke-width="1.2"
+        stroke-opacity=".55"/>
+  {% for i in range(3) %}
+  <rect x="{{ f.x + f.w - 22 }}" y="{{ fy + 5 + i * 7 }}" width="14" height="4.4" rx="1"
+        fill="{{ ['#c85246', '#d8a341', '#4f8fbf'][i] }}"
+        transform="rotate({{ i * 3 - 3 }} {{ f.x + f.w - 15 }} {{ fy + 7 + i * 7 }})"/>
+  {% endfor %}
+  <rect x="{{ f.x + 4 }}" y="{{ f.y + 2 }}" width="{{ f.w - 8 }}" height="{{ th - 4 }}" rx="1.4"
+        fill="{{ d }}" opacity=".5"/>
+{% elif f.kind == 'bigboard' %}
+  {# the status board: the whole institution on one wall, which is what this
+     room is for and what no other room has #}
+  {{ solid(f, d, d, 3) }}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="2"
+        fill="#0a1220"/>
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="2"
+        fill="{{ g }}" opacity=".08" class="glowpane"/>
+  {% for i in range(5) %}
+  <line x1="{{ f.x + 6 + i * (f.w - 12) / 5 }}" y1="{{ fy + 4 }}"
+        x2="{{ f.x + 6 + i * (f.w - 12) / 5 }}" y2="{{ by - 4 }}" stroke="{{ g }}"
+        stroke-width="1" opacity=".2"/>
+  {% endfor %}
+  {% for pass_ in [0, 1] %}
+  <g class="cycle {{ 'a' if pass_ == 0 else 'b' }}">
+    {% for i in range(15) %}
+    <rect x="{{ f.x + 7 + (i % 5) * (f.w - 14) / 5 }}"
+          y="{{ fy + 5 + (i // 5) * (z - 11) / 3 }}"
+          width="{{ (f.w - 14) / 5 * (0.34 + 0.12 * ((i + pass_ * 2) % 4)) }}"
+          height="{{ (z - 11) / 3 - 2.6 }}" rx="1.2"
+          fill="{{ ['#3f8f5c', '#d8a341', '#4f8fbf', '#c0483c'][((i + pass_) * 3) % 4] }}"
+          opacity=".85"/>
+    {% endfor %}
+  </g>
+  {% endfor %}
+  <rect x="{{ f.x + 6 }}" y="{{ by - 8 }}" width="{{ (f.w - 12) * 0.62 }}" height="3.4" rx="1.7"
+        fill="{{ g }}" opacity=".9"/>
+  <rect x="{{ f.x + 5 }}" y="{{ f.y + 2 }}" width="{{ f.w - 10 }}" height="{{ th - 4 }}" rx="1.4"
+        fill="{{ b }}" opacity=".65"/>
+{% elif f.kind == 'screen' %}
+  {{ solid(f, d, d, 3) }}
+  <rect x="{{ f.x + 3.5 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 7 }}" height="{{ z - 6 }}" rx="2"
+        fill="{{ b }}"/>
+  <rect x="{{ f.x + 3.5 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 7 }}" height="{{ z - 6 }}" rx="2"
+        fill="{{ g }}" opacity=".22" class="glowpane"/>
+  <g class="cycle a">
+    {% for i in range(4) %}
+    <rect x="{{ f.x + 8 }}" y="{{ fy + 6 + i * (z - 13) / 4 }}"
+          width="{{ (f.w - 22) * (0.32 + 0.17 * (i % 4)) }}" height="2.4" rx="1.2" fill="{{ g }}"
+          opacity=".9"/>
+    {% endfor %}
+  </g>
+  <g class="cycle b">
+    {% for i in range(4) %}
+    <rect x="{{ f.x + 8 }}" y="{{ fy + 6 + i * (z - 13) / 4 }}"
+          width="{{ (f.w - 22) * (0.7 - 0.14 * (i % 4)) }}" height="2.4" rx="1.2" fill="{{ g }}"
+          opacity=".9"/>
+    {% endfor %}
+  </g>
+  <rect x="{{ f.x + 3.5 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 7 }}" height="{{ (z - 6) * 0.4 }}"
+        rx="2" fill="#fff" opacity=".05"/>
+  <rect x="{{ f.x + f.w * 0.3 }}" y="{{ f.y + 2 }}" width="{{ f.w * 0.4 }}" height="{{ th - 4 }}"
+        rx="1.4" fill="{{ b }}" opacity=".7"/>
+{% elif f.kind == 'console' %}
+  {# a workstation: a keyboard and paper on the desktop, a panel of gear below #}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + 5 }}" y="{{ f.y + 3 }}" width="{{ f.w * 0.42 }}" height="{{ th - 6 }}"
+        rx="1.6" fill="var(--fix-2)"/>
+  {% for i in range(12) %}
+  <rect x="{{ f.x + 7 + (i % 6) * (f.w * 0.42 - 4) / 6 }}"
+        y="{{ f.y + 5 + (i // 6) * (th - 10) / 2 }}" width="{{ (f.w * 0.42 - 4) / 6 - 1.4 }}"
+        height="{{ (th - 10) / 2 - 1.2 }}" rx=".8" fill="{{ d }}"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.5 }}" y="{{ f.y + 4 }}" width="{{ f.w * 0.3 }}" height="{{ th - 8 }}"
+        rx="1.2" fill="#eef2f8" opacity=".7"
+        transform="rotate(5 {{ f.x + f.w * 0.65 }} {{ f.y + th / 2 }})"/>
+  <circle cx="{{ f.x + f.w - 11 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.2 }}"
+          fill="var(--m-paint)" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  <rect x="{{ f.x + 4 }}" y="{{ fy + 3 }}" width="{{ f.w * 0.56 }}" height="{{ z - 8 }}" rx="2"
+        fill="var(--fix-2)"/>
+  <rect x="{{ f.x + 6 }}" y="{{ fy + 5 }}" width="{{ f.w * 0.52 }}" height="{{ (z - 12) * 0.62 }}"
+        rx="1.4" fill="{{ g }}" opacity=".38" class="glowpane"/>
+  {% for i in range(3) %}
+  <rect x="{{ f.x + 9 }}" y="{{ fy + 8 + i * (z - 14) * 0.18 }}"
+        width="{{ f.w * (0.14 + 0.08 * i) }}" height="1.8" rx=".9" fill="{{ g }}"/>
+  {% endfor %}
+  {% for i in range(4) %}
+  <circle cx="{{ f.x + f.w * 0.68 + (i % 2) * 11 }}" cy="{{ fy + 7 + (i // 2) * 11 }}" r="3.4"
+          fill="{{ d }}" stroke="#050912" stroke-width=".9" stroke-opacity=".5"/>
+  <circle cx="{{ f.x + f.w * 0.68 + (i % 2) * 11 }}" cy="{{ fy + 7 + (i // 2) * 11 }}" r="1.4"
+          fill="{{ g }}" opacity=".8"/>
+  {% endfor %}
+{% elif f.kind == 'desk' or f.kind == 'readingdesk' %}
+  {# a desk from above: paper, a monitor base, a mug or a reading lamp #}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + f.w * 0.06 }}" y="{{ f.y + th * 0.16 }}" width="{{ f.w * 0.3 }}"
+        height="{{ th * 0.66 }}" rx="1.4" fill="#eef2f8" opacity=".72"
+        transform="rotate(-5 {{ f.x + f.w * 0.2 }} {{ f.y + th / 2 }})"/>
+  {% for i in range(3) %}
+  <line x1="{{ f.x + f.w * 0.09 }}" y1="{{ f.y + th * (0.3 + 0.16 * i) }}"
+        x2="{{ f.x + f.w * (0.2 + 0.05 * i) }}" y2="{{ f.y + th * (0.3 + 0.16 * i) }}"
+        stroke="#4c5b70" stroke-width="1.1" opacity=".8"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.42 }}" y="{{ f.y + th * 0.3 }}" width="{{ f.w * 0.26 }}"
+        height="{{ th * 0.34 }}" rx="1.6" fill="var(--fix-2)" stroke="#050912" stroke-width="1"
+        stroke-opacity=".5"/>
+  {% if f.kind == 'readingdesk' %}
+  <ellipse cx="{{ f.x + f.w * 0.86 }}" cy="{{ f.y + th * 0.5 }}" rx="{{ f.w * 0.09 }}"
+           ry="{{ th * 0.26 }}" fill="#2f6b48" stroke="#050912" stroke-width="1"
+           stroke-opacity=".5"/>
+  <ellipse cx="{{ f.x + f.w * 0.86 }}" cy="{{ f.y + th * 0.5 }}" rx="{{ f.w * 0.045 }}"
+           ry="{{ th * 0.13 }}" fill="{{ g }}" class="glowpane"/>
+  {% else %}
+  <circle cx="{{ f.x + f.w * 0.84 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.19 }}"
+          fill="var(--m-paint)" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  <circle cx="{{ f.x + f.w * 0.84 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.1 }}"
+          fill="#0d1523"/>
+  {% endif %}
+  <rect x="{{ f.x + f.w * 0.42 }}" y="{{ fy - 1 }}" width="{{ f.w * 0.26 }}"
+        height="{{ z * 0.62 }}" rx="1.6" fill="var(--fix-2)" stroke="#050912" stroke-width="1"
+        stroke-opacity=".55"/>
+  <rect x="{{ f.x + f.w * 0.44 }}" y="{{ fy + 1 }}" width="{{ f.w * 0.22 }}"
+        height="{{ z * 0.5 }}" rx="1" fill="{{ g }}" opacity=".4" class="glowpane"/>
+  <rect x="{{ f.x + 5 }}" y="{{ fy + z * 0.3 }}" width="{{ f.w * 0.3 }}" height="{{ z * 0.42 }}"
+        rx="1.6" fill="{{ d }}" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  <rect x="{{ f.x + 5 + f.w * 0.09 }}" y="{{ fy + z * 0.48 }}" width="{{ f.w * 0.12 }}"
+        height="2.6" rx="1.3" fill="{{ b }}"/>
+  <rect x="{{ f.x + f.w - 5 - f.w * 0.24 }}" y="{{ fy + z * 0.3 }}" width="{{ f.w * 0.24 }}"
+        height="{{ z * 0.42 }}" rx="1.6" fill="{{ d }}" stroke="#050912" stroke-width="1"
+        stroke-opacity=".5"/>
+{% elif f.kind == 'bench' or f.kind == 'workbench' %}
+  {# a worktop with tools laid out on it and parts bins underneath #}
+  {{ solid(f, b, d, 3) }}
+  {% for i in range(5) %}
+  <rect x="{{ f.x + 8 + i * (f.w - 20) / 5 }}" y="{{ f.y + th * (0.2 + 0.06 * (i % 3)) }}"
+        width="{{ (f.w - 20) / 5 * 0.55 }}" height="{{ th * 0.28 }}" rx="1.4"
+        fill="{{ ['var(--m-steel)', 'var(--m-brass)', 'var(--m-paint)', 'var(--m-steel-2)', 'var(--m-brass-2)'][i] }}"
+        stroke="#050912" stroke-width=".9" stroke-opacity=".5"
+        transform="rotate({{ (i % 3) * 14 - 14 }} {{ f.x + 12 + i * (f.w - 20) / 5 }} {{ f.y + th * 0.4 }})"/>
+  {% endfor %}
+  <rect x="{{ f.x + 6 }}" y="{{ f.y + th * 0.6 }}" width="{{ f.w - 12 }}" height="{{ th * 0.26 }}"
+        rx="1.2" fill="#050912" opacity=".28"/>
+  <circle cx="{{ f.x + f.w - 13 }}" cy="{{ f.y + th * 0.4 }}" r="{{ th * 0.16 }}" fill="{{ g }}"
+          opacity=".8" class="blink"/>
+  {% for i in range(4) %}
+  <rect x="{{ f.x + 5 + i * (f.w - 10) / 4 }}" y="{{ fy + 3 }}"
+        width="{{ (f.w - 10) / 4 - 3 }}" height="{{ z - 7 }}" rx="1.6"
+        fill="{{ ['var(--m-paint)', 'var(--m-brass)', 'var(--m-steel)', 'var(--m-enamel)'][i] }}"
+        stroke="#050912" stroke-width="1" stroke-opacity=".55"/>
+  <rect x="{{ f.x + 5 + i * (f.w - 10) / 4 }}" y="{{ fy + 3 }}"
+        width="{{ (f.w - 10) / 4 - 3 }}" height="{{ (z - 7) * 0.3 }}" rx="1.6" fill="#fff"
+        opacity=".13"/>
+  {% endfor %}
+{% elif f.kind == 'table' %}
+  {# a low bench of samples under glass #}
+  {{ solid(f, b, d, 4) }}
+  {% for i in range(6) %}
+  <circle cx="{{ f.x + 12 + i * (f.w - 24) / 5 }}" cy="{{ f.y + th * 0.5 }}"
+          r="{{ th * 0.28 }}" fill="var(--fix-2)" stroke="#050912" stroke-width="1"
+          stroke-opacity=".55"/>
+  <circle cx="{{ f.x + 12 + i * (f.w - 24) / 5 }}" cy="{{ f.y + th * 0.5 }}"
+          r="{{ th * 0.14 }}" fill="{{ g }}" opacity="{{ 0.45 + 0.14 * (i % 4) }}"/>
+  {% endfor %}
+  <rect x="{{ f.x + 5 }}" y="{{ fy + 2 }}" width="{{ f.w - 10 }}" height="{{ (z - 4) * 0.4 }}"
+        rx="1.4" fill="{{ d }}"/>
+  {% for i in range(2) %}
+  <rect x="{{ f.x + 9 + i * (f.w - 24) }}" y="{{ fy + 2 }}" width="7" height="{{ z - 4 }}"
+        rx="2" fill="{{ b }}" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  {% endfor %}
+{% elif f.kind == 'crate' %}
+  {# a shipping crate: braced lid, planked face, a stencil #}
+  {{ solid(f, b, d, 2.5) }}
+  <path d="M{{ f.x + 4 }} {{ f.y + 3 }} L{{ f.x + f.w - 4 }} {{ f.y + th - 3 }}
+           M{{ f.x + f.w - 4 }} {{ f.y + 3 }} L{{ f.x + 4 }} {{ f.y + th - 3 }}"
+        stroke="{{ d }}" stroke-width="2.6" stroke-opacity=".9"/>
+  <rect x="{{ f.x + 4 }}" y="{{ f.y + 3 }}" width="{{ f.w - 8 }}" height="{{ th - 6 }}"
+        fill="none" stroke="{{ d }}" stroke-width="2.2"/>
+  {% for i in range(3) %}
+  <line x1="{{ f.x + 2 }}" y1="{{ fy + 3 + i * (z - 6) / 3 }}" x2="{{ f.x + f.w - 2 }}"
+        y2="{{ fy + 3 + i * (z - 6) / 3 }}" stroke="#050912" stroke-width="1.3"
+        stroke-opacity=".45"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.26 }}" y="{{ fy + z * 0.36 }}" width="{{ f.w * 0.48 }}"
+        height="{{ z * 0.3 }}" rx="1.4" fill="var(--m-paint)" opacity=".8"/>
+{% elif f.kind == 'terminal' %}
+  {# a pillar with a screen on it #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.3 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <rect x="{{ f.x + f.w * 0.3 }}" y="{{ by - 6 }}" width="{{ f.w * 0.4 }}" height="6" rx="2"
+        fill="{{ d }}" stroke="#050912" stroke-width="1.4" stroke-opacity=".6"/>
+  <rect x="{{ f.x + f.w * 0.42 }}" y="{{ f.y + th * 0.7 }}" width="{{ f.w * 0.16 }}"
+        height="{{ by - (f.y + th * 0.7) - 4 }}" fill="{{ b }}" stroke="#050912"
+        stroke-width="1.3" stroke-opacity=".6"/>
+  <rect x="{{ f.x + f.w * 0.18 }}" y="{{ f.y }}" width="{{ f.w * 0.64 }}"
+        height="{{ th * 0.8 }}" rx="4" fill="{{ d }}" stroke="#050912" stroke-width="1.7"
+        stroke-opacity=".7"/>
+  <rect x="{{ f.x + f.w * 0.22 }}" y="{{ f.y + 3 }}" width="{{ f.w * 0.56 }}"
+        height="{{ th * 0.8 - 6 }}" rx="2.5" fill="{{ b }}"/>
+  <rect x="{{ f.x + f.w * 0.22 }}" y="{{ f.y + 3 }}" width="{{ f.w * 0.56 }}"
+        height="{{ th * 0.8 - 6 }}" rx="2.5" fill="{{ g }}" opacity=".38" class="glowpane"/>
+  {% for i in range(3) %}
+  <rect x="{{ f.x + f.w * 0.26 }}" y="{{ f.y + 6 + i * (th * 0.8 - 12) / 3 }}"
+        width="{{ f.w * (0.2 + 0.1 * i) }}" height="2.2" rx="1.1" fill="var(--m-glass-2)"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.18 }}" y="{{ f.y + th * 0.8 }}" width="{{ f.w * 0.64 }}" height="5"
+        rx="2" fill="{{ b }}" stroke="#050912" stroke-width="1.2" stroke-opacity=".6"/>
+{% elif f.kind == 'plinth' %}
+  {# a case on a pedestal, with what is kept in it lit from inside #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.28 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by - 4 }}" rx="{{ f.w * 0.26 }}"
+           ry="{{ f.h * 0.05 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.4"
+           stroke-opacity=".62"/>
+  <rect x="{{ f.x + f.w * 0.4 }}" y="{{ f.y + th * 0.9 }}" width="{{ f.w * 0.2 }}"
+        height="{{ by - 5 - (f.y + th * 0.9) }}" fill="{{ b }}" stroke="#050912"
+        stroke-width="1.3" stroke-opacity=".6"/>
+  <rect x="{{ f.x + f.w * 0.47 }}" y="{{ f.y + th * 0.9 }}" width="{{ f.w * 0.13 }}"
+        height="{{ by - 5 - (f.y + th * 0.9) }}" fill="#000" opacity=".24"/>
+  <rect x="{{ f.x + f.w * 0.24 }}" y="{{ f.y + th * 0.82 }}" width="{{ f.w * 0.52 }}" height="6"
+        rx="2" fill="var(--m-brass)" stroke="#050912" stroke-width="1.3" stroke-opacity=".62"/>
+  <rect x="{{ f.x + f.w * 0.27 }}" y="{{ f.y + 2 }}" width="{{ f.w * 0.46 }}"
+        height="{{ th * 0.82 }}" rx="3" fill="var(--m-glass)" fill-opacity=".45"
+        stroke="var(--m-brass)" stroke-width="1.7"/>
+  <rect x="{{ f.x + f.w * 0.3 }}" y="{{ f.y + 4 }}" width="{{ f.w * 0.11 }}"
+        height="{{ th * 0.72 }}" fill="#fff" opacity=".15"/>
+  <circle cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.46 }}" r="{{ th * 0.18 }}" fill="{{ g }}"
+          opacity=".85" class="glowpane"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.46 }}" rx="{{ f.w * 0.3 }}"
+           ry="{{ th * 0.5 }}" fill="url(#lightpool)"/>
+{% elif f.kind == 'vent' %}
+  {# a louvred vent set into the wall #}
+  {{ solid(f, d, d, 2) }}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="1.5"
+        fill="#0a121e"/>
+  {% for i in range(6) %}
+  <rect x="{{ f.x + 5 }}" y="{{ fy + 4 + i * (z - 9) / 6 }}" width="{{ f.w - 10 }}"
+        height="{{ (z - 9) / 6 - 1.4 }}" rx=".8" fill="{{ b }}"/>
+  <rect x="{{ f.x + 5 }}" y="{{ fy + 4 + i * (z - 9) / 6 }}" width="{{ f.w - 10 }}"
+        height="{{ ((z - 9) / 6 - 1.4) * 0.4 }}" rx=".8" fill="#fff" opacity=".1"/>
+  {% endfor %}
+  {% for i in range(4) %}
+  <circle cx="{{ f.x + 3.5 + (i % 2) * (f.w - 7) }}" cy="{{ fy + 4 + (i // 2) * (z - 8) }}"
+          r="1.3" fill="{{ b }}" opacity=".9"/>
+  {% endfor %}
+{% elif f.kind == 'conduit' or f.kind == 'pipes' %}
+  {# pipe runs: you look down on the pipes and along a short face below them #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.5 }}" ry="3.4" fill="#000"
+           opacity=".4"/>
+  {% for i in range(3) %}
+  {% set py = f.y + i * f.h / 3 %}
+  {% set ph = f.h / 3 - 2 %}
+  <rect x="{{ f.x }}" y="{{ py }}" width="{{ f.w }}" height="{{ ph }}" rx="{{ ph / 2 }}"
+        fill="{{ ['var(--m-steel)', 'var(--m-brass)', 'var(--m-paint)'][i] }}"
+        stroke="#050912" stroke-width="1.4" stroke-opacity=".65"/>
+  <rect x="{{ f.x + 1 }}" y="{{ py + ph * 0.16 }}" width="{{ f.w - 2 }}" height="{{ ph * 0.26 }}"
+        rx="{{ ph * 0.13 }}" fill="#fff" opacity=".2"/>
+  <rect x="{{ f.x + 1 }}" y="{{ py + ph * 0.68 }}" width="{{ f.w - 2 }}" height="{{ ph * 0.28 }}"
+        rx="{{ ph * 0.14 }}" fill="#000" opacity=".26"/>
+  {% endfor %}
+  {% for i in range(2) %}
+  <rect x="{{ f.x + f.w * (0.22 + 0.46 * i) }}" y="{{ f.y - 1 }}" width="{{ f.w * 0.075 }}"
+        height="{{ f.h + 2 }}" rx="1.5" fill="{{ d }}" stroke="#050912" stroke-width="1"
+        stroke-opacity=".6"/>
+  {% endfor %}
+  <circle cx="{{ f.x + f.w * 0.86 }}" cy="{{ f.y + f.h / 2 }}" r="{{ f.h * 0.16 }}" fill="{{ g }}"
+          opacity=".7" class="blink"/>
+{% elif f.kind == 'sign' %}
+  {# a lit sign hung over the door #}
+  {{ solid(f, d, d, 2.5) }}
+  <rect x="{{ f.x + 2.5 }}" y="{{ fy + 2 }}" width="{{ f.w - 5 }}" height="{{ z - 4.5 }}"
+        rx="1.6" fill="{{ g }}" opacity=".3" class="glowpane"/>
+  <rect x="{{ f.x + 2.5 }}" y="{{ fy + 2 }}" width="{{ f.w - 5 }}" height="{{ z - 4.5 }}"
+        rx="1.6" fill="none" stroke="{{ g }}" stroke-width="1.6" stroke-opacity=".85"/>
+  {% for i in range(3) %}
+  <rect x="{{ f.x + 6 + i * (f.w - 12) / 3 }}" y="{{ fy + (z - 4.5) / 2 }}"
+        width="{{ (f.w - 12) / 3 - 4 }}" height="2.8" rx="1.4" fill="{{ g }}"/>
+  {% endfor %}
+  {% for i in range(2) %}
+  <rect x="{{ f.x + 5 + i * (f.w - 14) }}" y="{{ f.y + 1 }}" width="5" height="{{ th - 2 }}"
+        rx="1.6" fill="{{ b }}"/>
+  {% endfor %}
+{% elif f.kind == 'printer' %}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + f.w * 0.12 }}" y="{{ f.y + th * 0.2 }}" width="{{ f.w * 0.5 }}"
+        height="{{ th * 0.6 }}" rx="1.4" fill="#eef2f8" opacity=".8"/>
+  <rect x="{{ f.x + f.w * 0.68 }}" y="{{ f.y + th * 0.24 }}" width="{{ f.w * 0.2 }}"
+        height="{{ th * 0.5 }}" rx="1.4" fill="var(--fix-2)"/>
+  <circle cx="{{ f.x + f.w * 0.78 }}" cy="{{ f.y + th * 0.49 }}" r="{{ th * 0.14 }}"
+          fill="{{ g }}" class="blink"/>
+  <rect x="{{ f.x + 4 }}" y="{{ fy + z * 0.2 }}" width="{{ f.w - 8 }}" height="{{ z * 0.34 }}"
+        rx="1.4" fill="#0a121e"/>
+  <rect x="{{ f.x + 7 }}" y="{{ fy + z * 0.3 }}" width="{{ f.w - 14 }}" height="{{ z * 0.4 }}"
+        rx="1.2" fill="#eef2f8" opacity=".92"/>
+  {% for i in range(3) %}
+  <line x1="{{ f.x + 11 }}" y1="{{ fy + z * (0.38 + 0.1 * i) }}"
+        x2="{{ f.x + f.w * (0.4 + 0.13 * i) }}" y2="{{ fy + z * (0.38 + 0.1 * i) }}"
+        stroke="#4c5b70" stroke-width="1.1" opacity=".75"/>
+  {% endfor %}
+{% elif f.kind == 'chair' or f.kind == 'stool' %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by }}" rx="{{ f.w * 0.28 }}" ry="{{ f.h * 0.09 }}"
+           fill="#000" opacity=".45"/>
+  {% for i in range(4) %}
+  <line x1="{{ f.x + f.w / 2 }}" y1="{{ by - 4 }}"
+        x2="{{ f.x + f.w / 2 + f.w * 0.26 * [1, -1, 0.6, -0.6][i] }}"
+        y2="{{ by - 1 + [0, 0, 2, 2][i] }}" stroke="{{ d }}" stroke-width="2.6"
+        stroke-linecap="round"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w / 2 - 2.4 }}" y="{{ f.y + th * 0.6 }}" width="4.8"
+        height="{{ by - 4 - (f.y + th * 0.6) }}" fill="{{ d }}"/>
+  {% if f.kind == 'chair' %}
+  <path d="M{{ f.x + f.w * 0.2 }} {{ f.y + th * 0.7 }}
+           a{{ f.w * 0.3 }} {{ th * 0.55 }} 0 0 1 {{ f.w * 0.6 }} 0" fill="none"
+        stroke="var(--m-paint-2)" stroke-width="{{ f.h * 0.14 }}" stroke-linecap="round"/>
+  {% endif %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.62 }}" rx="{{ f.w * 0.31 }}"
+           ry="{{ th * 0.4 }}" fill="{{ 'var(--m-paint)' if f.kind == 'chair' else b }}"
+           stroke="#050912" stroke-width="1.4" stroke-opacity=".65"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.54 }}" rx="{{ f.w * 0.2 }}"
+           ry="{{ th * 0.24 }}" fill="#fff" opacity=".14"/>
+{% elif f.kind == 'barrel' %}
+  {{ drum(f, b, b, 0.16) }}
+  {% for i in range(2) %}
+  <path d="M{{ f.x + f.w * 0.34 }} {{ f.y + th / 2 + z * (0.3 + 0.36 * i) }}
+           a{{ f.w * 0.16 }} {{ th * 0.34 }} 0 0 0 {{ f.w * 0.32 }} 0" fill="none"
+        stroke="var(--m-brass)" stroke-width="{{ f.h * 0.07 }}" opacity=".9"/>
+  {% endfor %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th / 2 }}" rx="{{ f.w * 0.2 }}"
+           ry="{{ th * 0.24 }}" fill="none" stroke="{{ d }}" stroke-width="1.6"/>
+  <circle cx="{{ f.x + f.w * 0.58 }}" cy="{{ f.y + th * 0.4 }}" r="{{ th * 0.1 }}"
+          fill="var(--m-brass)"/>
+{% elif f.kind == 'cart' %}
+  {{ solid(f, b, d, 2.5) }}
+  <rect x="{{ f.x + 4 }}" y="{{ f.y + 2.5 }}" width="{{ f.w * 0.42 }}" height="{{ th - 5 }}"
+        rx="1.6" fill="var(--m-paint)" stroke="#050912" stroke-width="1" stroke-opacity=".55"/>
+  <rect x="{{ f.x + f.w * 0.52 }}" y="{{ f.y + 3.5 }}" width="{{ f.w * 0.34 }}"
+        height="{{ th - 7 }}" rx="1.6" fill="var(--m-enamel)" stroke="#050912" stroke-width="1"
+        stroke-opacity=".55"/>
+  {% for i in range(2) %}
+  <ellipse cx="{{ f.x + f.w * (0.2 + 0.6 * i) }}" cy="{{ by - 2 }}" rx="{{ f.w * 0.09 }}"
+           ry="{{ f.w * 0.055 }}" fill="var(--m-rubber)" stroke="#050912" stroke-width="1.2"
+           stroke-opacity=".6"/>
+  {% endfor %}
+{% elif f.kind == 'cables' %}
+  <g fill="none" stroke-linecap="round">
+    <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by - 1 }}" rx="{{ f.w * 0.46 }}"
+             ry="{{ f.h * 0.3 }}" fill="#000" opacity=".3" stroke="none"/>
+    <path d="M{{ f.x + 3 }} {{ f.y + f.h * 0.72 }}
+             q{{ f.w * 0.3 }} {{ -f.h * 0.62 }} {{ f.w * 0.55 }} {{ -f.h * 0.06 }}
+             q{{ f.w * 0.2 }} {{ f.h * 0.44 }} {{ f.w * 0.4 }} {{ -f.h * 0.12 }}"
+          stroke="#050912" stroke-width="5" stroke-opacity=".7"/>
+    <path d="M{{ f.x + 3 }} {{ f.y + f.h * 0.72 }}
+             q{{ f.w * 0.3 }} {{ -f.h * 0.62 }} {{ f.w * 0.55 }} {{ -f.h * 0.06 }}
+             q{{ f.w * 0.2 }} {{ f.h * 0.44 }} {{ f.w * 0.4 }} {{ -f.h * 0.12 }}"
+          stroke="var(--m-steel)" stroke-width="3.4"/>
+    <path d="M{{ f.x + 6 }} {{ f.y + f.h * 0.88 }}
+             q{{ f.w * 0.34 }} {{ -f.h * 0.44 }} {{ f.w * 0.62 }} {{ f.h * 0.04 }}"
+          stroke="var(--m-paint)" stroke-width="2.8"/>
+    <path d="M{{ f.x + 9 }} {{ f.y + f.h * 0.95 }}
+             q{{ f.w * 0.3 }} {{ -f.h * 0.3 }} {{ f.w * 0.58 }} {{ f.h * 0.01 }}"
+          stroke="{{ g }}" stroke-width="2.2" stroke-opacity=".65"/>
+    <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.5 }}" r="{{ f.h * 0.2 }}"
+            fill="var(--m-steel)" stroke="#050912" stroke-width="1.5" stroke-opacity=".6"/>
+  </g>
+{% elif f.kind == 'hatch' %}
+  <g>
+    <rect x="{{ f.x }}" y="{{ f.y }}" width="{{ f.w }}" height="{{ f.h }}" rx="3" fill="#0a121e"
+          stroke="{{ b }}" stroke-width="2.4"/>
+    <rect x="{{ f.x + 4 }}" y="{{ f.y + 3.5 }}" width="{{ f.w - 8 }}" height="{{ f.h - 7 }}"
+          rx="2" fill="none" stroke="url(#hazard)" stroke-width="3.4" stroke-opacity=".55"/>
+    <circle cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + f.h / 2 }}" r="{{ f.h * 0.22 }}" fill="none"
+            stroke="{{ b }}" stroke-width="2.6"/>
+    <line x1="{{ f.x + f.w / 2 - f.h * 0.22 }}" y1="{{ f.y + f.h / 2 }}"
+          x2="{{ f.x + f.w / 2 + f.h * 0.22 }}" y2="{{ f.y + f.h / 2 }}" stroke="{{ b }}"
+          stroke-width="2.6"/>
+  </g>
+
+{# ------ signature fittings: one room's work, drawn as its own equipment ---- #}
+
+{% elif f.kind == 'drawingtable' %}
+  {# a board tilted towards you, so the drawing on it is the face #}
+  <ellipse cx="{{ f.x + f.w / 2 + 3 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.48 }}" ry="4"
+           fill="#000" opacity=".45"/>
+  {% for i in range(2) %}
+  <path d="M{{ f.x + f.w * (0.2 + 0.6 * i) }} {{ f.y + th * 0.8 }}
+           l{{ f.w * 0.06 * (1 if i == 0 else -1) }} {{ f.h * 0.6 }}" stroke="{{ d }}"
+        stroke-width="4" stroke-linecap="round"/>
+  {% endfor %}
+  <path d="M{{ f.x + 2 }} {{ by - 4 }} h{{ f.w - 4 }} v{{ -z * 0.36 }} h{{ -(f.w - 4) }} z"
+        fill="{{ d }}" stroke="#050912" stroke-width="1.4" stroke-opacity=".6"/>
+  <path d="M{{ f.x }} {{ fy + z * 0.64 }} L{{ f.x + f.w }} {{ fy + z * 0.64 }}
+           L{{ f.x + f.w - 5 }} {{ f.y + 2 }} L{{ f.x + 5 }} {{ f.y + 2 }} z" fill="{{ b }}"
+        stroke="#050912" stroke-width="1.7" stroke-opacity=".7"/>
+  <path d="M{{ f.x + 5 }} {{ fy + z * 0.56 }} L{{ f.x + f.w - 5 }} {{ fy + z * 0.56 }}
+           L{{ f.x + f.w - 9 }} {{ f.y + 6 }} L{{ f.x + 9 }} {{ f.y + 6 }} z" fill="#eef2f8"
+        opacity=".92"/>
+  <path d="M{{ f.x + 14 }} {{ fy + z * 0.4 }} h{{ f.w * 0.4 }}
+           M{{ f.x + 14 }} {{ fy + z * 0.2 }} h{{ f.w * 0.52 }}
+           M{{ f.x + 14 }} {{ fy }} h{{ f.w * 0.3 }}" stroke="{{ g }}" stroke-width="1.8"
+        opacity=".85"/>
+  <path d="M{{ f.x + f.w * 0.24 }} {{ f.y + 16 }} l{{ f.w * 0.12 }} -8
+           l{{ f.w * 0.14 }} 6" fill="none" stroke="var(--m-paint)" stroke-width="2"/>
+  <line x1="{{ f.x + 5 }}" y1="{{ fy + z * 0.56 }}" x2="{{ f.x + f.w - 5 }}"
+        y2="{{ fy + z * 0.56 }}" stroke="#fff" stroke-width="1.3" stroke-opacity=".3"/>
+  <line x1="{{ f.x + f.w * 0.88 }}" y1="{{ f.y + 4 }}" x2="{{ f.x + f.w * 0.88 }}"
+        y2="{{ f.y - 10 }}" stroke="{{ d }}" stroke-width="2.4"/>
+  <path d="M{{ f.x + f.w * 0.81 }} {{ f.y - 8 }} h{{ f.w * 0.14 }} l{{ -f.w * 0.035 }} -8
+           h{{ -f.w * 0.07 }} z" fill="var(--m-brass)" stroke="#050912" stroke-width="1.2"
+        stroke-opacity=".6"/>
+  <ellipse cx="{{ f.x + f.w * 0.88 }}" cy="{{ f.y - 6 }}" rx="{{ f.w * 0.06 }}" ry="3"
+           fill="{{ g }}" opacity=".85" class="glowpane"/>
+{% elif f.kind == 'pinboard' %}
+  {# cork with cards pinned to it and thread run between them #}
+  {{ solid(f, d, b, 2.5) }}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="1.4"
+        fill="var(--m-wood-2)"/>
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="1.4"
+        fill="url(#faceV)"/>
+  {% for i in range(7) %}
+  {% set cx = f.x + 8 + i * (f.w - 20) / 7 %}
+  {% set cy = fy + 5 + (i % 3) * (z - 14) / 3 %}
+  <g transform="rotate({{ (i % 3) * 5 - 5 }} {{ cx }} {{ cy }})">
+    <rect x="{{ cx + 1.4 }}" y="{{ cy + 1.6 }}" width="{{ (f.w - 20) / 7 + 3 }}"
+          height="{{ (z - 14) / 3 }}" rx="1" fill="#000" opacity=".35"/>
+    <rect x="{{ cx }}" y="{{ cy }}" width="{{ (f.w - 20) / 7 + 3 }}" height="{{ (z - 14) / 3 }}"
+          rx="1" fill="{{ ['#f0ead6', '#e8dcc0', '#f4e9cf'][i % 3] }}"/>
+    <line x1="{{ cx + 2 }}" y1="{{ cy + 4 }}" x2="{{ cx + (f.w - 20) / 7 }}" y2="{{ cy + 4 }}"
+          stroke="#8a7a5e" stroke-width="1"/>
+    <line x1="{{ cx + 2 }}" y1="{{ cy + 7.5 }}" x2="{{ cx + (f.w - 20) / 7 - 3 }}"
+          y2="{{ cy + 7.5 }}" stroke="#8a7a5e" stroke-width="1"/>
+  </g>
+  <circle cx="{{ cx + 2 }}" cy="{{ cy + 1 }}" r="1.9" fill="var(--m-paint)" stroke="#050912"
+          stroke-width=".7" stroke-opacity=".6"/>
+  {% endfor %}
+  <path d="M{{ f.x + 11 }} {{ fy + 7 }} L{{ f.x + f.w * 0.42 }} {{ by - 9 }}
+           L{{ f.x + f.w * 0.68 }} {{ fy + 9 }} L{{ f.x + f.w - 12 }} {{ by - 11 }}"
+        fill="none" stroke="#c0483c" stroke-width="1.4" opacity=".9"/>
+{% elif f.kind == 'scanner' %}
+  {# an arch a document passes under, with the beam on #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.46 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <path d="M{{ f.x + f.w * 0.1 }} {{ by - z * 0.32 }} v{{ -z * 0.4 }}
+           a{{ f.w * 0.4 }} {{ th * 0.9 }} 0 0 1 {{ f.w * 0.8 }} 0 v{{ z * 0.4 }}" fill="none"
+        stroke="#050912" stroke-width="{{ f.h * 0.12 + 4 }}" stroke-opacity=".5"
+        stroke-linejoin="round"/>
+  <path d="M{{ f.x + f.w * 0.1 }} {{ by - z * 0.32 }} v{{ -z * 0.4 }}
+           a{{ f.w * 0.4 }} {{ th * 0.9 }} 0 0 1 {{ f.w * 0.8 }} 0 v{{ z * 0.4 }}" fill="none"
+        stroke="{{ b }}" stroke-width="{{ f.h * 0.12 }}" stroke-linejoin="round"/>
+  <path d="M{{ f.x + f.w * 0.1 }} {{ by - z * 0.55 }}
+           a{{ f.w * 0.4 }} {{ th * 0.9 }} 0 0 1 {{ f.w * 0.8 }} 0" fill="none" stroke="#fff"
+        stroke-width="1.4" stroke-opacity=".2"/>
+  <rect x="{{ f.x + 2 }}" y="{{ by - z * 0.34 }}" width="{{ f.w - 4 }}" height="{{ z * 0.34 }}"
+        rx="2.5" fill="{{ d }}" stroke="#050912" stroke-width="1.6" stroke-opacity=".7"/>
+  {% for i in range(7) %}
+  <ellipse cx="{{ f.x + 8 + i * (f.w - 16) / 6 }}" cy="{{ by - z * 0.26 }}" rx="4" ry="3"
+           fill="{{ b }}" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.14 }}" y="{{ by - z * 0.56 }}" width="{{ f.w * 0.72 }}" height="3.6"
+        fill="{{ g }}" opacity=".9" class="glowpane"/>
+  <rect x="{{ f.x + f.w * 0.34 }}" y="{{ by - z * 0.46 }}" width="{{ f.w * 0.3 }}"
+        height="{{ z * 0.16 }}" rx="1" fill="#eef2f8" opacity=".92"/>
+{% elif f.kind == 'binbank' %}
+  {# accept, reject and hold, in the colours everybody already reads #}
+  {% for i in range(3) %}
+  {% set bx = f.x + i * f.w / 3 + 2 %}
+  {% set bw = f.w / 3 - 5 %}
+  {% set col = ['#3f8f5c', '#c0483c', '#d8a341'][i] %}
+  <ellipse cx="{{ bx + bw / 2 }}" cy="{{ by + 1 }}" rx="{{ bw * 0.55 }}" ry="3.4" fill="#000"
+           opacity=".45"/>
+  <path d="M{{ bx + 2 }} {{ f.y + th * 0.4 }} h{{ bw - 4 }} l-2 {{ f.h - th * 0.4 - 2 }}
+           h{{ -(bw - 8) }} z" fill="{{ b }}" stroke="#050912" stroke-width="1.6"
+        stroke-opacity=".7"/>
+  <path d="M{{ bx + bw / 2 }} {{ f.y + th * 0.4 }} h{{ bw / 2 - 2 }}
+           l-2 {{ f.h - th * 0.4 - 2 }} h{{ -(bw / 2 - 4) }} z" fill="#000" opacity=".22"/>
+  <ellipse cx="{{ bx + bw / 2 }}" cy="{{ f.y + th * 0.4 }}" rx="{{ bw / 2 - 2 }}"
+           ry="{{ th * 0.34 }}" fill="{{ col }}" stroke="#050912" stroke-width="1.5"
+           stroke-opacity=".7"/>
+  <ellipse cx="{{ bx + bw / 2 }}" cy="{{ f.y + th * 0.34 }}" rx="{{ bw / 2 - 6 }}"
+           ry="{{ th * 0.2 }}" fill="#fff" opacity=".16"/>
+  <rect x="{{ bx + 5 }}" y="{{ f.y + th * 0.9 }}" width="{{ bw - 10 }}" height="{{ z * 0.22 }}"
+        rx="1.2" fill="#eef2f8" opacity=".75"/>
+  {% endfor %}
+{% elif f.kind == 'sealpress' %}
+  {# the lever press the preregistration goes under #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.36 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <rect x="{{ f.x + f.w * 0.14 }}" y="{{ by - z * 0.34 }}" width="{{ f.w * 0.72 }}"
+        height="{{ z * 0.34 }}" rx="2.5" fill="{{ d }}" stroke="#050912" stroke-width="1.6"
+        stroke-opacity=".7"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by - z * 0.34 }}" rx="{{ f.w * 0.36 }}"
+           ry="{{ th * 0.22 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.4"
+           stroke-opacity=".65"/>
+  <circle cx="{{ f.x + f.w / 2 }}" cy="{{ by - z * 0.36 }}" r="{{ th * 0.16 }}" fill="{{ g }}"
+          opacity=".9" class="glowpane"/>
+  <rect x="{{ f.x + f.w * 0.44 }}" y="{{ f.y + th * 0.3 }}" width="{{ f.w * 0.12 }}"
+        height="{{ by - z * 0.34 - (f.y + th * 0.3) }}" fill="{{ b }}" stroke="#050912"
+        stroke-width="1.3" stroke-opacity=".6"/>
+  <rect x="{{ f.x + f.w * 0.3 }}" y="{{ f.y + th * 0.2 }}" width="{{ f.w * 0.4 }}"
+        height="{{ th * 0.22 }}" rx="3" fill="{{ b }}" stroke="#050912" stroke-width="1.4"
+        stroke-opacity=".65"/>
+  <line x1="{{ f.x + f.w * 0.5 }}" y1="{{ f.y + th * 0.3 }}" x2="{{ f.x + f.w * 0.94 }}"
+        y2="{{ f.y + 2 }}" stroke="#050912" stroke-width="{{ f.h * 0.1 }}" stroke-opacity=".6"
+        stroke-linecap="round"/>
+  <line x1="{{ f.x + f.w * 0.5 }}" y1="{{ f.y + th * 0.3 }}" x2="{{ f.x + f.w * 0.94 }}"
+        y2="{{ f.y + 2 }}" stroke="{{ b }}" stroke-width="{{ f.h * 0.07 }}"
+        stroke-linecap="round"/>
+  <circle cx="{{ f.x + f.w * 0.94 }}" cy="{{ f.y + 2 }}" r="{{ f.h * 0.1 }}"
+          fill="var(--m-paint)" stroke="#050912" stroke-width="1.3" stroke-opacity=".65"/>
+{% elif f.kind == 'filewall' or f.kind == 'catalogue' %}
+  {# drawers floor to ceiling, one left open #}
+  {% set cols = 5 if f.kind == 'catalogue' else 4 %}
+  {% set rows = 4 if f.kind == 'catalogue' else 3 %}
+  {{ solid(f, d, b, 2.5) }}
+  {% for i in range(cols) %}
+  <rect x="{{ f.x + 4 + i * (f.w - 8) / cols }}" y="{{ f.y + 2.5 }}"
+        width="{{ (f.w - 8) / cols - 2 }}" height="{{ th - 5 }}" rx="1.2" fill="{{ b }}"
+        opacity=".8"/>
+  {% endfor %}
+  {% for i in range(cols * rows) %}
+  {% set dx = f.x + 3.5 + (i % cols) * (f.w - 7) / cols %}
+  {% set dy = fy + 2.5 + (i // cols) * (z - 5) / rows %}
+  {% set dw = (f.w - 7) / cols - 1.8 %}
+  {% set dh = (z - 5) / rows - 1.8 %}
+  <rect x="{{ dx }}" y="{{ dy }}" width="{{ dw }}" height="{{ dh }}" rx="1.2" fill="{{ d }}"
+        stroke="#050912" stroke-width=".9" stroke-opacity=".55"/>
+  <rect x="{{ dx }}" y="{{ dy }}" width="{{ dw }}" height="{{ dh * 0.3 }}" rx="1.2" fill="#fff"
+        opacity=".07"/>
+  <rect x="{{ dx + dw * 0.5 - 5 }}" y="{{ dy + dh * 0.52 }}" width="10" height="2.2" rx="1.1"
+        fill="var(--m-brass)"/>
+  <rect x="{{ dx + 2.5 }}" y="{{ dy + 2 }}" width="{{ dw * 0.4 }}" height="2.4" rx="1"
+        fill="{{ ['#c85246', '#3f8f5c', '#d8a341', '#4f8fbf'][i % 4] }}"/>
+  {% endfor %}
+  <rect x="{{ f.x + 3.5 + 2 * (f.w - 7) / cols }}" y="{{ fy + 2.5 + (z - 5) / rows }}"
+        width="{{ (f.w - 7) / cols - 1.8 }}" height="{{ (z - 5) / rows - 1.8 }}" rx="1.2"
+        fill="#e8dcc0" stroke="#050912" stroke-width="1.1" stroke-opacity=".6"/>
+{% elif f.kind == 'partsbin' %}
+  {# tilted bins of small parts, colour sorted #}
+  {{ solid(f, d, d, 2.5) }}
+  {% for i in range(15) %}
+  {% set bx = f.x + 3.5 + (i % 5) * (f.w - 7) / 5 %}
+  {% set byy = fy + 3 + (i // 5) * (z - 6) / 3 %}
+  {% set bw = (f.w - 7) / 5 - 1.8 %}
+  {% set bh = (z - 6) / 3 - 1.6 %}
+  {% set col = ['#c0483c', '#d8a341', '#4f8fbf', '#3f8f5c', '#9d6fb5'][(i * 3) % 5] %}
+  <path d="M{{ bx }} {{ byy }} h{{ bw }} v{{ bh * 0.72 }} l{{ -bw * 0.16 }} {{ bh * 0.28 }}
+           h{{ -bw * 0.68 }} z" fill="{{ col }}" stroke="#050912" stroke-width=".9"
+        stroke-opacity=".6"/>
+  <rect x="{{ bx }}" y="{{ byy }}" width="{{ bw }}" height="{{ bh * 0.24 }}" fill="#000"
+        opacity=".3"/>
+  <rect x="{{ bx + bw * 0.2 }}" y="{{ byy + bh * 0.78 }}" width="{{ bw * 0.44 }}" height="1.8"
+        fill="#eef2f8" opacity=".6"/>
+  {% endfor %}
+  {% for i in range(4) %}
+  <rect x="{{ f.x + 6 + i * (f.w - 14) / 4 }}" y="{{ f.y + 3 }}"
+        width="{{ (f.w - 14) / 4 - 4 }}" height="{{ th - 6 }}" rx="1" fill="{{ b }}"
+        opacity=".7"/>
+  {% endfor %}
+{% elif f.kind == 'reactor' %}
+  {# a core in a cage: the thing the room is built around #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.42 }}" ry="5" fill="#000"
+           opacity=".5"/>
+  <path d="M{{ f.x + f.w * 0.16 }} {{ f.y + th / 2 }} v{{ z }}
+           a{{ f.w * 0.34 }} {{ th / 2 }} 0 0 0 {{ f.w * 0.68 }} 0 v{{ -z }} z" fill="{{ d }}"/>
+  <path d="M{{ f.x + f.w * 0.16 }} {{ f.y + th / 2 }} v{{ z }}
+           a{{ f.w * 0.34 }} {{ th / 2 }} 0 0 0 {{ f.w * 0.68 }} 0 v{{ -z }} z"
+        fill="url(#faceV)"/>
+  <rect x="{{ f.x + f.w * 0.22 }}" y="{{ fy + z * 0.12 }}" width="{{ f.w * 0.56 }}"
+        height="{{ z * 0.5 }}" rx="3" fill="{{ g }}" opacity=".5" class="glowpane"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th / 2 }}" rx="{{ f.w * 0.34 }}"
+           ry="{{ th / 2 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.6"
+           stroke-opacity=".7"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th / 2 }}" rx="{{ f.w * 0.2 }}"
+           ry="{{ th * 0.3 }}" fill="{{ g }}" opacity=".6" class="glowpane"/>
+  {% for i in range(6) %}
+  <line x1="{{ f.x + f.w * (0.16 + 0.136 * i) }}" y1="{{ f.y + th * 0.5 }}"
+        x2="{{ f.x + f.w * (0.16 + 0.136 * i) }}" y2="{{ by - 4 }}" stroke="#050912"
+        stroke-width="4.4" stroke-opacity=".35"/>
+  <line x1="{{ f.x + f.w * (0.16 + 0.136 * i) }}" y1="{{ f.y + th * 0.5 }}"
+        x2="{{ f.x + f.w * (0.16 + 0.136 * i) }}" y2="{{ by - 4 }}" stroke="{{ b }}"
+        stroke-width="3" stroke-opacity=".95"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.16 }}" y="{{ fy + z * 0.7 }}" width="{{ f.w * 0.68 }}" height="4.5"
+        fill="url(#hazard)" opacity=".8"/>
+  <path d="M{{ f.x + f.w * 0.16 }} {{ f.y + th / 2 }} v{{ z }}
+           a{{ f.w * 0.34 }} {{ th / 2 }} 0 0 0 {{ f.w * 0.68 }} 0 v{{ -z }}" fill="none"
+        stroke="#050912" stroke-width="1.8" stroke-opacity=".72"/>
+{% elif f.kind == 'coolant' %}
+  {# a pipe bank with valve wheels on the face #}
+  {{ solid(f, d, d, 3) }}
+  {% for i in range(3) %}
+  {% set py = fy + 2 + i * (z - 4) / 3 %}
+  {% set ph = (z - 4) / 3 - 2.4 %}
+  <rect x="{{ f.x + 2 }}" y="{{ py }}" width="{{ f.w - 4 }}" height="{{ ph }}"
+        rx="{{ ph / 2 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.2"
+        stroke-opacity=".6"/>
+  <rect x="{{ f.x + 3 }}" y="{{ py + ph * 0.14 }}" width="{{ f.w - 6 }}" height="{{ ph * 0.26 }}"
+        rx="{{ ph * 0.13 }}" fill="{{ g }}" opacity=".4"/>
+  {% set wheel = [ph * 0.4, f.w * 0.09] | min %}
+  <circle cx="{{ f.x + f.w * (0.24 + 0.3 * i) }}" cy="{{ py + ph / 2 }}" r="{{ wheel }}"
+          fill="none" stroke="var(--m-paint)" stroke-width="2.6"/>
+  <circle cx="{{ f.x + f.w * (0.24 + 0.3 * i) }}" cy="{{ py + ph / 2 }}" r="{{ wheel * 0.32 }}"
+          fill="var(--m-paint)"/>
+  {% endfor %}
+  {% for i in range(3) %}
+  <rect x="{{ f.x + 5 + i * (f.w - 12) / 3 }}" y="{{ f.y + 2.5 }}"
+        width="{{ (f.w - 12) / 3 - 3 }}" height="{{ th - 5 }}" rx="{{ (th - 5) / 2 }}"
+        fill="{{ b }}" opacity=".85"/>
+  {% endfor %}
+{% elif f.kind == 'scope' %}
+  {# an instrument with a round tube and a rack of knobs #}
+  {{ solid(f, b, d, 3) }}
+  <circle cx="{{ f.x + f.w * 0.3 }}" cy="{{ fy + z * 0.5 }}" r="{{ z * 0.34 }}" fill="#08131a"
+          stroke="#050912" stroke-width="1.7" stroke-opacity=".7"/>
+  <circle cx="{{ f.x + f.w * 0.3 }}" cy="{{ fy + z * 0.5 }}" r="{{ z * 0.28 }}" fill="{{ g }}"
+          opacity=".14"/>
+  <path d="M{{ f.x + f.w * 0.3 - z * 0.26 }} {{ fy + z * 0.5 }}
+           q{{ z * 0.07 }} {{ -z * 0.26 }} {{ z * 0.13 }} 0
+           q{{ z * 0.07 }} {{ z * 0.26 }} {{ z * 0.13 }} 0
+           q{{ z * 0.07 }} {{ -z * 0.2 }} {{ z * 0.13 }} 0
+           q{{ z * 0.07 }} {{ z * 0.14 }} {{ z * 0.13 }} 0" fill="none" stroke="{{ g }}"
+        stroke-width="2" class="glowpane"/>
+  {% for i in range(4) %}
+  <circle cx="{{ f.x + f.w * (0.62 + 0.11 * (i % 2)) }}"
+          cy="{{ fy + z * (0.3 + 0.36 * (i // 2)) }}" r="{{ z * 0.11 }}" fill="{{ d }}"
+          stroke="#050912" stroke-width="1" stroke-opacity=".55"/>
+  <circle cx="{{ f.x + f.w * (0.62 + 0.11 * (i % 2)) }}"
+          cy="{{ fy + z * (0.3 + 0.36 * (i // 2)) }}" r="{{ z * 0.04 }}" fill="var(--m-brass)"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.84 }}" y="{{ fy + z * 0.2 }}" width="{{ f.w * 0.1 }}"
+        height="{{ z * 0.6 }}" rx="1.4" fill="var(--fix-2)"/>
+  <rect x="{{ f.x + 6 }}" y="{{ f.y + 3 }}" width="{{ f.w - 12 }}" height="{{ th - 6 }}" rx="1.6"
+        fill="{{ d }}" opacity=".55"/>
+{% elif f.kind == 'dummy' %}
+  {# something to attack, on a post #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by }}" rx="{{ f.w * 0.2 }}" ry="4" fill="#000"
+           opacity=".5"/>
+  <path d="M{{ f.x + f.w * 0.38 }} {{ by - 2 }} L{{ f.x + f.w * 0.44 }} {{ f.y + th * 0.8 }}
+           h{{ f.w * 0.12 }} L{{ f.x + f.w * 0.62 }} {{ by - 2 }} z" fill="{{ d }}"
+        stroke="#050912" stroke-width="1.4" stroke-opacity=".65"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.42 }}" rx="{{ f.w * 0.22 }}"
+           ry="{{ th * 0.42 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.7"
+           stroke-opacity=".72"/>
+  {% for i in range(3) %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ f.y + th * 0.42 }}"
+           rx="{{ f.w * (0.055 + 0.055 * i) }}" ry="{{ th * (0.1 + 0.105 * i) }}" fill="none"
+           stroke="{{ g }}" stroke-width="2" opacity=".8"/>
+  {% endfor %}
+  <path d="M{{ f.x + f.w * 0.3 }} {{ f.y + th * 0.5 }} l{{ f.w * 0.16 }} {{ -th * 0.24 }}"
+        stroke="var(--m-hazard)" stroke-width="2.6" stroke-linecap="round"/>
+  <ellipse cx="{{ f.x + f.w * 0.44 }}" cy="{{ f.y + th * 0.28 }}" rx="{{ f.w * 0.07 }}"
+           ry="{{ th * 0.13 }}" fill="#fff" opacity=".12"/>
+{% elif f.kind == 'targetboard' %}
+  {{ solid(f, d, b, 2.5) }}
+  {% for k in range(2) %}
+  {% set cx = f.x + f.w * (0.3 + 0.4 * k) %}
+  {% for i in range(3) %}
+  <circle cx="{{ cx }}" cy="{{ fy + z * 0.5 }}" r="{{ z * (0.14 + 0.13 * i) }}" fill="none"
+          stroke="{{ '#c0483c' if i % 2 == 0 else '#eef2f8' }}" stroke-width="{{ z * 0.1 }}"
+          opacity=".92"/>
+  {% endfor %}
+  <circle cx="{{ cx }}" cy="{{ fy + z * 0.5 }}" r="{{ z * 0.07 }}" fill="{{ g }}"/>
+  <circle cx="{{ cx + z * 0.15 }}" cy="{{ fy + z * 0.34 }}" r="{{ z * 0.05 }}"
+          fill="var(--m-hazard)" stroke="#050912" stroke-width=".8" stroke-opacity=".6"/>
+  {% endfor %}
+  <rect x="{{ f.x + 5 }}" y="{{ f.y + 2.5 }}" width="{{ f.w - 10 }}" height="{{ th - 5 }}"
+        rx="1.4" fill="{{ b }}" opacity=".6"/>
+{% elif f.kind == 'maskcase' %}
+  {# blanks behind glass: what the room takes off a spec before handing it on #}
+  {{ solid(f, d, b, 3) }}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="2"
+        fill="var(--m-glass-2)"/>
+  {% for i in range(4) %}
+  <path d="M{{ f.x + 8 + i * (f.w - 16) / 4 }} {{ by - 8 }}
+           a{{ (f.w - 16) / 10 }} {{ (z - 12) * 0.5 }} 0 0 1 {{ (f.w - 16) / 5 }} 0 z"
+        fill="#eef2f8" opacity=".78" stroke="#050912" stroke-width="1" stroke-opacity=".4"/>
+  {% endfor %}
+  <rect x="{{ f.x + 3 }}" y="{{ fy + 2.5 }}" width="{{ f.w - 6 }}" height="{{ z - 5 }}" rx="2"
+        fill="{{ g }}" opacity=".12"/>
+  <path d="M{{ f.x + 6 }} {{ by - 4 }} L{{ f.x + f.w * 0.42 }} {{ fy + 4 }}
+           M{{ f.x + f.w * 0.4 }} {{ by - 4 }} L{{ f.x + f.w * 0.72 }} {{ fy + 4 }}"
+        stroke="#fff" stroke-width="4" stroke-opacity=".08"/>
+  <line x1="{{ f.x + f.w * 0.5 }}" y1="{{ fy + 3 }}" x2="{{ f.x + f.w * 0.5 }}" y2="{{ by - 3 }}"
+        stroke="{{ g }}" stroke-width="1.4" opacity=".5"/>
+  <rect x="{{ f.x + 6 }}" y="{{ f.y + 2.5 }}" width="{{ f.w - 12 }}" height="{{ th - 5 }}"
+        rx="1.4" fill="{{ g }}" opacity=".3" class="glowpane"/>
+{% elif f.kind == 'keysafe' %}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + 3.5 }}" y="{{ fy + 3 }}" width="{{ f.w - 7 }}" height="{{ z - 6 }}" rx="2"
+        fill="{{ b }}" stroke="#050912" stroke-width="1.2" stroke-opacity=".55"/>
+  <circle cx="{{ f.x + f.w * 0.28 }}" cy="{{ fy + z * 0.5 }}" r="{{ z * 0.24 }}"
+          fill="var(--fix-2)" stroke="var(--m-brass)" stroke-width="2.4"/>
+  <line x1="{{ f.x + f.w * 0.28 }}" y1="{{ fy + z * 0.5 }}" x2="{{ f.x + f.w * 0.28 }}"
+        y2="{{ fy + z * 0.32 }}" stroke="var(--m-brass)" stroke-width="2.4"/>
+  {% for i in range(4) %}
+  <line x1="{{ f.x + f.w * (0.54 + 0.11 * i) }}" y1="{{ fy + z * 0.34 }}"
+        x2="{{ f.x + f.w * (0.54 + 0.11 * i) }}" y2="{{ fy + z * 0.6 }}" stroke="var(--m-brass)"
+        stroke-width="1.8"/>
+  <circle cx="{{ f.x + f.w * (0.54 + 0.11 * i) }}" cy="{{ fy + z * 0.64 }}" r="{{ z * 0.06 }}"
+          fill="var(--m-brass)"/>
+  {% endfor %}
+  <circle cx="{{ f.x + f.w - 9 }}" cy="{{ fy + 7 }}" r="2.4" fill="{{ g }}" class="blink"/>
+{% elif f.kind == 'podium' %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.34 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <path d="M{{ f.x + f.w * 0.22 }} {{ by - 2 }} L{{ f.x + f.w * 0.3 }} {{ f.y + th * 0.5 }}
+           h{{ f.w * 0.4 }} L{{ f.x + f.w * 0.78 }} {{ by - 2 }} z" fill="{{ b }}"
+        stroke="#050912" stroke-width="1.7" stroke-opacity=".7"/>
+  <path d="M{{ f.x + f.w * 0.5 }} {{ by - 2 }} L{{ f.x + f.w * 0.5 }} {{ f.y + th * 0.5 }}
+           h{{ f.w * 0.2 }} L{{ f.x + f.w * 0.78 }} {{ by - 2 }} z" fill="#000" opacity=".24"/>
+  <rect x="{{ f.x + f.w * 0.36 }}" y="{{ fy + z * 0.3 }}" width="{{ f.w * 0.28 }}"
+        height="{{ z * 0.32 }}" rx="1.4" fill="{{ g }}" opacity=".35"/>
+  <path d="M{{ f.x + f.w * 0.24 }} {{ f.y + th * 0.5 }} h{{ f.w * 0.52 }}
+           l{{ -f.w * 0.04 }} {{ -th * 0.34 }} h{{ -f.w * 0.44 }} z" fill="{{ d }}"
+        stroke="#050912" stroke-width="1.5" stroke-opacity=".65"/>
+  <rect x="{{ f.x + f.w * 0.3 }}" y="{{ f.y + th * 0.24 }}" width="{{ f.w * 0.4 }}"
+        height="{{ th * 0.2 }}" rx="1" fill="#eef2f8" opacity=".85"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + th * 0.1 }}" r="{{ th * 0.08 }}" fill="{{ d }}"
+          stroke="#050912" stroke-width="1" stroke-opacity=".55"/>
+{% elif f.kind == 'press' %}
+  {# the thing that puts a result on paper and cannot take it back #}
+  {{ solid(f, b, d, 3) }}
+  <circle cx="{{ f.x + f.w * 0.2 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.36 }}"
+          fill="var(--fix-2)" stroke="var(--m-brass)" stroke-width="2.6"/>
+  <circle cx="{{ f.x + f.w * 0.2 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.11 }}"
+          fill="var(--m-brass)"/>
+  <rect x="{{ f.x + f.w * 0.4 }}" y="{{ f.y + th * 0.16 }}" width="{{ f.w * 0.5 }}"
+        height="{{ th * 0.66 }}" rx="1.4" fill="#eef2f8" opacity=".92"/>
+  {% for i in range(4) %}
+  <line x1="{{ f.x + f.w * 0.44 }}" y1="{{ f.y + th * (0.28 + 0.13 * i) }}"
+        x2="{{ f.x + f.w * (0.6 + 0.07 * (i % 3)) }}" y2="{{ f.y + th * (0.28 + 0.13 * i) }}"
+        stroke="#4c5b70" stroke-width="1.1" opacity=".8"/>
+  {% endfor %}
+  {% for i in range(5) %}
+  <rect x="{{ f.x + 5 + i * (f.w - 10) / 5 }}" y="{{ fy + 3 }}"
+        width="{{ (f.w - 10) / 5 - 3.4 }}" height="{{ z * 0.44 }}" rx="1.4" fill="var(--fix-2)"
+        stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  <circle cx="{{ f.x + 5 + i * (f.w - 10) / 5 + ((f.w - 10) / 5 - 3.4) / 2 }}"
+          cy="{{ fy + 3 + z * 0.22 }}" r="2.2" fill="{{ g }}" class="blink"
+          style="animation-delay:{{ i * 0.3 }}s"/>
+  {% endfor %}
+  <rect x="{{ f.x + 6 }}" y="{{ by - z * 0.34 }}" width="{{ f.w - 12 }}" height="{{ z * 0.24 }}"
+        rx="1.4" fill="#eef2f8" opacity=".8"/>
+{% elif f.kind == 'spool' %}
+  {# reels: the record as something wound and kept #}
+  {{ solid(f, d, b, 3) }}
+  {% for i in range(2) %}
+  <ellipse cx="{{ f.x + f.w * (0.3 + 0.4 * i) }}" cy="{{ f.y + th * 0.5 }}"
+           rx="{{ f.w * 0.14 }}" ry="{{ th * 0.36 }}" fill="{{ d }}" stroke="#050912"
+           stroke-width="1.4" stroke-opacity=".6"/>
+  <circle cx="{{ f.x + f.w * (0.3 + 0.4 * i) }}" cy="{{ fy + z * 0.48 }}" r="{{ z * 0.34 }}"
+          fill="var(--fix-2)" stroke="#050912" stroke-width="1.6" stroke-opacity=".7"/>
+  <circle cx="{{ f.x + f.w * (0.3 + 0.4 * i) }}" cy="{{ fy + z * 0.48 }}" r="{{ z * 0.22 }}"
+          fill="none" stroke="{{ g }}" stroke-width="2.6" opacity=".85"/>
+  <circle cx="{{ f.x + f.w * (0.3 + 0.4 * i) }}" cy="{{ fy + z * 0.48 }}" r="{{ z * 0.07 }}"
+          fill="var(--m-brass)"/>
+  {% endfor %}
+  <line x1="{{ f.x + f.w * 0.3 }}" y1="{{ fy + z * 0.14 }}" x2="{{ f.x + f.w * 0.7 }}"
+        y2="{{ fy + z * 0.14 }}" stroke="{{ g }}" stroke-width="2" opacity=".7"/>
+{% elif f.kind == 'vaultdoor' %}
+  {# a door that is the point of the room #}
+  {{ solid(f, d, b, 4) }}
+  {% set rr = [f.w * 0.3, z * 0.42] | min %}
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ fy + z * 0.5 }}" r="{{ rr * 1.2 }}" fill="{{ d }}"
+          stroke="#050912" stroke-width="2" stroke-opacity=".7"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ fy + z * 0.5 }}" r="{{ rr }}" fill="{{ b }}"
+          stroke="#050912" stroke-width="1.8" stroke-opacity=".7"/>
+  <path d="M{{ f.x + f.w * 0.5 - rr }} {{ fy + z * 0.5 }}
+           a{{ rr }} {{ rr }} 0 0 1 {{ rr * 2 }} 0 z" fill="#fff" opacity=".08"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ fy + z * 0.5 }}" r="{{ rr * 0.68 }}" fill="none"
+          stroke="{{ d }}" stroke-width="2"/>
+  {% for i in range(8) %}
+  <circle cx="{{ f.x + f.w * 0.5 + rr * 0.86 * [0, 0.71, 1, 0.71, 0, -0.71, -1, -0.71][i] }}"
+          cy="{{ fy + z * 0.5 + rr * 0.86 * [-1, -0.71, 0, 0.71, 1, 0.71, 0, -0.71][i] }}"
+          r="{{ rr * 0.1 }}" fill="{{ d }}" stroke="#050912" stroke-width=".8"
+          stroke-opacity=".5"/>
+  {% endfor %}
+  <g stroke="var(--m-brass)" stroke-width="{{ rr * 0.16 }}" stroke-linecap="round">
+    <line x1="{{ f.x + f.w * 0.5 - rr * 0.5 }}" y1="{{ fy + z * 0.5 }}"
+          x2="{{ f.x + f.w * 0.5 + rr * 0.5 }}" y2="{{ fy + z * 0.5 }}"/>
+    <line x1="{{ f.x + f.w * 0.5 }}" y1="{{ fy + z * 0.5 - rr * 0.5 }}"
+          x2="{{ f.x + f.w * 0.5 }}" y2="{{ fy + z * 0.5 + rr * 0.5 }}"/>
+  </g>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ fy + z * 0.5 }}" r="{{ rr * 0.16 }}" fill="{{ g }}"
+          opacity=".85" class="glowpane"/>
+  <rect x="{{ f.x + 6 }}" y="{{ f.y + 3 }}" width="{{ f.w - 12 }}" height="{{ th - 6 }}" rx="1.6"
+        fill="{{ b }}" opacity=".55"/>
+{% elif f.kind == 'bullion' %}
+  {# bars stacked on a pallet #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.5 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <rect x="{{ f.x }}" y="{{ by - z * 0.34 }}" width="{{ f.w }}" height="{{ z * 0.34 }}" rx="2"
+        fill="var(--m-wood-2)" stroke="#050912" stroke-width="1.4" stroke-opacity=".65"/>
+  {% for i in range(9) %}
+  {% set bx = f.x + 5 + (i % 3) * (f.w - 12) / 3 %}
+  {% set byy = by - z * 0.34 - ((i // 3) + 1) * (f.h * 0.2) %}
+  <rect x="{{ bx }}" y="{{ byy }}" width="{{ (f.w - 12) / 3 - 3 }}"
+        height="{{ f.h * 0.2 - 1.4 }}" rx="2" fill="{{ b }}" stroke="#050912" stroke-width="1.2"
+        stroke-opacity=".6"/>
+  <rect x="{{ bx }}" y="{{ byy }}" width="{{ (f.w - 12) / 3 - 3 }}" height="{{ f.h * 0.07 }}"
+        rx="2" fill="#fff" opacity=".3"/>
+  <rect x="{{ bx }}" y="{{ byy + f.h * 0.15 }}" width="{{ (f.w - 12) / 3 - 3 }}"
+        height="{{ f.h * 0.05 }}" fill="#000" opacity=".22"/>
+  {% endfor %}
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.34 }}" rx="{{ f.w * 0.48 }}"
+           ry="{{ f.h * 0.34 }}" fill="url(#lightpool)"/>
+{% elif f.kind == 'counter' %}
+  {# a teller counter with a grille over it #}
+  {{ solid(f, b, d, 3) }}
+  <rect x="{{ f.x + f.w * 0.1 }}" y="{{ f.y + th * 0.2 }}" width="{{ f.w * 0.28 }}"
+        height="{{ th * 0.6 }}" rx="1.4" fill="#eef2f8" opacity=".8"/>
+  <rect x="{{ f.x + f.w * 0.46 }}" y="{{ f.y + th * 0.24 }}" width="{{ f.w * 0.2 }}"
+        height="{{ th * 0.5 }}" rx="1.4" fill="var(--m-brass)" opacity=".9"/>
+  <circle cx="{{ f.x + f.w * 0.8 }}" cy="{{ f.y + th * 0.5 }}" r="{{ th * 0.2 }}" fill="{{ g }}"
+          opacity=".8" class="blink"/>
+  {% for i in range(9) %}
+  <line x1="{{ f.x + f.w * 0.08 + i * f.w * 0.1 }}" y1="{{ fy + 3 }}"
+        x2="{{ f.x + f.w * 0.08 + i * f.w * 0.1 }}" y2="{{ fy + z * 0.5 }}"
+        stroke="var(--m-brass)" stroke-width="1.8" opacity=".9"/>
+  {% endfor %}
+  <rect x="{{ f.x + f.w * 0.34 }}" y="{{ fy + z * 0.5 }}" width="{{ f.w * 0.32 }}"
+        height="{{ z * 0.16 }}" rx="1.4" fill="var(--m-brass)" opacity=".95"/>
+  <rect x="{{ f.x + 6 }}" y="{{ fy + z * 0.7 }}" width="{{ f.w * 0.24 }}" height="{{ z * 0.22 }}"
+        rx="1.4" fill="{{ d }}" stroke="#050912" stroke-width="1" stroke-opacity=".55"/>
+{% elif f.kind == 'scales' %}
+  {# a balance: what a run costs against what it buys #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.22 }}" ry="4" fill="#000"
+           opacity=".45"/>
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by - z * 0.1 }}" rx="{{ f.w * 0.2 }}"
+           ry="{{ f.h * 0.09 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.5"
+           stroke-opacity=".65"/>
+  <rect x="{{ f.x + f.w * 0.47 }}" y="{{ f.y + th * 0.2 }}" width="{{ f.w * 0.06 }}"
+        height="{{ by - z * 0.12 - (f.y + th * 0.2) }}" fill="{{ b }}" stroke="#050912"
+        stroke-width="1.2" stroke-opacity=".6"/>
+  <line x1="{{ f.x + f.w * 0.16 }}" y1="{{ f.y + th * 0.34 }}" x2="{{ f.x + f.w * 0.84 }}"
+        y2="{{ f.y + th * 0.16 }}" stroke="#050912" stroke-width="{{ f.h * 0.075 }}"
+        stroke-opacity=".6" stroke-linecap="round"/>
+  <line x1="{{ f.x + f.w * 0.16 }}" y1="{{ f.y + th * 0.34 }}" x2="{{ f.x + f.w * 0.84 }}"
+        y2="{{ f.y + th * 0.16 }}" stroke="{{ b }}" stroke-width="{{ f.h * 0.05 }}"
+        stroke-linecap="round"/>
+  {% for i in range(2) %}
+  <line x1="{{ f.x + f.w * (0.16 + 0.68 * i) }}" y1="{{ f.y + th * (0.34 - 0.18 * i) }}"
+        x2="{{ f.x + f.w * (0.16 + 0.68 * i) }}" y2="{{ f.y + th * (0.72 - 0.18 * i) }}"
+        stroke="{{ d }}" stroke-width="1.4"/>
+  <path d="M{{ f.x + f.w * (0.05 + 0.68 * i) }} {{ f.y + th * (0.72 - 0.18 * i) }}
+           a{{ f.w * 0.11 }} {{ th * 0.24 }} 0 0 0 {{ f.w * 0.22 }} 0 z" fill="{{ b }}"
+        stroke="#050912" stroke-width="1.3" stroke-opacity=".6"/>
+  <ellipse cx="{{ f.x + f.w * (0.16 + 0.68 * i) }}" cy="{{ f.y + th * (0.72 - 0.18 * i) }}"
+           rx="{{ f.w * 0.11 }}" ry="{{ th * 0.06 }}" fill="{{ d }}"/>
+  {% endfor %}
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + th * 0.2 }}" r="{{ th * 0.11 }}" fill="{{ g }}"
+          opacity=".85" class="glowpane"/>
+{% elif f.kind == 'orb' %}
+  {# a sphere in a gimbal: the room nobody has ever opened #}
+  {% set rr = [f.w * 0.24, f.h * 0.3] | min %}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.24 }}" ry="4.5" fill="#000"
+           opacity=".5"/>
+  <path d="M{{ f.x + f.w * 0.36 }} {{ by - 2 }} L{{ f.x + f.w * 0.44 }} {{ f.y + f.h * 0.68 }}
+           h{{ f.w * 0.12 }} L{{ f.x + f.w * 0.64 }} {{ by - 2 }} z" fill="{{ d }}"
+        stroke="#050912" stroke-width="1.5" stroke-opacity=".65"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.4 }}" rx="{{ rr * 1.35 }}"
+           ry="{{ rr * 0.45 }}" fill="none" stroke="#050912" stroke-width="4"
+           stroke-opacity=".5"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.4 }}" r="{{ rr }}" fill="{{ b }}"
+          stroke="#050912" stroke-width="1.8" stroke-opacity=".7"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.4 }}" r="{{ rr * 0.82 }}"
+          fill="{{ g }}" opacity=".45" class="glowpane"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 - rr * 0.32 }}" cy="{{ f.y + f.h * 0.4 - rr * 0.36 }}"
+           rx="{{ rr * 0.3 }}" ry="{{ rr * 0.18 }}" fill="#fff" opacity=".5"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.4 }}" rx="{{ rr * 1.35 }}"
+           ry="{{ rr * 0.45 }}" fill="none" stroke="var(--m-brass)" stroke-width="2.6"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.4 }}" rx="{{ rr * 0.5 }}"
+           ry="{{ rr * 1.3 }}" fill="none" stroke="var(--m-brass)" stroke-width="2.2"
+           opacity=".85"/>
+{% elif f.kind == 'dish' %}
+  {# a dish aimed at nothing, because nothing has ever been asked of it #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by + 1 }}" rx="{{ f.w * 0.28 }}" ry="4.5" fill="#000"
+           opacity=".5"/>
+  <rect x="{{ f.x + f.w * 0.36 }}" y="{{ by - z * 0.28 }}" width="{{ f.w * 0.28 }}"
+        height="{{ z * 0.28 }}" rx="2" fill="{{ d }}" stroke="#050912" stroke-width="1.4"
+        stroke-opacity=".65"/>
+  <rect x="{{ f.x + f.w * 0.44 }}" y="{{ f.y + f.h * 0.42 }}" width="{{ f.w * 0.12 }}"
+        height="{{ by - z * 0.28 - (f.y + f.h * 0.42) }}" fill="{{ d }}" stroke="#050912"
+        stroke-width="1.3" stroke-opacity=".6"/>
+  <path d="M{{ f.x + f.w * 0.12 }} {{ f.y + f.h * 0.44 }}
+           a{{ f.w * 0.38 }} {{ f.h * 0.4 }} 0 0 1 {{ f.w * 0.76 }} 0 z" fill="{{ b }}"
+        stroke="#050912" stroke-width="1.8" stroke-opacity=".72"/>
+  <path d="M{{ f.x + f.w * 0.2 }} {{ f.y + f.h * 0.42 }}
+           a{{ f.w * 0.3 }} {{ f.h * 0.3 }} 0 0 1 {{ f.w * 0.6 }} 0 z" fill="{{ d }}"
+        opacity=".55"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.44 }}" rx="{{ f.w * 0.38 }}"
+           ry="{{ f.h * 0.05 }}" fill="{{ b }}" stroke="#050912" stroke-width="1.4"
+           stroke-opacity=".6"/>
+  <line x1="{{ f.x + f.w * 0.5 }}" y1="{{ f.y + f.h * 0.42 }}" x2="{{ f.x + f.w * 0.5 }}"
+        y2="{{ f.y + f.h * 0.12 }}" stroke="{{ d }}" stroke-width="2.4"/>
+  <circle cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.11 }}" r="{{ f.h * 0.07 }}"
+          fill="{{ g }}" opacity=".85" class="blink"/>
+{% elif f.kind == 'plant' %}
+  {# something alive, in a building where nothing else is #}
+  <ellipse cx="{{ f.x + f.w / 2 }}" cy="{{ by }}" rx="{{ f.w * 0.24 }}" ry="3.4" fill="#000"
+           opacity=".45"/>
+  <path d="M{{ f.x + f.w * 0.5 }} {{ f.y + f.h * 0.6 }}
+           q{{ -f.w * 0.3 }} {{ -f.h * 0.16 }} {{ -f.w * 0.26 }} {{ -f.h * 0.5 }}
+           q{{ f.w * 0.2 }} {{ f.h * 0.12 }} {{ f.w * 0.26 }} {{ f.h * 0.5 }}
+           q{{ f.w * 0.32 }} {{ -f.h * 0.2 }} {{ f.w * 0.3 }} {{ -f.h * 0.46 }}
+           q{{ -f.w * 0.22 }} {{ f.h * 0.14 }} {{ -f.w * 0.3 }} {{ f.h * 0.46 }}
+           q{{ -f.w * 0.04 }} {{ -f.h * 0.36 }} {{ f.w * 0.02 }} {{ -f.h * 0.56 }}
+           q{{ f.w * 0.02 }} {{ f.h * 0.34 }} {{ -f.w * 0.02 }} {{ f.h * 0.56 }} z"
+        fill="#2f7a48" stroke="#050912" stroke-width="1.2" stroke-opacity=".55"/>
+  <path d="M{{ f.x + f.w * 0.5 }} {{ f.y + f.h * 0.6 }}
+           q{{ -f.w * 0.3 }} {{ -f.h * 0.16 }} {{ -f.w * 0.26 }} {{ -f.h * 0.5 }}
+           q{{ f.w * 0.2 }} {{ f.h * 0.12 }} {{ f.w * 0.26 }} {{ f.h * 0.5 }} z" fill="{{ g }}"
+        opacity=".45"/>
+  <path d="M{{ f.x + f.w * 0.32 }} {{ by - 2 }} l{{ f.w * 0.05 }} {{ -f.h * 0.34 }}
+           h{{ f.w * 0.26 }} l{{ f.w * 0.05 }} {{ f.h * 0.34 }} z" fill="var(--m-paint)"
+        stroke="#050912" stroke-width="1.4" stroke-opacity=".65"/>
+  <ellipse cx="{{ f.x + f.w * 0.5 }}" cy="{{ f.y + f.h * 0.26 }}" rx="{{ f.w * 0.18 }}"
+           ry="{{ f.h * 0.05 }}" fill="var(--m-paint-2)"/>
+{% elif f.kind == 'poster' %}
+  {{ solid(f, d, d, 1.5) }}
+  <rect x="{{ f.x + 2 }}" y="{{ fy + 2 }}" width="{{ f.w - 4 }}" height="{{ z - 4 }}" rx="1"
+        fill="#eef2f8"/>
+  <rect x="{{ f.x + 2 }}" y="{{ fy + 2 }}" width="{{ f.w - 4 }}" height="{{ (z - 4) * 0.26 }}"
+        fill="{{ b }}"/>
+  {% for i in range(4) %}
+  <line x1="{{ f.x + 5 }}" y1="{{ fy + (z - 4) * (0.42 + 0.15 * i) }}"
+        x2="{{ f.x + f.w * (0.5 + 0.12 * (i % 3)) }}"
+        y2="{{ fy + (z - 4) * (0.42 + 0.15 * i) }}" stroke="#4c5b70" stroke-width="1.3"
+        opacity=".7"/>
+  {% endfor %}
+  <circle cx="{{ f.x + f.w - 8 }}" cy="{{ fy + (z - 4) * 0.72 }}" r="{{ (z - 4) * 0.13 }}"
+          fill="{{ g }}" opacity=".85"/>
+{% else %}
+  {{ solid(f, b, d, 3) }}
+{% endif %}
+</g>
+{% endmacro %}
+
+
+{# Wear: the marks a floor has because it is walked on. #}
+{% macro decal(m, hue) %}
+{% if m.kind == 'scuff' %}
+<g transform="rotate({{ m.a }} {{ m.x }} {{ m.y }})" opacity=".5">
+  <rect x="{{ m.x - m.r }}" y="{{ m.y - 1.4 }}" width="{{ m.r * 2 }}" height="2.8" rx="1.4"
+        fill="#000"/>
+  <rect x="{{ m.x - m.r * 0.6 }}" y="{{ m.y + 2 }}" width="{{ m.r * 1.2 }}" height="1.8"
+        rx="0.9" fill="#000" opacity=".7"/>
+</g>
+{% elif m.kind == 'bolt' %}
+<g opacity=".55">
+  <circle cx="{{ m.x }}" cy="{{ m.y }}" r="3.2" fill="var(--floor-2)"/>
+  <circle cx="{{ m.x }}" cy="{{ m.y - 0.7 }}" r="2.2" fill="var(--walli)" opacity=".7"/>
+</g>
+{% else %}
+<g opacity=".6">
+  <rect x="{{ m.x - 9 }}" y="{{ m.y - 6 }}" width="18" height="12" rx="2" fill="var(--floor-2)"
+        stroke="var(--walli)" stroke-width="1" stroke-opacity=".5"/>
+  {% for i in range(4) %}
+  <line x1="{{ m.x - 6 + i * 4 }}" y1="{{ m.y - 4 }}" x2="{{ m.x - 6 + i * 4 }}"
+        y2="{{ m.y + 4 }}" stroke="#000" stroke-width="1.6" opacity=".7"/>
+  {% endfor %}
+</g>
+{% endif %}
+{% endmacro %}
+
+
+{# ---------------------------------------------------------------- hallway
+
+   The run of floor between one room and the next: walls down both sides, deck
+   plating, grating, direction arrows and a light overhead. Computed from the
+   gap between two consecutive shells, so it lines up with the doorways cut for
+   it — a corridor drawn as a stroke through the room centres is a line on a
+   diagram, not a place you could walk. Every detail is placed from the hall's
+   own index, so no two runs are the same run twice. #}
+
+{% macro hallway(hall, hue) %}
+{% set n = hall.index %}
+<g class="hall">
+  {% if hall.vertical %}
+  {% set cx = hall.x + hall.w / 2 %}
+  <rect x="{{ hall.x - 13 }}" y="{{ hall.y - 2 }}" width="{{ hall.w + 26 }}"
+        height="{{ hall.h + 4 }}" fill="var(--wallo)"/>
+  <rect x="{{ hall.x }}" y="{{ hall.y - 2 }}" width="{{ hall.w }}" height="{{ hall.h + 4 }}"
+        fill="var(--floor-2)"/>
+  <rect x="{{ hall.x }}" y="{{ hall.y - 2 }}" width="{{ hall.w }}" height="{{ hall.h + 4 }}"
+        fill="url(#plating)" opacity=".6"/>
+  {% for i in range((hall.h / 22) | round(0, 'ceil') | int) %}
+  <line x1="{{ hall.x + 4 }}" y1="{{ hall.y + i * 22 }}" x2="{{ hall.x + hall.w - 4 }}"
+        y2="{{ hall.y + i * 22 }}" stroke="var(--walli)" stroke-width="1.2" opacity=".4"/>
+  {% endfor %}
+  <rect x="{{ hall.x }}" y="{{ hall.y - 2 }}" width="5" height="{{ hall.h + 4 }}"
+        fill="url(#hazard)" opacity=".5"/>
+  <rect x="{{ hall.x + hall.w - 5 }}" y="{{ hall.y - 2 }}" width="5" height="{{ hall.h + 4 }}"
+        fill="url(#hazard)" opacity=".5"/>
+  <rect x="{{ hall.x }}" y="{{ hall.y - 2 }}" width="10" height="{{ hall.h + 4 }}"
+        fill="url(#wallshadeL)"/>
+  <rect x="{{ hall.x + hall.w - 10 }}" y="{{ hall.y - 2 }}" width="10" height="{{ hall.h + 4 }}"
+        fill="url(#wallshadeR)"/>
+  {% for i in range((hall.h / 46) | round(0, 'ceil') | int) %}
+  <circle cx="{{ hall.x - 6 }}" cy="{{ hall.y + 14 + i * 46 }}" r="1.8" fill="var(--walli)"/>
+  <circle cx="{{ hall.x + hall.w + 6 }}" cy="{{ hall.y + 14 + i * 46 }}" r="1.8"
+          fill="var(--walli)"/>
+  {% endfor %}
+  {% for i in range((hall.h / 58) | round(0, 'ceil') | int) %}
+  <path d="M{{ cx - 9 }} {{ hall.y + 26 + i * 58 }} L{{ cx }} {{ hall.y + 36 + i * 58 }}
+           L{{ cx + 9 }} {{ hall.y + 26 + i * 58 }}" fill="none" stroke="{{ hue }}"
+        stroke-width="2.4" stroke-opacity=".3" stroke-linecap="round"
+        stroke-linejoin="round"/>
+  {% endfor %}
+  {% for i in range((hall.h / 96) | round(0, 'ceil') | int) %}
+  <ellipse cx="{{ cx }}" cy="{{ hall.y + 29 + i * 96 }}" rx="{{ hall.w * 0.62 }}" ry="44"
+           fill="url(#lightpool)"/>
+  <rect x="{{ cx - hall.w * 0.24 }}" y="{{ hall.y + 26 + i * 96 }}" width="{{ hall.w * 0.48 }}"
+        height="7" rx="3.5" fill="{{ hue }}" opacity=".42" class="glowpane"
+        style="animation-delay:{{ i * 1.1 }}s"/>
+  {% endfor %}
+  <rect x="{{ hall.x + hall.w - 3 }}" y="{{ hall.y + hall.h * 0.42 }}" width="9" height="22"
+        rx="2" fill="var(--m-steel)" stroke="#050912" stroke-width="1.3" stroke-opacity=".6"/>
+  <circle cx="{{ hall.x + hall.w + 1.5 }}" cy="{{ hall.y + hall.h * 0.42 + 6 }}" r="1.8"
+          fill="var(--m-paint)" class="blink"/>
+  {# a car that actually goes up and down the shaft #}
+  <g class="lift" style="--ride:{{ hall.h - 46 }}px;--ridetime:{{ 9 + n * 2 }}s">
+    <rect x="{{ hall.x + 7 }}" y="{{ hall.y + 4 }}" width="{{ hall.w - 14 }}" height="38" rx="4"
+          fill="var(--wallcap)" stroke="#050912" stroke-width="1.6" stroke-opacity=".65"/>
+    <rect x="{{ hall.x + 11 }}" y="{{ hall.y + 9 }}" width="{{ hall.w - 22 }}" height="14" rx="2"
+          fill="{{ hue }}" opacity=".35"/>
+    <line x1="{{ hall.x + hall.w / 2 }}" y1="{{ hall.y + 27 }}" x2="{{ hall.x + hall.w / 2 }}"
+          y2="{{ hall.y + 38 }}" stroke="#050912" stroke-width="2" stroke-opacity=".6"/>
+  </g>
+  {% for i in range(2) %}
+  <circle class="packet" r="3.4" fill="{{ hue }}" cx="{{ hall.x + hall.w / 2 }}"
+          cy="{{ hall.y }}"
+          style="--ride:{{ hall.h }}px;--ridetime:{{ 5 + n }}s;--ridedelay:-{{ i * 2.4 }}s"/>
+  {% endfor %}
+  {% else %}
+  {% set cy = hall.y + hall.h / 2 %}
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y - 13 }}" width="{{ hall.w + 4 }}"
+        height="{{ hall.h + 26 }}" fill="var(--wallo)"/>
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y - 13 }}" width="{{ hall.w + 4 }}" height="13"
+        fill="url(#sheenV)"/>
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y }}" width="{{ hall.w + 4 }}" height="{{ hall.h }}"
+        fill="var(--floor-2)"/>
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y }}" width="{{ hall.w + 4 }}" height="{{ hall.h }}"
+        fill="url(#plating)" opacity=".6"/>
+  {% for i in range((hall.w / 22) | round(0, 'ceil') | int) %}
+  <line x1="{{ hall.x + i * 22 }}" y1="{{ hall.y + 4 }}" x2="{{ hall.x + i * 22 }}"
+        y2="{{ hall.y + hall.h - 4 }}" stroke="var(--walli)" stroke-width="1.2" opacity=".4"/>
+  {% endfor %}
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y }}" width="{{ hall.w + 4 }}" height="5"
+        fill="url(#hazard)" opacity=".5"/>
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y + hall.h - 5 }}" width="{{ hall.w + 4 }}" height="5"
+        fill="url(#hazard)" opacity=".5"/>
+  <rect x="{{ hall.x - 2 }}" y="{{ hall.y }}" width="{{ hall.w + 4 }}" height="15"
+        fill="url(#wallshade)"/>
+  {% for i in range((hall.w / 46) | round(0, 'ceil') | int) %}
+  <circle cx="{{ hall.x + 14 + i * 46 }}" cy="{{ hall.y - 6 }}" r="1.8" fill="var(--walli)"/>
+  <circle cx="{{ hall.x + 14 + i * 46 }}" cy="{{ hall.y + hall.h + 6 }}" r="1.8"
+          fill="var(--walli)"/>
+  {% endfor %}
+  {% for i in range((hall.w / 58) | round(0, 'ceil') | int) %}
+  <path d="M{{ hall.x + 26 + i * 58 }} {{ cy - 9 }} L{{ hall.x + 36 + i * 58 }} {{ cy }}
+           L{{ hall.x + 26 + i * 58 }} {{ cy + 9 }}" fill="none" stroke="{{ hue }}"
+        stroke-width="2.4" stroke-opacity=".3" stroke-linecap="round"
+        stroke-linejoin="round"/>
+  {% endfor %}
+  {% for i in range((hall.w / 110) | round(0, 'ceil') | int) %}
+  <ellipse cx="{{ hall.x + 44 + i * 110 }}" cy="{{ cy }}" rx="58" ry="{{ hall.h * 0.66 }}"
+           fill="url(#lightpool)"/>
+  <rect x="{{ hall.x + 44 + i * 110 - 26 }}" y="{{ hall.y + 7 }}" width="52" height="6" rx="3"
+        fill="{{ hue }}" opacity=".42" class="glowpane"
+        style="animation-delay:{{ i * 1.1 }}s"/>
+  {% endfor %}
+  <line x1="{{ hall.x }}" y1="{{ hall.y - 7 }}" x2="{{ hall.x + hall.w }}" y2="{{ hall.y - 7 }}"
+        stroke="#050912" stroke-width="5" stroke-opacity=".5"/>
+  <line x1="{{ hall.x }}" y1="{{ hall.y - 7 }}" x2="{{ hall.x + hall.w }}" y2="{{ hall.y - 7 }}"
+        stroke="var(--m-steel)" stroke-width="3.4"/>
+  <line x1="{{ hall.x }}" y1="{{ hall.y - 8 }}" x2="{{ hall.x + hall.w }}" y2="{{ hall.y - 8 }}"
+        stroke="#fff" stroke-width="1" stroke-opacity=".2"/>
+  <rect x="{{ hall.x + hall.w * 0.5 - 11 }}" y="{{ hall.y - 11 }}" width="22" height="9" rx="2"
+        fill="var(--m-steel)" stroke="#050912" stroke-width="1.3" stroke-opacity=".6"/>
+  <circle cx="{{ hall.x + hall.w * 0.5 + 6 }}" cy="{{ hall.y - 6.5 }}" r="1.8"
+          fill="var(--m-paint)" class="blink"/>
+  {% for i in range(2) %}
+  <circle class="packet flat" r="3.4" fill="{{ hue }}" cx="{{ hall.x }}"
+          cy="{{ hall.y + hall.h / 2 }}"
+          style="--ride:{{ hall.w }}px;--ridetime:{{ 4 + n }}s;--ridedelay:-{{ i * 2 }}s"/>
+  {% endfor %}
+  {% endif %}
+  <text x="{{ hall.x + hall.w / 2 }}" y="{{ hall.y + hall.h / 2 + 5 }}" text-anchor="middle"
+        font-family="var(--mono)" font-size="15" font-weight="700" fill="{{ hue }}"
+        opacity=".16">{{ '%02d' | format(n) }}</text>
+</g>
+{% endmacro %}
+
+{# Hazard chevrons across a threshold, so a doorway reads as a doorway. #}
+{% macro threshold(gap, shell, wall, hue) %}
+{% if gap.side in ('left', 'right') %}
+{% set x = shell.x if gap.side == 'left' else shell.x + shell.w - wall %}
+<g opacity=".55">
+  {% for i in range(5) %}
+  <rect x="{{ x }}" y="{{ gap.at - gap.span / 2 + 3 + i * (gap.span - 6) / 5 }}"
+        width="{{ wall }}" height="{{ (gap.span - 6) / 10 }}"
+        fill="{{ 'var(--m-hazard)' if i % 2 == 0 else hue }}"/>
+  {% endfor %}
+</g>
+{% else %}
+{% set y = shell.y if gap.side == 'top' else shell.y + shell.h - wall %}
+<g opacity=".55">
+  {% for i in range(5) %}
+  <rect x="{{ (gap.cx if gap.cx is defined else shell.x + shell.w / 2) - gap.span / 2 + 3 + i * (gap.span - 6) / 5 }}" y="{{ y }}"
+        width="{{ (gap.span - 6) / 10 }}" height="{{ wall }}"
+        fill="{{ 'var(--m-hazard)' if i % 2 == 0 else hue }}"/>
+  {% endfor %}
+</g>
+{% endif %}
+{% endmacro %}
+
+{# Lamps hanging from the ceiling, and the light they throw down the wall. In
+   elevation a room is lit from a fitting you can see, which is most of what
+   tells the eye it is looking into a room rather than at a panel. #}
+{% macro ceiling(ch, hue) %}
+<g>
+  {% for i in range(3) %}
+  {% set cx = ch.x + ch.w * (0.22 + 0.28 * i) %}
+  <path d="M{{ cx - ch.w * 0.11 }} {{ ch.y + 12 }} L{{ cx + ch.w * 0.11 }} {{ ch.y + 12 }}
+           L{{ cx + ch.w * 0.2 }} {{ ch.y + ch.h }} L{{ cx - ch.w * 0.2 }} {{ ch.y + ch.h }} z"
+        fill="url(#lampcone)" opacity=".7"/>
+  <line x1="{{ cx }}" y1="{{ ch.y - 12 }}" x2="{{ cx }}" y2="{{ ch.y + 2 }}"
+        stroke="var(--walli)" stroke-width="2.4"/>
+  <path d="M{{ cx - 15 }} {{ ch.y + 10 }} l4 -9 h22 l4 9 z" fill="var(--m-steel)"
+        stroke="#050912" stroke-width="1.4" stroke-opacity=".6"/>
+  <rect x="{{ cx - 11 }}" y="{{ ch.y + 8 }}" width="22" height="4" rx="2" fill="{{ hue }}"
+        class="glowpane" style="animation-delay:{{ i * 1.3 }}s"/>
+  <ellipse cx="{{ cx }}" cy="{{ ch.y + 12 }}" rx="26" ry="9" fill="{{ hue }}" opacity=".16"/>
+  {% endfor %}
+</g>
+{% endmacro %}
+
+
+{# The wall itself is equipment: a service run across it, with brackets, a
+   junction box and a plate. Without this a chamber is blank between its
+   ceiling fittings and the tops of the things standing on its floor. #}
+{% macro wallrun(ch, hue) %}
+{% set y = ch.y + ch.h * 0.3 %}
+<g>
+  <rect x="{{ ch.x + 6 }}" y="{{ y - 2 }}" width="{{ ch.w - 12 }}" height="9" rx="4.5"
+        fill="#050912" opacity=".45"/>
+  <rect x="{{ ch.x + 6 }}" y="{{ y - 4 }}" width="{{ ch.w - 12 }}" height="8" rx="4"
+        fill="var(--m-steel)" stroke="#050912" stroke-width="1.3" stroke-opacity=".6"/>
+  <rect x="{{ ch.x + 6 }}" y="{{ y - 3 }}" width="{{ ch.w - 12 }}" height="2.4" rx="1.2"
+        fill="#fff" opacity=".16"/>
+  <rect x="{{ ch.x + 6 }}" y="{{ y + 8 }}" width="{{ ch.w - 12 }}" height="4.6" rx="2.3"
+        fill="var(--m-brass)" opacity=".55"/>
+  {% for i in range(5) %}
+  <rect x="{{ ch.x + 24 + i * (ch.w - 60) / 4 }}" y="{{ y - 7 }}" width="6" height="22" rx="2"
+        fill="var(--wallcap)" stroke="#050912" stroke-width="1" stroke-opacity=".5"/>
+  {% endfor %}
+  <rect x="{{ ch.x + ch.w * 0.62 }}" y="{{ y - 13 }}" width="30" height="20" rx="3"
+        fill="var(--m-steel)" stroke="#050912" stroke-width="1.4" stroke-opacity=".62"/>
+  <rect x="{{ ch.x + ch.w * 0.62 }}" y="{{ y - 13 }}" width="30" height="6" rx="3" fill="#fff"
+        opacity=".1"/>
+  <circle cx="{{ ch.x + ch.w * 0.62 + 22 }}" cy="{{ y - 4 }}" r="2.4" fill="{{ hue }}"
+          class="blink"/>
+  <rect x="{{ ch.x + 14 }}" y="{{ y - 15 }}" width="26" height="13" rx="2" fill="var(--fix-2)"
+        stroke="{{ hue }}" stroke-width="1.4" stroke-opacity=".6"/>
+  {% for i in range(3) %}
+  <rect x="{{ ch.x + 18 + i * 7 }}" y="{{ y - 10 }}" width="4" height="3" rx="1" fill="{{ hue }}"
+        opacity=".8"/>
+  {% endfor %}
+</g>
+{% endmacro %}
+
+
+{# ---------------------------------------------------------------- the plant
+
+   What is between the rooms. Fourteen lit boxes floating in black is a diagram
+   of an institution rather than a picture of one: it says the departments are
+   all there is and that between them is nothing, and there is a great deal
+   between them. None of this records anything, so none of it carries a number
+   and none of it can be clicked — it is the building, drawn as the building.
+#}
+
+{% macro works(w, hue) %}
+<g class="works" pointer-events="none">
+{% if w.kind == 'deck' %}
+  {# the service deck between the two rows of the pipeline #}
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="var(--wallm)"
+        opacity=".7"/>
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="url(#sheenV)"
+        opacity=".5"/>
+  <rect x="{{ w.x }}" y="{{ w.y + 4 }}" width="{{ w.w }}" height="11" fill="var(--wallo)"/>
+  <rect x="{{ w.x }}" y="{{ w.y + w.h - 15 }}" width="{{ w.w }}" height="11"
+        fill="var(--wallo)"/>
+  <rect x="{{ w.x }}" y="{{ w.y + 4 }}" width="{{ w.w }}" height="3" fill="#fff" opacity=".07"/>
+  {% for i in range((w.w / 68) | round(0, 'ceil') | int) %}
+  <path d="M{{ w.x + i * 68 }} {{ w.y + 15 }} L{{ w.x + i * 68 + 34 }} {{ w.y + w.h - 15 }}
+           L{{ w.x + i * 68 + 68 }} {{ w.y + 15 }}" fill="none" stroke="var(--wallo)"
+        stroke-width="7" stroke-linejoin="round"/>
+  <path d="M{{ w.x + i * 68 }} {{ w.y + 15 }} L{{ w.x + i * 68 + 34 }} {{ w.y + w.h - 15 }}"
+        stroke="#fff" stroke-width="1.4" stroke-opacity=".05"/>
+  {% endfor %}
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * 0.44 }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * 0.44 }}" stroke="#050912" stroke-width="13" stroke-opacity=".5"/>
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * 0.44 }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * 0.44 }}" stroke="var(--m-steel)" stroke-width="9"/>
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * 0.44 - 2.4 }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * 0.44 - 2.4 }}" stroke="#fff" stroke-width="2" stroke-opacity=".13"/>
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * 0.6 }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * 0.6 }}" stroke="var(--m-brass)" stroke-width="4" opacity=".5"/>
+  {% for i in range((w.w / 210) | round(0, 'ceil') | int) %}
+  {% set vx = w.x + 96 + i * 210 %}
+  <ellipse cx="{{ vx }}" cy="{{ w.y + w.h - 18 }}" rx="26" ry="6" fill="#000" opacity=".4"/>
+  <rect x="{{ vx - 24 }}" y="{{ w.y + w.h * 0.5 }}" width="48" height="{{ w.h * 0.42 }}" rx="10"
+        fill="var(--m-steel)" stroke="#050912" stroke-width="1.6" stroke-opacity=".6"/>
+  <rect x="{{ vx - 20 }}" y="{{ w.y + w.h * 0.52 }}" width="11" height="{{ w.h * 0.36 }}" rx="5"
+        fill="#fff" opacity=".1"/>
+  <rect x="{{ vx - 24 }}" y="{{ w.y + w.h * 0.66 }}" width="48" height="5"
+        fill="var(--m-brass)" opacity=".7"/>
+  <circle cx="{{ vx }}" cy="{{ w.y + w.h * 0.58 }}" r="4" fill="{{ hue }}" opacity=".5"
+          class="blink" style="animation-delay:{{ i * 0.7 }}s"/>
+  <circle cx="{{ vx - 44 }}" cy="{{ w.y + w.h * 0.44 }}" r="9" fill="none"
+          stroke="var(--m-paint)" stroke-width="3" opacity=".7"/>
+  {% endfor %}
+  {% for i in range((w.w / 46) | round(0, 'ceil') | int) %}
+  <line x1="{{ w.x + i * 46 }}" y1="{{ w.y + 4 }}" x2="{{ w.x + i * 46 }}" y2="{{ w.y + 15 }}"
+        stroke="#050912" stroke-width="1.6" stroke-opacity=".4"/>
+  {% endfor %}
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="4" fill="url(#hazard)"
+        opacity=".35"/>
+  <rect x="{{ w.x }}" y="{{ w.y + w.h - 4 }}" width="{{ w.w }}" height="4" fill="url(#hazard)"
+        opacity=".35"/>
+
+{% elif w.kind == 'hall' %}
+  {# the plant hall: what lights and cools the place #}
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="var(--wallback)"
+        opacity=".62"/>
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="url(#backwall)"
+        opacity=".7"/>
+  <rect x="{{ w.x }}" y="{{ w.y + 16 }}" width="{{ w.w }}" height="13" fill="var(--wallo)"/>
+  <rect x="{{ w.x }}" y="{{ w.y + 16 }}" width="{{ w.w }}" height="3.4" fill="#fff"
+        opacity=".08"/>
+  <rect x="{{ w.x + w.w * 0.4 }}" y="{{ w.y + 11 }}" width="74" height="24" rx="4"
+        fill="var(--m-steel)" stroke="#050912" stroke-width="1.6" stroke-opacity=".6"/>
+  <line x1="{{ w.x + w.w * 0.4 + 37 }}" y1="{{ w.y + 35 }}" x2="{{ w.x + w.w * 0.4 + 37 }}"
+        y2="{{ w.y + 96 }}" stroke="var(--m-steel-2)" stroke-width="3"/>
+  <rect x="{{ w.x + w.w * 0.4 + 17 }}" y="{{ w.y + 96 }}" width="40" height="26" rx="3"
+        fill="var(--m-hazard)" opacity=".55" stroke="#050912" stroke-width="1.6"
+        stroke-opacity=".6"/>
+  {% for i in range(((w.w / 232) | round(0, 'ceil') | int) + 1) %}
+  {% set cx = w.x + i * 232 %}
+  <rect x="{{ cx - 9 }}" y="{{ w.y + 26 }}" width="18" height="{{ w.h - 46 }}"
+        fill="var(--wallo)"/>
+  <rect x="{{ cx - 9 }}" y="{{ w.y + 26 }}" width="4.4" height="{{ w.h - 46 }}" fill="#fff"
+        opacity=".07"/>
+  {% for k in range(4) %}
+  <rect x="{{ cx - 14 }}" y="{{ w.y + 60 + k * (w.h - 110) / 3 }}" width="28" height="7" rx="2"
+        fill="var(--wallcap)"/>
+  {% endfor %}
+  {% if i > 0 %}
+  <path d="M{{ cx - 232 }} {{ w.y + 120 }} L{{ cx }} {{ w.y + w.h * 0.62 }}
+           M{{ cx }} {{ w.y + 120 }} L{{ cx - 232 }} {{ w.y + w.h * 0.62 }}"
+        stroke="var(--wallo)" stroke-width="6" opacity=".85"/>
+  {% endif %}
+  {% endfor %}
+  {% for i in range(3) %}
+  {% set tx = w.x + w.w * (0.14 + 0.3 * i) %}
+  {% set tw = 96 %}
+  {% set ty = w.y + w.h * 0.3 %}
+  {% set tall = w.h * 0.56 %}
+  <ellipse cx="{{ tx }}" cy="{{ ty + tall + 5 }}" rx="{{ tw * 0.6 }}" ry="10" fill="#000"
+           opacity=".45"/>
+  <rect x="{{ tx - tw / 2 }}" y="{{ ty }}" width="{{ tw }}" height="{{ tall }}"
+        rx="{{ tw * 0.34 }}" fill="var(--m-steel)" stroke="#050912" stroke-width="2"
+        stroke-opacity=".6"/>
+  <rect x="{{ tx - tw / 2 + 8 }}" y="{{ ty + 10 }}" width="{{ tw * 0.2 }}"
+        height="{{ tall - 20 }}" rx="{{ tw * 0.1 }}" fill="#fff" opacity=".1"/>
+  {% for k in range(3) %}
+  <rect x="{{ tx - tw / 2 }}" y="{{ ty + tall * (0.22 + 0.26 * k) }}" width="{{ tw }}"
+        height="8" fill="var(--m-brass)" opacity=".5"/>
+  {% endfor %}
+  <rect x="{{ tx + tw / 2 - 4 }}" y="{{ ty + 14 }}" width="18" height="{{ tall - 28 }}"
+        fill="none" stroke="var(--wallcap)" stroke-width="2.6"/>
+  {% for k in range(7) %}
+  <line x1="{{ tx + tw / 2 - 4 }}" y1="{{ ty + 20 + k * (tall - 40) / 6 }}"
+        x2="{{ tx + tw / 2 + 14 }}" y2="{{ ty + 20 + k * (tall - 40) / 6 }}"
+        stroke="var(--wallcap)" stroke-width="2.2"/>
+  {% endfor %}
+  <circle cx="{{ tx }}" cy="{{ ty + 22 }}" r="7" fill="{{ hue }}" opacity=".4" class="blink"
+          style="animation-delay:{{ i * 1.1 }}s"/>
+  {% endfor %}
+  {% for i in range(2) %}
+  {% set ex = w.x + w.w * (0.62 + 0.19 * i) %}
+  {% set ey = w.y + w.h * (0.42 + 0.24 * i) %}
+  <rect x="{{ ex }}" y="{{ ey }}" width="{{ w.w * 0.16 }}" height="54" rx="27"
+        fill="var(--m-steel-2)" stroke="#050912" stroke-width="2" stroke-opacity=".6"/>
+  <rect x="{{ ex + 6 }}" y="{{ ey + 6 }}" width="{{ w.w * 0.16 - 12 }}" height="12" rx="6"
+        fill="#fff" opacity=".08"/>
+  <rect x="{{ ex - 8 }}" y="{{ ey + 10 }}" width="14" height="34" rx="3" fill="var(--m-brass)"
+        opacity=".6"/>
+  <rect x="{{ ex + w.w * 0.16 - 6 }}" y="{{ ey + 10 }}" width="14" height="34" rx="3"
+        fill="var(--m-brass)" opacity=".6"/>
+  {% endfor %}
+  {% for i in range(3) %}
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * (0.24 + 0.26 * i) }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * (0.24 + 0.26 * i) }}" stroke="#050912" stroke-width="10"
+        stroke-opacity=".4"/>
+  <line x1="{{ w.x }}" y1="{{ w.y + w.h * (0.24 + 0.26 * i) }}" x2="{{ w.x + w.w }}"
+        y2="{{ w.y + w.h * (0.24 + 0.26 * i) }}"
+        stroke="{{ ['var(--m-steel)', 'var(--m-brass)', 'var(--m-paint)'][i] }}"
+        stroke-width="6" opacity=".7"/>
+  {% endfor %}
+  {# A row of plant standing on the deck, edge to edge. Three tanks and two
+     exchangers left the right-hand third of the hall thinner than the left,
+     which reads as the building running out rather than as a building. #}
+  {% for i in range(9) %}
+  {% set gw = w.w * [0.07, 0.05, 0.09, 0.06, 0.05, 0.08, 0.06, 0.07, 0.05][i] %}
+  {% set gh = w.h * [0.17, 0.11, 0.22, 0.14, 0.09, 0.19, 0.12, 0.16, 0.1][i] %}
+  {% set gx = w.x + 22 + w.w * [0.0, 0.09, 0.17, 0.29, 0.37, 0.45, 0.57, 0.68, 0.79][i] %}
+  {% set gy = w.y + w.h - 20 - gh %}
+  <ellipse cx="{{ gx + gw / 2 }}" cy="{{ gy + gh + 2 }}" rx="{{ gw * 0.56 }}" ry="6" fill="#000"
+           opacity=".4"/>
+  <rect x="{{ gx }}" y="{{ gy }}" width="{{ gw }}" height="{{ gh }}" rx="3"
+        fill="{{ ['var(--m-steel)', 'var(--wallcap)', 'var(--m-steel-2)'][i % 3] }}"
+        stroke="#050912" stroke-width="1.6" stroke-opacity=".6"/>
+  <rect x="{{ gx }}" y="{{ gy }}" width="{{ gw }}" height="{{ gh * 0.16 }}" rx="3" fill="#fff"
+        opacity=".09"/>
+  {% for k in range(3) %}
+  <rect x="{{ gx + gw * 0.14 }}" y="{{ gy + gh * (0.28 + 0.2 * k) }}" width="{{ gw * 0.72 }}"
+        height="{{ gh * 0.11 }}" rx="1.6" fill="#050912" opacity=".4"/>
+  {% endfor %}
+  <circle cx="{{ gx + gw * 0.82 }}" cy="{{ gy + gh * 0.16 }}" r="{{ gw * 0.055 }}"
+          fill="{{ ['var(--m-hazard)', hue, 'var(--m-paint)'][i % 3] }}" opacity=".6"
+          class="blink" style="animation-delay:{{ i * 0.4 }}s"/>
+  {% endfor %}
+  <rect x="{{ w.x }}" y="{{ w.y + w.h - 20 }}" width="{{ w.w }}" height="20" fill="var(--slab)"/>
+  <rect x="{{ w.x }}" y="{{ w.y + w.h - 20 }}" width="{{ w.w }}" height="20"
+        fill="url(#plating)" opacity=".5"/>
+  <rect x="{{ w.x }}" y="{{ w.y + w.h - 20 }}" width="{{ w.w }}" height="2.6" fill="#fff"
+        opacity=".12"/>
+
+{% elif w.kind == 'spine' %}
+  {# the trunk between the pipeline and the sealed wing #}
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="var(--wallm)"
+        opacity=".68"/>
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="url(#sheenV)"
+        opacity=".4"/>
+  <rect x="{{ w.x + w.w * 0.26 }}" y="{{ w.y }}" width="{{ w.w * 0.48 }}" height="{{ w.h }}"
+        fill="var(--m-steel-2)" stroke="#050912" stroke-width="2" stroke-opacity=".5"/>
+  <rect x="{{ w.x + w.w * 0.3 }}" y="{{ w.y }}" width="{{ w.w * 0.11 }}" height="{{ w.h }}"
+        fill="#fff" opacity=".07"/>
+  {% for i in range((w.h / 132) | round(0, 'ceil') | int) %}
+  <rect x="{{ w.x + w.w * 0.18 }}" y="{{ w.y + 40 + i * 132 }}" width="{{ w.w * 0.64 }}"
+        height="13" rx="3" fill="var(--wallcap)" stroke="#050912" stroke-width="1.4"
+        stroke-opacity=".5"/>
+  <circle cx="{{ w.x + w.w * 0.5 }}" cy="{{ w.y + 46 + i * 132 }}" r="3.4" fill="{{ hue }}"
+          opacity=".45" class="blink" style="animation-delay:{{ i * 0.6 }}s"/>
+  {% endfor %}
+  {% for i in range((w.h / 30) | round(0, 'ceil') | int) %}
+  <line x1="{{ w.x + w.w * 0.05 }}" y1="{{ w.y + i * 30 }}" x2="{{ w.x + w.w * 0.2 }}"
+        y2="{{ w.y + i * 30 }}" stroke="var(--wallcap)" stroke-width="2.6"/>
+  {% endfor %}
+  <line x1="{{ w.x + w.w * 0.05 }}" y1="{{ w.y }}" x2="{{ w.x + w.w * 0.05 }}"
+        y2="{{ w.y + w.h }}" stroke="var(--wallcap)" stroke-width="3"/>
+  <line x1="{{ w.x + w.w * 0.2 }}" y1="{{ w.y }}" x2="{{ w.x + w.w * 0.2 }}"
+        y2="{{ w.y + w.h }}" stroke="var(--wallcap)" stroke-width="3"/>
+  <line x1="{{ w.x + w.w * 0.88 }}" y1="{{ w.y }}" x2="{{ w.x + w.w * 0.88 }}"
+        y2="{{ w.y + w.h }}" stroke="var(--m-brass)" stroke-width="4" opacity=".45"/>
+
+{% else %}
+  {# a short service run between two sealed rooms #}
+  <rect x="{{ w.x }}" y="{{ w.y }}" width="{{ w.w }}" height="{{ w.h }}" fill="var(--wallm)"
+        opacity=".6"/>
+  {% for i in range(3) %}
+  <line x1="{{ w.x + 20 }}" y1="{{ w.y + w.h * (0.26 + 0.24 * i) }}" x2="{{ w.x + w.w - 20 }}"
+        y2="{{ w.y + w.h * (0.26 + 0.24 * i) }}" stroke="#050912" stroke-width="9"
+        stroke-opacity=".45"/>
+  <line x1="{{ w.x + 20 }}" y1="{{ w.y + w.h * (0.26 + 0.24 * i) }}" x2="{{ w.x + w.w - 20 }}"
+        y2="{{ w.y + w.h * (0.26 + 0.24 * i) }}"
+        stroke="{{ ['var(--m-steel)', 'var(--m-brass)', 'var(--m-paint)'][i] }}"
+        stroke-width="6" opacity=".75"/>
+  {% endfor %}
+  {% for i in range((w.w / 150) | round(0, 'ceil') | int) %}
+  <rect x="{{ w.x + 60 + i * 150 }}" y="{{ w.y + 6 }}" width="12" height="{{ w.h - 12 }}" rx="3"
+        fill="var(--wallcap)" stroke="#050912" stroke-width="1.3" stroke-opacity=".5"/>
+  {% endfor %}
+  <circle cx="{{ w.x + w.w * 0.72 }}" cy="{{ w.y + w.h * 0.5 }}" r="12" fill="none"
+          stroke="var(--m-paint)" stroke-width="3.4" opacity=".7"/>
+{% endif %}
+</g>
+{% endmacro %}
+
+
+{# ------------------------------------------------------------ status plate
+
+   What a room is doing, on the room's own wall. This was on the callout card
+   until M29 took the writing off the map, and a facility whose only sign of
+   trouble is a card you have to switch on is a facility that always looks like
+   it is going well. The word is the same word the dossier uses, because it
+   comes from the same call. #}
+
+{% macro plate(room_id, board, hue) %}
+<g class="statplate">
+  <rect x="{{ board.x + 2 }}" y="{{ board.y + 3 }}" width="{{ board.w }}"
+        height="{{ board.h }}" rx="5" fill="#000" opacity=".45"/>
+  <rect x="{{ board.x }}" y="{{ board.y }}" width="{{ board.w }}" height="{{ board.h }}" rx="5"
+        fill="var(--plate-2)" stroke="#050912" stroke-width="1.6" stroke-opacity=".7"/>
+  <rect x="{{ board.x }}" y="{{ board.y }}" width="{{ board.w }}" height="{{ board.h * 0.24 }}"
+        rx="5" fill="#fff" opacity=".05"/>
+  <rect x="{{ board.x + 3 }}" y="{{ board.y + 3 }}" width="{{ board.w - 6 }}"
+        height="{{ board.h - 6 }}" rx="3" fill="none" stroke="{{ hue }}" stroke-width="1.2"
+        stroke-opacity=".3"/>
+  <circle class="lamp" data-boardlamp="{{ room_id }}" cx="{{ board.x + 13 }}"
+          cy="{{ board.y + board.h / 2 }}" r="5.5"
+          fill="{{ backing_colour(board.backing) }}"/>
+  <circle cx="{{ board.x + 13 }}" cy="{{ board.y + board.h / 2 }}" r="9" fill="none"
+          stroke="{{ backing_colour(board.backing) }}" stroke-width="1.2" stroke-opacity=".3"/>
+  <text class="platetext" data-board="{{ room_id }}" x="{{ board.x + 26 }}"
+        y="{{ board.y + board.h / 2 + 4 }}">{{ board.text }}</text>
+</g>
+{% endmacro %}
+
+
+{# ---------------------------------------------------- the pipeline, in the hub
+
+   The Control Room reports on a walk and did not show one. One block per stage,
+   in the order a hypothesis meets them, lit by what that stage is doing on the
+   arm on display -- and joined by the same line the hypothesis follows. #}
+
+{% macro pipestrip(stages, hue) %}
+<g class="pipestrip">
+  {% set first = stages[0] %}
+  {% set last = stages[-1] %}
+  <line x1="{{ first.x }}" y1="{{ first.y + first.h / 2 }}"
+        x2="{{ last.x + last.w }}" y2="{{ last.y + last.h / 2 }}" stroke="#050912"
+        stroke-width="7" stroke-opacity=".55"/>
+  <line x1="{{ first.x }}" y1="{{ first.y + first.h / 2 }}"
+        x2="{{ last.x + last.w }}" y2="{{ last.y + last.h / 2 }}" stroke="{{ hue }}"
+        stroke-width="2" stroke-opacity=".3" stroke-dasharray="9 7"/>
+  {% for stage in stages %}
+  <g class="stage">
+    <rect x="{{ stage.x + 1.5 }}" y="{{ stage.y + 2.5 }}" width="{{ stage.w }}"
+          height="{{ stage.h }}" rx="4" fill="#000" opacity=".45"/>
+    <rect x="{{ stage.x }}" y="{{ stage.y }}" width="{{ stage.w }}" height="{{ stage.h }}"
+          rx="4" fill="var(--plate-2)" stroke="{{ stage.accent }}" stroke-width="1.6"
+          stroke-opacity="{{ '.9' if stage.engaged else '.35' }}"/>
+    <rect x="{{ stage.x }}" y="{{ stage.y }}" width="{{ stage.w }}" height="4" rx="2"
+          fill="{{ stage.accent }}" opacity="{{ '.95' if stage.engaged else '.3' }}"/>
+    <rect x="{{ stage.x + 4 }}" y="{{ stage.y + stage.h - 8 }}"
+          width="{{ (stage.w - 8) * 0.62 }}" height="3" rx="1.5" fill="{{ stage.accent }}"
+          opacity=".35"/>
+    <circle class="lamp" data-stagelamp="{{ stage.room_id }}" cx="{{ stage.x + stage.w - 8 }}"
+            cy="{{ stage.y + stage.h - 7 }}" r="3.2"
+            fill="{{ backing_colour(stage.backing) }}"/>
+    <text class="stageno" x="{{ stage.x + stage.w / 2 }}" y="{{ stage.y + stage.h / 2 + 4 }}"
+          text-anchor="middle">{{ stage.no }}</text>
+  </g>
+  {% endfor %}
+</g>
+{% endmacro %}

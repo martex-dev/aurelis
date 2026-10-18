@@ -759,7 +759,7 @@ def test_the_forward_record_is_legible_on_the_station(company: Runtime) -> None:
     assert "VERIFIES" in one and sealed.thesis[:40] in one
     agent = app.handle(f"/agent/{sealed.agent_ref}", {}).body.decode()
     assert "Forward record" in agent
-    front = app.handle("/", {}).body.decode()
+    front = app.handle("/facility", {}).body.decode()
     assert "VIEWS SCORED" in front
 
     html = build_sealed(company, company.settings.workspace / "station.html").path.read_text(

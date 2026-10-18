@@ -2489,6 +2489,30 @@ model calls. The only sign was "0 model call(s)" in small print.
 
 See [ADR-0061](adr/0061-the-company-says-when-it-is-asleep.md).
 
+## M61 — The Office ✅
+
+The operator's first idea for the interface was a building where the agents
+live: rooms you click into, avatars that visibly work, hallways, and a big
+central control room. Nullius drew it, and Aurelis never had it.
+
+- **Nullius's station art, carried over.** It is a side-on cutaway of eleven
+  rooms, each furnished for its work, joined by hallways and lifts, with the
+  Control Room in the middle.
+- **The people are the payroll.** There is one figure per employed agent, in
+  its department's room. The Company Manager is in the Control Room, and the
+  service is the servitor in the Engine Room.
+- **They work when the record says they do.** The page polls the ledger every
+  eight seconds. A working figure walks its stations; an idle one stands at
+  its post.
+- **Every room opens a dashboard.** The tabs are the brief in plain words,
+  who works here, right now, the page about the room's own work, and staff.
+  The Control Room shows the whole company and how far it is from asking for
+  real money.
+- **The Office is the front door.** The schematic facility is at
+  `/facility`.
+
+See [ADR-0062](adr/0062-the-office.md).
+
 ---
 
 ## Sequencing
