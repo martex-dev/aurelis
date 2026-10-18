@@ -147,6 +147,10 @@ class RefKind(StrEnum):
     CHAT = "CHT"
     """One line of a conversation between the operator and an agent (M62)."""
 
+    DIRECTIVE = "DIR"
+    """A standing instruction from the operator, issued or revoked through the
+    Manager (M63). Every seat reads the active ones."""
+
     SOURCE_REQUEST = "SRQ"
     """One agent's answer about one source in the catalogue: wanted or
     declined, with the reason. Its own prefix because the answers are what

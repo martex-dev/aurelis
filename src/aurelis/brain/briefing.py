@@ -57,13 +57,25 @@ _NOTES_BUDGET = 900
 _Q = Decimal("0.001")
 
 
+DIRECTIVES_RULE = (
+    "Standing directives from the operator, who owns the company, written down by "
+    "the Company Manager. Let them steer what you choose to look at and work on. "
+    "They do not change the evidence: never state a view you do not hold, or "
+    "a figure you were not shown, to follow one."
+)
+
+
 @dataclass(frozen=True, slots=True)
 class Briefing:
     record: str
     notes: str
+    directives: str = ""
+    """The operator's active directives (M63), or empty."""
 
     def text(self) -> str:
         parts = [BRAIN_RULE, "", "Record:", self.record or "  (nothing recorded yet)"]
+        if self.directives:
+            parts += ["", "Directives:", DIRECTIVES_RULE, self.directives]
         if self.notes:
             parts += ["", "Notes:", self.notes]
         return "\n".join(parts)
@@ -317,7 +329,13 @@ def briefing(session: Session, topics: tuple[str, ...] | list[str] = ()) -> Brie
         if note.ref not in seen:
             picked.append(note)
             seen.add(note.ref)
-    return Briefing(record=record, notes=_clip([_note_line(n) for n in picked], _NOTES_BUDGET))
+    from aurelis.manager.directives import directive_block
+
+    return Briefing(
+        record=record,
+        notes=_clip([_note_line(n) for n in picked], _NOTES_BUDGET),
+        directives=directive_block(session),
+    )
 
 
 def system_with_brain(system: str, identity: str, brain: Briefing) -> str:

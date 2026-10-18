@@ -521,6 +521,8 @@
            border-radius:999px; border:1px solid var(--plate-line); font:700 .78rem/1 var(--sans);
            color:var(--plate-ink); cursor:pointer; }
   .pulse i { width:.6rem; height:.6rem; border-radius:50%; background:var(--plate-dim); }
+  .pulse.manager { background:#2b2410; border-color:#ffd479; color:#ffd479; }
+  .pulse.manager:hover { background:#3a3014; }
   .pulse.thinking i { background:#4ade80; box-shadow:0 0 10px #4ade80; }
   .pulse.asleep, .pulse.stopped { border-color:#f87171; color:#fecaca; background:#2a1416;
            animation:alarmpill 1.6s ease-in-out infinite; }
@@ -621,6 +623,7 @@
   <span class="brand">AURELIS <span>&middot;</span> THE OFFICE</span>
   <span class="pulse {{ health.state }}" id="pulse" title="{{ health.detail }}"><i></i>
     <span id="pulse-text">{{ health.headline }}</span></span>
+  <button type="button" class="pulse manager" id="manager-btn">talk to the Manager</button>
   <nav>
     <a href="/facility">classic station</a><a href="/mandate">money</a>
     <a href="/mechanisms">mechanisms</a><a href="/theses">views</a><a href="/brain">brain</a>
@@ -1165,7 +1168,7 @@
         send.disabled = true;
         bubble(log, 'operator', text, '', null, '');
         var waiting = bubble(log, 'agent', 'thinking…', '', null, 'thinking');
-        fetch('/office/chat/' + encodeURIComponent(chat.dataset.chat), {
+        fetch(chat.dataset.endpoint || ('/office/chat/' + encodeURIComponent(chat.dataset.chat)), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Aurelis-Office': '1' },
           body: JSON.stringify({ text: text })
@@ -1299,6 +1302,7 @@
       .then(render).catch(function () { /* the next poll tries again */ });
   }
   document.getElementById('pulse').addEventListener('click', function () { open('control'); });
+  document.getElementById('manager-btn').addEventListener('click', function () { open('control'); });
   var alarmHidden = false, alarmState = '{{ health.state }}';
   document.getElementById('alarm-x').addEventListener('click', function (e) {
     e.stopPropagation(); alarmHidden = true;

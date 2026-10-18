@@ -275,15 +275,33 @@ def _control(session: Session, state: dict[str, Any], now: dt.datetime) -> str:
     )
 
 
-def room_panel(session: Session, room_id: str, now: dt.datetime) -> str | None:
-    """The dashboard a room opens: tabs of real information about its work."""
+def room_panel(session: Session, room_id: str, now: dt.datetime, provider: str = "") -> str | None:
+    """The dashboard a room opens: tabs of real information about its work.
+
+    The Control Room opens on the Manager: the operator's one portal (M63)."""
+    from aurelis.manager.portal import manager_ref
+
     try:
         room = room_named(room_id)
     except KeyError:
         return None
     state = live_state(session, now)
     if room.room_id == CONTROL:
+        boss = manager_ref(session)
+        portal = (
+            [
+                (
+                    "manager",
+                    "talk to the Manager",
+                    _talk(session, boss, MANAGER_HANDLE, provider, manager=True),
+                )
+            ]
+            if boss is not None
+            else []
+        )
         tabs = [
+            *portal,
+            ("directives", "directives", directives_panel(session)),
             ("company", "the company", _control(session, state, now)),
             ("money", "path to real money", _lazy("mandate")),
             ("feed", "live feed", _now(state, CONTROL)),
@@ -346,15 +364,13 @@ def _provider_line(provider: str) -> str:
     return f"<p class='faint'>Answers come from {escape(provider)}.</p>"
 
 
-def agent_panel(session: Session, ref: str, provider: str = "") -> str | None:
-    """One agent, opened over the map: a conversation with it, and its profile (M62)."""
-    from aurelis.chat.talk import thread
-    from aurelis.station import pages
+MANAGER_ENDPOINT = "/office/manager"
 
-    profile = pages.agent_page(session, ref)
-    if profile is None:
-        return None
-    handle = next((p.handle for p in people(session) if p.ref == ref), ref)
+
+def _talk(session: Session, ref: str, handle: str, provider: str, *, manager: bool) -> str:
+    """The conversation box: what was said, and a place to say more."""
+    from aurelis.chat.talk import thread
+
     log = "".join(
         _bubble(
             t.speaker,
@@ -366,23 +382,92 @@ def agent_panel(session: Session, ref: str, provider: str = "") -> str | None:
         )
         for t in thread(session, ref)
     ) or (
-        f"<p class='plain sm empty'>You have not talked to {escape(handle)} yet. Ask it "
-        "anything: what it is working on, why it declined a market, what it thinks of "
-        "its own record.</p>"
+        (
+            "<p class='plain sm empty'>This is the Company Manager, your one portal into "
+            "the company. Tell it what you want the company to do, focus on or stop doing; "
+            "ask it what is going on, or what any agent thinks. It writes your instructions "
+            "down as directives every agent reads, asks colleagues for you, and reports "
+            "back.</p>"
+        )
+        if manager
+        else (
+            f"<p class='plain sm empty'>You have not talked to {escape(handle)} yet. Ask it "
+            "anything: what it is working on, why it declined a market, what it thinks of "
+            "its own record.</p>"
+        )
     )
-    talk = (
-        f"<div class='chat' data-chat='{escape(ref)}' data-handle='{escape(handle)}'>"
+    endpoint = f" data-endpoint='{MANAGER_ENDPOINT}'" if manager else ""
+    about = (
+        "It answers from the whole company's situation. It can write a directive every "
+        "agent reads, withdraw one, and ask up to three colleagues before it reports back; "
+        "it cannot trade, grant data, override Risk or turn on real money. A message that "
+        "makes it ask colleagues takes a few model calls and a few minutes."
+        if manager
+        else "It answers from its own seat, as itself: its charters, its method, its record "
+        "and the shared brain. It can explain, argue and suggest; it cannot trade or change "
+        "anything from here. Every line is kept on the record, and each answer is one model "
+        "call on your subscription."
+    )
+    return (
+        f"<div class='chat' data-chat='{escape(ref)}' data-handle='{escape(handle)}'{endpoint}>"
         f"<div class='chat-log'>{log}</div>"
         "<form class='chat-form'>"
         f"<textarea rows='2' placeholder='Say something to {escape(handle)}… "
         "(Enter to send, Shift+Enter for a new line)'></textarea>"
         "<button type='submit'>Send</button></form>"
         + _provider_line(provider)
-        + "<p class='faint'>It answers from its own seat, as itself: its charters, its method, "
-        "its record and the shared brain. It can explain, argue and suggest; it cannot "
-        "trade or change anything from here. Every line is kept on the record, and each "
-        "answer is one model call on your subscription.</p></div>"
+        + f"<p class='faint'>{about}</p></div>"
     )
+
+
+def directives_panel(session: Session) -> str:
+    """What the agents have been told, and what was withdrawn."""
+    from aurelis.manager.directives import active
+    from aurelis.manager.tables import Directive
+
+    now_on = active(session)
+    live = "".join(
+        f"<li><b class='mono'>{escape(d.ref)}</b> for {escape(d.for_whom())}, since "
+        f"{d.issued_at:%m-%d %H:%M}: {escape(d.text)}</li>"
+        for d in now_on
+    )
+    withdrawn = list(
+        session.execute(
+            sa.select(Directive)
+            .where(Directive.kind == "revoke")
+            .order_by(Directive.issued_at.desc())
+            .limit(20)
+        ).scalars()
+    )
+    gone = "".join(
+        f"<li><b class='mono'>{escape(str(r.revokes))}</b> withdrawn {r.issued_at:%m-%d %H:%M}</li>"
+        for r in withdrawn
+    )
+    return (
+        "<p class='plain sm'>Directives are your instructions, written down by the Manager. "
+        "Every agent reads the active ones at every seat. To change one, tell the "
+        "Manager.</p>"
+        + (
+            f"<h2>active</h2><ul class='steps'>{live}</ul>"
+            if live
+            else "<p class='plain sm'>No directive is active: the agents choose for themselves.</p>"
+        )
+        + (f"<h2>withdrawn</h2><ul class='steps'>{gone}</ul>" if gone else "")
+    )
+
+
+def agent_panel(session: Session, ref: str, provider: str = "") -> str | None:
+    """One agent, opened over the map: a conversation with it, and its profile (M62).
+
+    The Company Manager opens on the operator's portal (M63) rather than on an
+    ordinary conversation."""
+    from aurelis.station import pages
+
+    profile = pages.agent_page(session, ref)
+    if profile is None:
+        return None
+    handle = next((p.handle for p in people(session) if p.ref == ref), ref)
+    talk = _talk(session, ref, handle, provider, manager=handle == MANAGER_HANDLE)
     return (
         "<nav class='tabs'><button type='button' class='tabbtn on' data-tab='talk'>talk</button>"
         "<button type='button' class='tabbtn' data-tab='profile'>profile</button></nav>"

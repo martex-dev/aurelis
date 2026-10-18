@@ -145,6 +145,30 @@ class StationApp:
             content_type="application/json; charset=utf-8",
         )
 
+    def manage(self, text: str) -> Response:
+        """The operator says ``text`` to the Company Manager, which may write a
+        directive, withdraw one or ask colleagues, then reports back (M63)."""
+        from aurelis.manager.portal import manage
+
+        if not text.strip():
+            return Response(b'{"error": "say something"}', 400, "application/json")
+        try:
+            exchange, done = manage(self.runtime, text)
+        except KeyError as error:
+            body = json.dumps({"error": str(error)}).encode()
+            return Response(body, 404, "application/json")
+        return Response(
+            json.dumps(
+                {
+                    "question": _turn_json(exchange.question),
+                    "answer": _turn_json(exchange.answer) if exchange.answer else None,
+                    "error": exchange.error,
+                    "did": done.lines(),
+                }
+            ).encode("utf-8"),
+            content_type="application/json; charset=utf-8",
+        )
+
     # -------------------------------------------------------------- views
 
     def _office(self, rest: list[str], _q: dict[str, list[str]]) -> Response:
@@ -168,7 +192,7 @@ class StationApp:
                 )
             fragment: str | None = None
             if len(rest) == 2 and rest[0] == "room":
-                fragment = live.room_panel(session, rest[1], now)
+                fragment = live.room_panel(session, rest[1], now, self.runtime.provider.name)
             elif len(rest) == 2 and rest[0] == "agent":
                 fragment = live.agent_panel(session, rest[1], self.runtime.provider.name)
             elif len(rest) == 2 and rest[0] == "tab":
@@ -444,9 +468,9 @@ class _Handler(BaseHTTPRequestHandler):
         # here. Such a page cannot set a custom header without a CORS
         # preflight, and this server answers no preflight. A JSON body is
         # required as well.
+        to_manager = parts == ["office", "manager"]
         if (
-            len(parts) != 3
-            or parts[:2] != ["office", "chat"]
+            not (to_manager or (len(parts) == 3 and parts[:2] == ["office", "chat"]))
             or self.headers.get("X-Aurelis-Office") != "1"
             or not (self.headers.get("Content-Type") or "").startswith("application/json")
         ):
@@ -458,7 +482,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         try:
             text = str(json.loads(self.rfile.read(length)).get("text", ""))
-            response = self.app.say(parts[2], text)
+            response = self.app.manage(text) if to_manager else self.app.say(parts[2], text)
         except Exception as error:  # noqa: BLE001 - a 500 is better than a hang
             body = json.dumps({"error": f"{type(error).__name__}: {error}"}).encode()
             response = Response(body, 500, "application/json")

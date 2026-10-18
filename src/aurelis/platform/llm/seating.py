@@ -84,6 +84,18 @@ def standins() -> Callable[[LlmRequest], str]:
                 "LESSON: A view stated with high confidence on a market that had not moved "
                 "scored worst; confidence should follow the evidence, not the story.\n"
             )
+        if "You asked colleagues, and they answered" in prompt:
+            return "REPLY: I asked, and here is what they said, in short: nothing has an edge yet."
+        if "The Company Manager asks, for the operator:" in prompt:
+            return "Plainly: my record is no better than a coin toss so far."
+        if "The company right now:" in prompt and "The operator says:" in prompt:
+            if "nothing to do" in prompt.lower():
+                return "REPLY: Understood, nothing to do."
+            return (
+                "REPLY: I will point the company at it and ask the Critic what it thinks.\n"
+                "DIRECTIVE: Prefer views on the meme-coin desk this week | TO: all\n"
+                "ASK: CRITIC: Is any meme-coin pattern worth a closer look?"
+            )
         if "Answer the operator as" in prompt:
             return (
                 "Honestly, my record so far is no better than a coin toss, so I would not "

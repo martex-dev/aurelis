@@ -2530,6 +2530,25 @@ Inbox: a letter, with no reply.
 
 See [ADR-0063](adr/0063-talking-to-the-agents.md).
 
+## M63 — The Manager: the operator's one portal ✅
+
+Talking to an agent changed nothing, and the company had no way to turn a
+person's wish into different work.
+
+- **The Company Manager is the portal.** It sits in the Control Room and
+  answers from the whole company's situation.
+- **Directives.** It writes the operator's instructions down. Every agent
+  reads the active ones in the shared brain at every seat, so their choices
+  change at the next seat. Directives are append-only and withdrawn by a
+  revoke row.
+- **It asks colleagues.** It can put a question to up to three agents, as
+  real messages each way, the first the live company has sent. It reports
+  back with what they said.
+- **It cannot act beyond that.** It has no path to orders, grants, budgets,
+  Risk or real money, and a test holds it to that.
+
+See [ADR-0064](adr/0064-the-manager.md).
+
 ---
 
 ## Sequencing
